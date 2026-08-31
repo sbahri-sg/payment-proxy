@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -65,7 +66,7 @@ func run(logger *slog.Logger) error {
 	errorsChannel := make(chan error, 1)
 	go func() {
 		logger.Info("Midtrans Provider App started", "address", server.Addr, "version", providerConnector.Manifest().Version, "executable_sha256", digest)
-		errorsChannel <- server.ListenAndServe()
+		errorsChannel <- listen(server, cfg.TLSCertPEM, cfg.TLSKeyPEM)
 	}()
 	select {
 	case <-ctx.Done():
@@ -78,6 +79,18 @@ func run(logger *slog.Logger) error {
 		}
 		return err
 	}
+}
+
+func listen(server *http.Server, certPEM, keyPEM []byte) error {
+	if len(certPEM) == 0 {
+		return server.ListenAndServe()
+	}
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return err
+	}
+	server.TLSConfig = &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12}
+	return server.ListenAndServeTLS("", "")
 }
 
 func executableSHA256() (string, error) {

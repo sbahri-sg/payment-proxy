@@ -13,6 +13,16 @@ type Endpoint = {
   body?: string;
   response?: string;
   note?: string;
+  examples?: EndpointExample[];
+};
+
+type EndpointExample = {
+  title: string;
+  description?: string;
+  headers?: string[];
+  body?: string;
+  response?: string;
+  note?: string;
 };
 
 type Group = { id: string; title: string; summary: string; endpoints: Endpoint[] };
@@ -671,9 +681,13 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         note: "`next_action` tidak disertakan pada item list agar QR base64 tidak memperbesar payload. Ambil detail payment untuk menampilkan QRIS.",
       },
       {
-        method: "POST", path: "/api/v1/payment-sessions", title: "Create payment", description: "Membuat payment melalui payment option merchant dan mengunci binding ke installation tersebut.",
-        headers: ["X-Emisell-Execution-Mode: sandbox", "Idempotency-Key: checkout-order-123-attempt-1"],
-        body: `{
+        method: "POST", path: "/api/v1/payment-sessions", title: "Create payment", description: "Membuat payment melalui payment option merchant dan mengunci binding ke installation tersebut. Endpoint yang sama menangani QRIS, Virtual Account, e-wallet, dan hosted card berdasarkan payment_option_id.",
+        examples: [
+          {
+            title: "QRIS, Virtual Account, atau e-wallet",
+            description: "Gunakan payment_option_id aktif dari checkout options. Bentuk next_action mengikuti metode yang dipilih, misalnya QR, nomor VA, redirect, atau mobile authorization.",
+            headers: ["X-Emisell-Execution-Mode: sandbox", "Idempotency-Key: checkout-order-123-attempt-1"],
+            body: `{
   "payment_option_id": "pmo_...",
   "merchant_reference": "order_2026_0001",
   "amount": 1000000,
@@ -684,17 +698,18 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
   "return_url": "https://shop.example/payments/return",
   "metadata": { "order_id": "order_2026_0001" }
 }`,
-        response: `{
+            response: `{
   "data": {
     "payment": ${paymentBase}
   }
 }`,
-        note: "payment_option_id direkomendasikan. installation_id + method lama tetap diterima selama migrasi. Retry dengan idempotency key dan payload yang sama tetap mengembalikan payment existing meskipun assignment berubah. Amount menggunakan minor unit: 1.000.000 berarti Rp10.000.",
-      },
-      {
-        method: "POST", path: "/api/v1/payment-sessions", title: "Create hosted card payment", description: "Membuat Xendit Payment Session dan mengembalikan hosted checkout URL; data kartu tidak pernah melewati Emisell.",
-        headers: ["X-Emisell-Execution-Mode: sandbox", "Idempotency-Key: checkout-card-order-123-attempt-1"],
-        body: `{
+            note: "payment_option_id direkomendasikan. installation_id + method lama tetap diterima selama migrasi. Retry dengan idempotency key dan payload yang sama tetap mengembalikan payment existing meskipun assignment berubah. Amount menggunakan minor unit: 1.000.000 berarti Rp10.000.",
+          },
+          {
+            title: "Hosted card",
+            description: "Payment option card membuat hosted Xendit Payment Session dan mengembalikan redirect URL. Data kartu tidak pernah melewati Emisell.",
+            headers: ["X-Emisell-Execution-Mode: sandbox", "Idempotency-Key: checkout-card-order-123-attempt-1"],
+            body: `{
   "payment_option_id": "pmo_card_...",
   "merchant_reference": "order_card_2026_0001",
   "amount": 1000000,
@@ -704,7 +719,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
   "return_url": "https://shop.example/payments/return",
   "metadata": { "order_id": "order_card_2026_0001" }
 }`,
-        response: `{
+            response: `{
   "data": {
     "payment": {
       "id": "pay_01k3...",
@@ -718,7 +733,9 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     }
   }
 }`,
-        note: "Buka redirect_url pada browser pelanggan. PAN, expiry, CVV/CVN, dan OTP hanya boleh dimasukkan pada halaman hosted Xendit; jangan kirimkan field tersebut ke Payment Proxy, metadata, atau log.",
+            note: "Buka redirect_url pada browser pelanggan. PAN, expiry, CVV/CVN, dan OTP hanya boleh dimasukkan pada halaman hosted Xendit; jangan kirimkan field tersebut ke Payment Proxy, metadata, atau log.",
+          },
+        ],
       },
       {
         method: "GET", path: "/api/v1/payment-sessions/{id}", title: "Get payment", description: "Membaca local projection dan mencoba sinkronisasi langsung ke provider jika provider payment ID tersedia.",
@@ -1336,6 +1353,19 @@ function postmanRequest(endpoint: Endpoint) {
   return lines.join("\n");
 }
 
+function postmanExampleRequest(endpoint: Endpoint, example: EndpointExample) {
+  return postmanRequest({
+    method: endpoint.method,
+    path: endpoint.path,
+    title: example.title,
+    description: example.description ?? endpoint.description,
+    headers: example.headers ?? endpoint.headers,
+    body: example.body,
+    response: example.response,
+    note: example.note,
+  });
+}
+
 export default async function DocsPage({
   searchParams,
 }: {
@@ -1525,14 +1555,38 @@ provider_secret = <secret injected only in isolated runtime>`}</Code>
                         </summary>
                         <div className="endpoint-accordion-body">
                           <p>{endpoint.description}</p>
-                          <div className="api-example-grid">
-                            <section>
-                              <h4>Contoh request Postman</h4>
-                              <Code>{postmanRequest(endpoint)}</Code>
-                            </section>
-                            {endpoint.response && <section><h4>Contoh response</h4><Code>{endpoint.response}</Code></section>}
-                          </div>
-                          {endpoint.note && <div className="callout warning">{endpoint.note}</div>}
+                          {endpoint.examples?.length ? (
+                            <div className="endpoint-example-variants">
+                              {endpoint.examples.map((example) => (
+                                <section className="endpoint-example-variant" key={example.title}>
+                                  <div className="endpoint-example-heading">
+                                    <span>VARIASI REQUEST</span>
+                                    <h3>{example.title}</h3>
+                                    {example.description && <p>{example.description}</p>}
+                                  </div>
+                                  <div className="api-example-grid">
+                                    <section>
+                                      <h4>Contoh request Postman</h4>
+                                      <Code>{postmanExampleRequest(endpoint, example)}</Code>
+                                    </section>
+                                    {example.response && <section><h4>Contoh response</h4><Code>{example.response}</Code></section>}
+                                  </div>
+                                  {example.note && <div className="callout warning">{example.note}</div>}
+                                </section>
+                              ))}
+                            </div>
+                          ) : (
+                            <>
+                              <div className="api-example-grid">
+                                <section>
+                                  <h4>Contoh request Postman</h4>
+                                  <Code>{postmanRequest(endpoint)}</Code>
+                                </section>
+                                {endpoint.response && <section><h4>Contoh response</h4><Code>{endpoint.response}</Code></section>}
+                              </div>
+                              {endpoint.note && <div className="callout warning">{endpoint.note}</div>}
+                            </>
+                          )}
                         </div>
                       </details>
                     ))}

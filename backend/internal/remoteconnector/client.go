@@ -3,6 +3,8 @@ package remoteconnector
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +28,10 @@ type Client struct {
 }
 
 func Discover(ctx context.Context, baseURL, token string, timeout time.Duration) ([]connector.Connector, error) {
+	return DiscoverWithCAPEM(ctx, baseURL, token, timeout, nil)
+}
+
+func DiscoverWithCAPEM(ctx context.Context, baseURL, token string, timeout time.Duration, caPEM []byte) ([]connector.Connector, error) {
 	parsed, err := parseBaseURL(baseURL)
 	if err != nil {
 		return nil, err
@@ -36,8 +42,21 @@ func Discover(ctx context.Context, baseURL, token string, timeout time.Duration)
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	if len(caPEM) > 0 {
+		roots, rootsErr := x509.SystemCertPool()
+		if rootsErr != nil || roots == nil {
+			roots = x509.NewCertPool()
+		}
+		if !roots.AppendCertsFromPEM(caPEM) {
+			return nil, errors.New("connector runner CA contains no valid certificates")
+		}
+		transport.TLSClientConfig.RootCAs = roots
+	}
 	httpClient := &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
+		Transport: transport,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return errors.New("connector runner redirect is not allowed")
 		},

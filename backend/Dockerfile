@@ -1,22 +1,43 @@
 # syntax=docker/dockerfile:1.7
-FROM golang:1.26-alpine AS build
+FROM golang:1.26-alpine AS build-base
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/payment-proxy ./cmd/payment-proxy
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/connector-runner ./cmd/connector-runner
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/midtrans-provider-app ./cmd/midtrans-provider-app
+
+FROM build-base AS build-payment-proxy
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/payment-proxy ./cmd/payment-proxy
+
+FROM build-base AS build-connector-runner
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/connector-runner ./cmd/connector-runner
+
+FROM build-base AS build-midtrans-provider-app
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/midtrans-provider-app ./cmd/midtrans-provider-app
+
+FROM alpine:3.22 AS runtime-base
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S -g 10001 app \
+    && adduser -S -D -H -u 10001 -G app app
+USER 10001:10001
+
+FROM runtime-base AS connector-runner
+COPY --from=build-connector-runner /out/connector-runner /usr/local/bin/connector-runner
+EXPOSE 18081
+ENTRYPOINT ["/usr/local/bin/connector-runner"]
+
+FROM runtime-base AS midtrans-provider-app
+COPY --from=build-midtrans-provider-app /out/midtrans-provider-app /usr/local/bin/midtrans-provider-app
+EXPOSE 18083
+ENTRYPOINT ["/usr/local/bin/midtrans-provider-app"]
 
 FROM scratch AS midtrans-provider-app-artifact
-COPY --from=build /out/midtrans-provider-app /connector
+COPY --from=build-midtrans-provider-app /out/midtrans-provider-app /connector
 
-FROM alpine:3.22
-RUN apk add --no-cache ca-certificates tzdata && addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app
-COPY --from=build /out/payment-proxy /usr/local/bin/payment-proxy
-COPY --from=build /out/connector-runner /usr/local/bin/connector-runner
-COPY --from=build /out/midtrans-provider-app /usr/local/bin/midtrans-provider-app
-USER 10001:10001
-EXPOSE 8080 18081 18083
+FROM runtime-base AS payment-proxy
+COPY --from=build-payment-proxy /out/payment-proxy /usr/local/bin/payment-proxy
+EXPOSE 8080 19090
 ENTRYPOINT ["/usr/local/bin/payment-proxy"]
 CMD ["api"]

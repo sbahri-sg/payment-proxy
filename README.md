@@ -88,6 +88,65 @@ Alamat default:
 - Runtime capabilities: `GET http://localhost:18080/api/v1/engine/capabilities`
 - Admin readiness report: `GET http://localhost:18080/internal/v1/engine/readiness`
 
+## Deploy production satu perintah
+
+Deployment production tidak memakai `.env` yang diedit manual. Script bootstrap
+membuat seluruh password, encryption key, API key, session secret, webhook
+secret, serta sertifikat TLS internal connector pada deployment pertama. Nilai
+tersebut disimpan dengan permission `0600` di `.deploy/production.env` dan
+digunakan kembali pada redeploy berikutnya.
+
+Prasyarat yang tidak dapat dibuat Docker secara otomatis:
+
+1. siapkan server Linux dengan Docker Engine dan Docker Compose;
+2. arahkan DNS domain Payment Proxy ke IP server;
+3. buka port TCP `80` dan TCP/UDP `443`;
+4. siapkan URL HTTPS receiver Emisell Backend jika ingin mengaktifkan fallback
+   delivery saat deployment pertama.
+
+Jalankan dari root repository:
+
+```bash
+./scripts/deploy-production.sh deploy payment-proxy.example.com \
+  https://api.example.com/webhooks/v1/payment-proxy
+```
+
+Callback URL boleh dikosongkan dan diatur kemudian dari menu Webhooks:
+
+```bash
+./scripts/deploy-production.sh deploy payment-proxy.example.com
+```
+
+Perintah di atas otomatis:
+
+- membuat secret acak yang fail-closed dan tidak masuk Git;
+- membuat private CA serta TLS certificate terpisah untuk Xendit dan Midtrans
+  connector;
+- membangun image minimum yang berbeda untuk Kernel, Xendit connector,
+  Midtrans connector, dan dashboard;
+- menjalankan PostgreSQL migration;
+- menjalankan Kernel, worker, connector, dan dashboard sebagai non-root dengan
+  read-only filesystem; gateway memakai capability minimum, sementara seluruh
+  topology mendapat resource limit, log rotation, dan network segmentation;
+- menjalankan Caddy sebagai ingress dengan HTTPS certificate otomatis;
+- menunggu API, connector, dan dashboard berstatus sehat.
+
+Operasional berikutnya:
+
+```bash
+./scripts/deploy-production.sh status
+./scripts/deploy-production.sh logs api
+./scripts/deploy-production.sh credentials
+./scripts/deploy-production.sh deploy
+```
+
+Perintah `deploy` tanpa domain menggunakan konfigurasi yang sudah tersimpan.
+Jangan menghapus `.deploy/production.env`: encryption key di dalamnya diperlukan
+untuk membuka credential provider yang tersimpan. Backup file tersebut secara
+terenkripsi bersama backup PostgreSQL. Production topology tersedia di
+`docker-compose.production.yml`; Compose lokal tetap berada di
+`docker-compose.yml`.
+
 Konfigurasi minimum API:
 
 ```text
@@ -195,6 +254,9 @@ npm run build
 cd ..
 docker compose build
 docker compose up -d
+
+./scripts/deploy-production.sh init payment-proxy.example.com
+./scripts/deploy-production.sh validate
 ```
 
 Read-only capacity smoke test (mutation endpoint tidak diizinkan):

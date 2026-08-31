@@ -109,7 +109,7 @@ func run(logger *slog.Logger) error {
 	}
 	connectors := make([]connector.Connector, 0, len(cfg.ConnectorRunners))
 	for _, connectorRuntime := range cfg.ConnectorRunners {
-		discovered, discoverErr := remoteconnector.Discover(ctx, connectorRuntime.BaseURL, connectorRuntime.Token, cfg.ConnectorTimeout)
+		discovered, discoverErr := remoteconnector.DiscoverWithCAPEM(ctx, connectorRuntime.BaseURL, connectorRuntime.Token, cfg.ConnectorTimeout, cfg.ConnectorTLSCAPEM)
 		if discoverErr != nil {
 			return discoverErr
 		}

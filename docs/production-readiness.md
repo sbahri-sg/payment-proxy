@@ -8,6 +8,39 @@ tidak dengan sendirinya membuktikan kapasitas production; target akhir harus
 diuji pada topology, database, network, dan jumlah replica yang menyerupai
 production.
 
+## Baseline container production
+
+Repository menyediakan topology single-server yang dapat dibootstrap tanpa
+menulis `.env` secara manual:
+
+```bash
+./scripts/deploy-production.sh deploy payment-proxy.example.com \
+  https://api.example.com/webhooks/v1/payment-proxy
+```
+
+Baseline ini meliputi:
+
+- secret acak persisten yang dibuat pada first deploy;
+- TLS publik otomatis melalui Caddy;
+- private CA dan TLS internal antara Kernel dan setiap connector;
+- image target terpisah sehingga connector tidak membawa binary Kernel atau
+  binary provider lain;
+- container aplikasi non-root dan read-only; ingress read-only dengan capability
+  minimum; `no-new-privileges`, resource/pid limit, dan log rotation;
+- network terpisah untuk ingress, database, connector control, provider egress,
+  dan webhook egress;
+- hanya port `80` dan `443` yang dipublikasikan;
+- production startup tetap fail-closed ketika secret atau URL wajib hilang.
+
+File `.deploy/production.env` harus diperlakukan sebagai recovery secret. File
+ini tidak masuk Git dan wajib dibackup terenkripsi. Kehilangan
+`CREDENTIAL_ENCRYPTION_KEY` menyebabkan credential provider di database tidak
+dapat didekripsi.
+
+Topology ini adalah baseline single-server, bukan klaim high availability.
+Untuk multi-replica, pindahkan PostgreSQL, secret, ingress, metrics, dan image
+registry ke layanan terkelola/orchestrator tanpa mengubah kontrak API.
+
 ## SLO awal
 
 | Signal | Target awal | Alert |

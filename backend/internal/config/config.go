@@ -30,6 +30,7 @@ type Config struct {
 	CertificationReturnURL string
 	ConnectorTimeout       time.Duration
 	ConnectorRunners       []ConnectorRuntime
+	ConnectorTLSCAPEM      []byte
 	CredentialKey          string
 	EmisellWebhookURL      string
 	EmisellWebhookSecret   string
@@ -53,6 +54,10 @@ type ConnectorRuntime struct {
 func Load() (Config, error) {
 	appEnv := envOr("APP_ENV", "development")
 	connectorRunners, err := loadConnectorRuntimes()
+	if err != nil {
+		return Config{}, err
+	}
+	connectorTLSCAPEM, err := optionalBase64("CONNECTOR_TLS_CA_BASE64")
 	if err != nil {
 		return Config{}, err
 	}
@@ -83,6 +88,7 @@ func Load() (Config, error) {
 		CertificationReturnURL: strings.TrimRight(strings.TrimSpace(os.Getenv("CERTIFICATION_RETURN_URL")), "/"),
 		ConnectorTimeout:       seconds("CONNECTOR_TIMEOUT_SECONDS", 15),
 		ConnectorRunners:       connectorRunners,
+		ConnectorTLSCAPEM:      connectorTLSCAPEM,
 		CredentialKey:          strings.TrimSpace(os.Getenv("CREDENTIAL_ENCRYPTION_KEY")),
 		EmisellWebhookURL:      firstNonEmptyEnv("EMISELL_BACKEND_WEBHOOK_URL", "EMISELL_WEBHOOK_URL"),
 		EmisellWebhookSecret:   firstNonEmptyEnv("EMISELL_BACKEND_WEBHOOK_SECRET", "EMISELL_WEBHOOK_SECRET"),
@@ -261,6 +267,9 @@ func (c Config) ValidateRuntime() error {
 				return errors.New("every CONNECTOR_RUNNER_BASE_URLS entry must use HTTPS in production")
 			}
 		}
+		if len(c.ConnectorTLSCAPEM) == 0 {
+			return errors.New("CONNECTOR_TLS_CA_BASE64 is required in production")
+		}
 		if c.PublicBaseURL == "" {
 			return errors.New("PAYMENT_PROXY_PUBLIC_BASE_URL is required in production")
 		}
@@ -280,15 +289,23 @@ type ConnectorRunnerConfig struct {
 	Token            string
 	XenditBaseURL    string
 	ConnectorTimeout time.Duration
+	TLSCertPEM       []byte
+	TLSKeyPEM        []byte
 }
 
 func LoadConnectorRunner() (ConnectorRunnerConfig, error) {
+	tlsCertPEM, tlsKeyPEM, err := connectorTLSKeyPair()
+	if err != nil {
+		return ConnectorRunnerConfig{}, err
+	}
 	cfg := ConnectorRunnerConfig{
 		AppEnv:           envOr("APP_ENV", "development"),
 		HTTPAddr:         ":" + envOr("CONNECTOR_RUNNER_PORT", "18081"),
 		Token:            strings.TrimSpace(os.Getenv("CONNECTOR_RUNNER_TOKEN")),
 		XenditBaseURL:    strings.TrimRight(envOr("XENDIT_BASE_URL", "https://api.xendit.co"), "/"),
 		ConnectorTimeout: seconds("CONNECTOR_TIMEOUT_SECONDS", 15),
+		TLSCertPEM:       tlsCertPEM,
+		TLSKeyPEM:        tlsKeyPEM,
 	}
 	providerURLs := map[string]string{
 		"XENDIT_BASE_URL": cfg.XenditBaseURL,
@@ -309,6 +326,9 @@ func LoadConnectorRunner() (ConnectorRunnerConfig, error) {
 		if weakProductionSecret(cfg.Token) {
 			return ConnectorRunnerConfig{}, errors.New("CONNECTOR_RUNNER_TOKEN must be a non-default secret with at least 32 characters in production")
 		}
+		if len(cfg.TLSCertPEM) == 0 {
+			return ConnectorRunnerConfig{}, errors.New("CONNECTOR_TLS_CERT_BASE64 and CONNECTOR_TLS_KEY_BASE64 are required in production")
+		}
 	}
 	return cfg, nil
 }
@@ -320,9 +340,15 @@ type MidtransProviderAppConfig struct {
 	SandboxBaseURL   string
 	LiveBaseURL      string
 	ConnectorTimeout time.Duration
+	TLSCertPEM       []byte
+	TLSKeyPEM        []byte
 }
 
 func LoadMidtransProviderApp() (MidtransProviderAppConfig, error) {
+	tlsCertPEM, tlsKeyPEM, err := connectorTLSKeyPair()
+	if err != nil {
+		return MidtransProviderAppConfig{}, err
+	}
 	cfg := MidtransProviderAppConfig{
 		AppEnv:           envOr("APP_ENV", "development"),
 		HTTPAddr:         ":" + envOr("PROVIDER_APP_PORT", "18083"),
@@ -330,6 +356,8 @@ func LoadMidtransProviderApp() (MidtransProviderAppConfig, error) {
 		SandboxBaseURL:   strings.TrimRight(envOr("MIDTRANS_SANDBOX_BASE_URL", "https://api.sandbox.midtrans.com"), "/"),
 		LiveBaseURL:      strings.TrimRight(envOr("MIDTRANS_LIVE_BASE_URL", "https://api.midtrans.com"), "/"),
 		ConnectorTimeout: seconds("CONNECTOR_TIMEOUT_SECONDS", 15),
+		TLSCertPEM:       tlsCertPEM,
+		TLSKeyPEM:        tlsKeyPEM,
 	}
 	for name, value := range map[string]string{
 		"MIDTRANS_SANDBOX_BASE_URL": cfg.SandboxBaseURL,
@@ -349,7 +377,37 @@ func LoadMidtransProviderApp() (MidtransProviderAppConfig, error) {
 	if cfg.AppEnv == "production" && weakProductionSecret(cfg.Token) {
 		return MidtransProviderAppConfig{}, errors.New("PROVIDER_APP_TOKEN must be a non-default secret with at least 32 characters in production")
 	}
+	if cfg.AppEnv == "production" && len(cfg.TLSCertPEM) == 0 {
+		return MidtransProviderAppConfig{}, errors.New("CONNECTOR_TLS_CERT_BASE64 and CONNECTOR_TLS_KEY_BASE64 are required in production")
+	}
 	return cfg, nil
+}
+
+func connectorTLSKeyPair() ([]byte, []byte, error) {
+	certPEM, err := optionalBase64("CONNECTOR_TLS_CERT_BASE64")
+	if err != nil {
+		return nil, nil, err
+	}
+	keyPEM, err := optionalBase64("CONNECTOR_TLS_KEY_BASE64")
+	if err != nil {
+		return nil, nil, err
+	}
+	if (len(certPEM) == 0) != (len(keyPEM) == 0) {
+		return nil, nil, errors.New("CONNECTOR_TLS_CERT_BASE64 and CONNECTOR_TLS_KEY_BASE64 must be configured together")
+	}
+	return certPEM, keyPEM, nil
+}
+
+func optionalBase64(name string) ([]byte, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil, nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return nil, fmt.Errorf("%s must be valid base64", name)
+	}
+	return decoded, nil
 }
 
 func weakProductionSecret(value string) bool {

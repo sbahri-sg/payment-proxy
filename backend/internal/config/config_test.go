@@ -80,6 +80,7 @@ func TestProductionRuntimeRejectsWeakSecretsAndUnsafeWebhookNetwork(t *testing.T
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("CONNECTOR_RUNNER_TOKEN", strings.Repeat("r", 40))
 	t.Setenv("CONNECTOR_RUNNER_BASE_URL", "https://connector-runner.example")
+	t.Setenv("CONNECTOR_TLS_CA_BASE64", base64.StdEncoding.EncodeToString([]byte("test connector CA")))
 	key := sha256.Sum256([]byte("production-test-credential-key"))
 	t.Setenv("CREDENTIAL_ENCRYPTION_KEY", base64.StdEncoding.EncodeToString(key[:]))
 	t.Setenv("SERVICE_API_KEY", "short")
@@ -131,6 +132,7 @@ func TestProductionRuntimeAcceptsHardenedConfiguration(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("CONNECTOR_RUNNER_TOKEN", strings.Repeat("r", 40))
 	t.Setenv("CONNECTOR_RUNNER_BASE_URL", "https://connector-runner.example")
+	t.Setenv("CONNECTOR_TLS_CA_BASE64", base64.StdEncoding.EncodeToString([]byte("test connector CA")))
 	key := sha256.Sum256([]byte("production-test-credential-key"))
 	t.Setenv("CREDENTIAL_ENCRYPTION_KEY", base64.StdEncoding.EncodeToString(key[:]))
 	t.Setenv("SERVICE_API_KEY", strings.Repeat("s", 40))
@@ -173,5 +175,28 @@ func TestLoadValidatesCertificationReturnURL(t *testing.T) {
 	cfg, err := Load()
 	if err != nil || cfg.CertificationReturnURL != "https://dashboard.example/certifications/return" {
 		t.Fatalf("valid certification return URL was rejected: %#v, %v", cfg, err)
+	}
+}
+
+func TestProductionConnectorRequiresTLSKeyPair(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("CONNECTOR_RUNNER_TOKEN", strings.Repeat("r", 40))
+	if _, err := LoadConnectorRunner(); err == nil || !strings.Contains(err.Error(), "CONNECTOR_TLS") {
+		t.Fatalf("production connector accepted missing TLS material: %v", err)
+	}
+
+	t.Setenv("CONNECTOR_TLS_CERT_BASE64", base64.StdEncoding.EncodeToString([]byte("certificate")))
+	t.Setenv("CONNECTOR_TLS_KEY_BASE64", base64.StdEncoding.EncodeToString([]byte("private key")))
+	if _, err := LoadConnectorRunner(); err != nil {
+		t.Fatalf("production connector rejected paired TLS material: %v", err)
+	}
+}
+
+func TestConnectorRejectsPartialTLSKeyPair(t *testing.T) {
+	t.Setenv("CONNECTOR_RUNNER_TOKEN", "runner-token")
+	t.Setenv("CONNECTOR_TLS_CERT_BASE64", base64.StdEncoding.EncodeToString([]byte("certificate")))
+	t.Setenv("CONNECTOR_TLS_KEY_BASE64", "")
+	if _, err := LoadConnectorRunner(); err == nil || !strings.Contains(err.Error(), "configured together") {
+		t.Fatalf("partial connector TLS pair was accepted: %v", err)
 	}
 }

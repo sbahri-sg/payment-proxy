@@ -1,0 +1,301 @@
+name: emisell-payment-proxy-production
+
+x-logging: &production-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-payment-image: &payment-image
+  image: emisell/payment-proxy:${IMAGE_TAG:-production}
+  build:
+    context: ./backend
+    target: payment-proxy
+
+x-stateless-hardening: &stateless-hardening
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:size=32m,noexec,nosuid,nodev
+  pids_limit: 256
+  logging: *production-logging
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?run scripts/deploy-production.sh first}
+      POSTGRES_USER: ${POSTGRES_USER:?run scripts/deploy-production.sh first}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/deploy-production.sh first}
+    volumes:
+      - payment_proxy_postgres:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+    pids_limit: 512
+    mem_limit: 1g
+    cpus: 2.0
+    logging: *production-logging
+
+  migrate:
+    <<: [*payment-image, *stateless-hardening]
+    environment:
+      APP_ENV: production
+      API_PORT: "8080"
+      DATABASE_URL: ${DATABASE_URL:?run scripts/deploy-production.sh first}
+      DATABASE_MAX_CONNECTIONS: "4"
+      DATABASE_MIN_CONNECTIONS: "1"
+    command: ["migrate"]
+    networks:
+      - database
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 256m
+    cpus: 1.0
+
+  connector-runner:
+    image: emisell/connector-xendit:${IMAGE_TAG:-production}
+    build:
+      context: ./backend
+      target: connector-runner
+    environment:
+      APP_ENV: production
+      CONNECTOR_RUNNER_PORT: "18081"
+      CONNECTOR_RUNNER_TOKEN: ${CONNECTOR_RUNNER_TOKEN:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_CERT_BASE64: ${XENDIT_CONNECTOR_TLS_CERT_BASE64:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_KEY_BASE64: ${XENDIT_CONNECTOR_TLS_KEY_BASE64:?run scripts/deploy-production.sh first}
+      XENDIT_BASE_URL: ${XENDIT_BASE_URL:-https://api.xendit.co}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    expose:
+      - "18081"
+    networks:
+      - connector_control
+      - provider_egress
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "--spider", "https://127.0.0.1:18081/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    <<: *stateless-hardening
+    mem_limit: 256m
+    cpus: 1.0
+
+  midtrans-provider-app:
+    image: emisell/connector-midtrans:${IMAGE_TAG:-production}
+    build:
+      context: ./backend
+      target: midtrans-provider-app
+    environment:
+      APP_ENV: production
+      PROVIDER_APP_PORT: "18083"
+      PROVIDER_APP_TOKEN: ${MIDTRANS_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_CERT_BASE64: ${MIDTRANS_CONNECTOR_TLS_CERT_BASE64:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_KEY_BASE64: ${MIDTRANS_CONNECTOR_TLS_KEY_BASE64:?run scripts/deploy-production.sh first}
+      MIDTRANS_SANDBOX_BASE_URL: ${MIDTRANS_SANDBOX_BASE_URL:-https://api.sandbox.midtrans.com}
+      MIDTRANS_LIVE_BASE_URL: ${MIDTRANS_LIVE_BASE_URL:-https://api.midtrans.com}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    expose:
+      - "18083"
+    networks:
+      - connector_control
+      - provider_egress
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "--spider", "https://127.0.0.1:18083/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    <<: *stateless-hardening
+    mem_limit: 256m
+    cpus: 1.0
+
+  api:
+    <<: [*payment-image, *stateless-hardening]
+    environment:
+      APP_ENV: production
+      API_PORT: "8080"
+      DATABASE_URL: ${DATABASE_URL:?run scripts/deploy-production.sh first}
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-40}
+      DATABASE_MIN_CONNECTIONS: ${DATABASE_MIN_CONNECTIONS:-4}
+      DATABASE_CONNECTION_MAX_LIFETIME_SECONDS: ${DATABASE_CONNECTION_MAX_LIFETIME_SECONDS:-3600}
+      DATABASE_CONNECTION_MAX_IDLE_SECONDS: ${DATABASE_CONNECTION_MAX_IDLE_SECONDS:-300}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?run scripts/deploy-production.sh first}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:?run scripts/deploy-production.sh first}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?run scripts/deploy-production.sh first}
+      PAYMENT_PROXY_PUBLIC_BASE_URL: https://${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}
+      CERTIFICATION_RETURN_URL: https://${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}/certifications/return
+      CORS_ALLOWED_ORIGINS: https://${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+      CONNECTOR_RUNNER_BASE_URLS: https://connector-runner:18081,https://midtrans-provider-app:18083
+      CONNECTOR_RUNNER_TOKENS: ${CONNECTOR_RUNNER_TOKEN:?run scripts/deploy-production.sh first},${MIDTRANS_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_CA_BASE64: ${CONNECTOR_TLS_CA_BASE64:?run scripts/deploy-production.sh first}
+      API_REQUEST_TIMEOUT_SECONDS: ${API_REQUEST_TIMEOUT_SECONDS:-25}
+      API_RATE_LIMIT_RPS: ${API_RATE_LIMIT_RPS:-300}
+      API_RATE_LIMIT_BURST: ${API_RATE_LIMIT_BURST:-600}
+      API_MAX_IN_FLIGHT: ${API_MAX_IN_FLIGHT:-500}
+      WEBHOOK_ALLOW_INSECURE_HTTP: "false"
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: "false"
+      WEBHOOK_DELIVERY_TIMEOUT_SECONDS: ${WEBHOOK_DELIVERY_TIMEOUT_SECONDS:-10}
+    command: ["api"]
+    expose:
+      - "8080"
+    networks:
+      - frontend
+      - database
+      - connector_control
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      connector-runner:
+        condition: service_healthy
+      midtrans-provider-app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 2.0
+
+  worker:
+    <<: [*payment-image, *stateless-hardening]
+    environment:
+      APP_ENV: production
+      API_PORT: "8080"
+      DATABASE_URL: ${DATABASE_URL:?run scripts/deploy-production.sh first}
+      DATABASE_MAX_CONNECTIONS: ${WORKER_DATABASE_MAX_CONNECTIONS:-20}
+      DATABASE_MIN_CONNECTIONS: ${WORKER_DATABASE_MIN_CONNECTIONS:-2}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?run scripts/deploy-production.sh first}
+      EMISELL_BACKEND_WEBHOOK_URL: ${EMISELL_BACKEND_WEBHOOK_URL:-}
+      EMISELL_BACKEND_WEBHOOK_SECRET: ${EMISELL_BACKEND_WEBHOOK_SECRET:?run scripts/deploy-production.sh first}
+      WEBHOOK_ALLOW_INSECURE_HTTP: "false"
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: "false"
+      WEBHOOK_POLL_INTERVAL_SECONDS: ${WEBHOOK_POLL_INTERVAL_SECONDS:-2}
+      WEBHOOK_DELIVERY_TIMEOUT_SECONDS: ${WEBHOOK_DELIVERY_TIMEOUT_SECONDS:-10}
+      WEBHOOK_BASE_BACKOFF_SECONDS: ${WEBHOOK_BASE_BACKOFF_SECONDS:-5}
+      WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-8}
+      WEBHOOK_BATCH_SIZE: ${WEBHOOK_BATCH_SIZE:-20}
+    command: ["worker"]
+    networks:
+      - database
+      - webhook_egress
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 1.0
+
+  dashboard:
+    image: emisell/payment-proxy-dashboard:${IMAGE_TAG:-production}
+    build:
+      context: ./dashboard
+    environment:
+      BACKEND_API_URL: http://api:8080
+      PAYMENT_PROXY_PUBLIC_URL: https://${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?run scripts/deploy-production.sh first}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:?run scripts/deploy-production.sh first}
+      API_CONTRACT_VERSION: "2026-08-28"
+      DASHBOARD_MERCHANT_ID: ${DASHBOARD_MERCHANT_ID:-payment_proxy_operator}
+      DASHBOARD_ADMIN_PASSWORD: ${DASHBOARD_ADMIN_PASSWORD:?run scripts/deploy-production.sh first}
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:?run scripts/deploy-production.sh first}
+      EMISELL_BACKEND_WEBHOOK_URL: ${EMISELL_BACKEND_WEBHOOK_URL:-}
+    expose:
+      - "3000"
+    networks:
+      - frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /app/.next/cache:size=32m,nosuid,nodev
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *production-logging
+
+  gateway:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    environment:
+      PAYMENT_PROXY_DOMAIN: ${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    networks:
+      - public
+      - frontend
+    depends_on:
+      api:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid,nodev
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1.0
+    logging: *production-logging
+
+volumes:
+  payment_proxy_postgres:
+  caddy_data:
+  caddy_config:
+
+networks:
+  public:
+  frontend:
+    internal: true
+  database:
+    internal: true
+  connector_control:
+    internal: true
+  provider_egress:
+  webhook_egress:

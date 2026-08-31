@@ -2,6 +2,7 @@ package remoteconnector_test
 
 import (
 	"context"
+	"encoding/pem"
 	"errors"
 	"log/slog"
 	"net/http/httptest"
@@ -95,5 +96,25 @@ func TestDiscoveryRejectsInvalidRunnerToken(t *testing.T) {
 	defer server.Close()
 	if _, err := remoteconnector.Discover(context.Background(), server.URL, "wrong-secret", time.Second); err == nil {
 		t.Fatal("connector discovery accepted an invalid token")
+	}
+}
+
+func TestDiscoverWithPrivateConnectorCA(t *testing.T) {
+	items, _ := registry.New(stubConnector{})
+	runtime, _ := engine.New(items)
+	handler, _ := connectorrunner.New(runtime, "runner-secret", slog.Default())
+	server := httptest.NewTLSServer(handler)
+	defer server.Close()
+
+	if _, err := remoteconnector.Discover(context.Background(), server.URL, "runner-secret", time.Second); err == nil {
+		t.Fatal("connector discovery trusted an unknown private CA")
+	}
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+	connectors, err := remoteconnector.DiscoverWithCAPEM(context.Background(), server.URL, "runner-secret", time.Second, caPEM)
+	if err != nil {
+		t.Fatalf("connector discovery rejected the configured private CA: %v", err)
+	}
+	if len(connectors) != 1 || connectors[0].Code() != "stub" {
+		t.Fatalf("unexpected discovered connectors: %#v", connectors)
 	}
 }

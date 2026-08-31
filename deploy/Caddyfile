@@ -1,0 +1,29 @@
+{
+	admin 127.0.0.1:2019
+}
+
+{$PAYMENT_PROXY_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	@payment_api path /api/v1/* /webhooks/v1/providers/* /health/live /health/ready
+	handle @payment_api {
+		reverse_proxy api:8080
+	}
+
+	handle {
+		reverse_proxy dashboard:3000
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

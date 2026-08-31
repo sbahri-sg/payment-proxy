@@ -28,6 +28,7 @@ services:
   migrate:
     build:
       context: ./backend
+      target: payment-proxy
     environment: *database-environment
     command: ["migrate"]
     depends_on:
@@ -38,6 +39,7 @@ services:
   connector-runner:
     build:
       context: ./backend
+      target: connector-runner
     entrypoint: ["/usr/local/bin/connector-runner"]
     command: []
     environment:
@@ -58,6 +60,7 @@ services:
   midtrans-provider-app:
     build:
       context: ./backend
+      target: midtrans-provider-app
     entrypoint: ["/usr/local/bin/midtrans-provider-app"]
     command: []
     environment:
@@ -86,6 +89,7 @@ services:
   api:
     build:
       context: ./backend
+      target: payment-proxy
     environment:
       <<: *database-environment
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
@@ -125,6 +129,7 @@ services:
   emisell-receiver:
     build:
       context: ./backend
+      target: payment-proxy
     environment:
       <<: *database-environment
       EMISELL_RECEIVER_PORT: "19090"
@@ -146,6 +151,7 @@ services:
   worker:
     build:
       context: ./backend
+      target: payment-proxy
     environment:
       <<: *database-environment
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
