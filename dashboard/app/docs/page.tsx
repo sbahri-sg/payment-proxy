@@ -130,7 +130,7 @@ const certificationBase = `{
   ],
   "payment_id": "pay_01k3...",
   "message": "Provider webhook and Emisell delivery passed.",
-  "initiated_by": "dashboard:operator",
+  "initiated_by": "emisell-backend",
   "completed_at": "2026-08-28T06:00:00Z"
 }`;
 
@@ -206,7 +206,7 @@ const providerAppBase = `{
       { "code": "artifact_checksums", "status": "PASSED", "detail": "Every packaged file is covered by SHA-256" }
     ]
   },
-  "submitted_by": "dashboard:operator",
+  "submitted_by": "payment-proxy-admin",
   "created_at": "2026-08-28T14:00:00Z",
   "updated_at": "2026-08-28T14:00:00Z"
 }`;
@@ -321,7 +321,7 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
   "provider_name": "Midtrans",
   "status": "DRAFT",
   "version_count": 0,
-  "created_by": "postman:operator"
+  "created_by": "payment-proxy-admin"
 } }`,
         note: "Credential merchant/API key tidak dibuat di tahap ini. Credential tetap dimasukkan per installation dan disimpan terenkripsi.",
       },
@@ -421,7 +421,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     "key_hint": "epk_AbC123xy••••••••9Xyz",
     "scopes": ["gateway:full"],
     "status": "ACTIVE",
-    "created_by": "dashboard:operator",
+    "created_by": "payment-proxy-admin",
     "created_at": "2026-08-28T10:00:00Z"
   }]
 }`,
@@ -452,7 +452,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     "key_hint": "epk_AbC123xy••••••••9Xyz",
     "scopes": ["gateway:full"],
     "status": "REVOKED",
-    "revoked_by": "dashboard:operator",
+    "revoked_by": "payment-proxy-admin",
     "revoked_at": "2026-08-28T12:00:00Z"
   }
 }`,
@@ -810,7 +810,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     "source": "database",
     "last_test_success": true,
     "last_test_http_status": 202,
-    "updated_by": "dashboard:operator"
+    "updated_by": "payment-proxy-admin"
   }
 }`,
         note: "Endpoint admin memakai X-Admin-API-Key dan hanya boleh dipanggil dashboard server, bukan browser langsung.",
@@ -970,7 +970,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     "attempt_count": 0,
     "max_attempts": 8,
     "replay_count": 1,
-    "last_replayed_by": "dashboard:operator"
+    "last_replayed_by": "emisell-backend"
   }
 }`,
         note: "Hanya status DEAD yang bisa direplay. Emisell consumer wajib deduplicate karena delivery bersifat at-least-once.",
@@ -1024,7 +1024,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     "status": "PENDING",
     "provider_payment_id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
     "reconciliation_count": 1,
-    "last_reconciled_by": "dashboard:operator",
+    "last_reconciled_by": "emisell-backend",
     "last_reconciled_at": "2026-08-28T06:02:00Z"
   }
 }`,
@@ -1334,7 +1334,7 @@ function postmanRequest(endpoint: Endpoint) {
     lines.push("Authorization: Bearer {{service_api_key}}", "X-Emisell-Merchant-ID: {{merchant_id}}", "X-Emisell-API-Version: {{api_contract_version}}");
   }
   if (endpoint.path.startsWith("/internal/v1/")) {
-    lines.push("X-Admin-API-Key: {{admin_api_key}}", "X-Emisell-Actor: dashboard:operator");
+    lines.push("X-Admin-API-Key: {{admin_api_key}}");
   }
   if (endpoint.path.startsWith("/partner/v1/")) {
     lines.push("Authorization: Bearer {{connector_runner_token}}");

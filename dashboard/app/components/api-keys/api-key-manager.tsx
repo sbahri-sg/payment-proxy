@@ -76,7 +76,7 @@ export function APIKeyManager({ initialKeys }: { initialKeys: ServiceAPIKey[] })
             <p>Simpan pada secret manager Emisell Backend sebagai Bearer token. Dashboard tidak dapat mengambil nilai ini kembali.</p>
             <div><button className="secondary-button" type="button" onClick={() => void copySecret()}>{copied ? "Sudah disalin" : "Salin API key"}</button><button className="secondary-button" type="button" onClick={() => setOneTimeSecret("")}>Saya sudah menyimpan</button></div>
           </div> : <div className="api-key-secret-empty"><span>••••••••••••••••</span><strong>Belum ada secret baru</strong><p>Generate key di panel kiri. Hanya metadata dan fingerprint tersamarkan yang tetap tersimpan.</p></div>}
-          <div className="api-key-usage"><span>Contoh header</span><pre><code>{`Authorization: Bearer epk_...\nX-Emisell-Merchant-ID: <merchant-id>\nX-Emisell-Actor: emisell-backend`}</code></pre></div>
+          <div className="api-key-usage"><span>Contoh header</span><pre><code>{`Authorization: Bearer epk_...\nX-Emisell-Merchant-ID: <merchant-id>`}</code></pre></div>
         </section>
       </section>
 

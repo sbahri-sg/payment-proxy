@@ -346,7 +346,7 @@ function configuration() {
   return { baseURL: baseURL.replace(/\/$/, ""), serviceKey, merchantID };
 }
 
-async function proxyRequest<T>(path: string, actor: string, init?: RequestInit): Promise<T> {
+async function proxyRequest<T>(path: string, _actor: string, init?: RequestInit): Promise<T> {
   const { baseURL, serviceKey, merchantID } = configuration();
   const response = await fetch(`${baseURL}${path}`, {
     ...init,
@@ -354,7 +354,6 @@ async function proxyRequest<T>(path: string, actor: string, init?: RequestInit):
     headers: {
       Authorization: `Bearer ${serviceKey}`,
       "X-Emisell-Merchant-ID": merchantID,
-      "X-Emisell-Actor": `dashboard:${actor}`,
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
@@ -367,7 +366,7 @@ async function proxyRequest<T>(path: string, actor: string, init?: RequestInit):
   return payload.data;
 }
 
-async function adminRequest<T>(path: string, actor: string, init?: RequestInit): Promise<T> {
+async function adminRequest<T>(path: string, _actor: string, init?: RequestInit): Promise<T> {
   const baseURL = process.env.BACKEND_API_URL?.trim();
   const adminKey = process.env.ADMIN_API_KEY?.trim();
   if (!baseURL || !adminKey) throw new Error("dashboard admin API configuration is incomplete");
@@ -376,7 +375,6 @@ async function adminRequest<T>(path: string, actor: string, init?: RequestInit):
     cache: "no-store",
     headers: {
       "X-Admin-API-Key": adminKey,
-      "X-Emisell-Actor": `dashboard:${actor}`,
       ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },

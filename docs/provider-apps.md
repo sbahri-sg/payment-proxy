@@ -42,7 +42,6 @@ adalah identitas permanen dan tidak berasal bebas dari setiap ZIP.
 ```http
 POST {{base_url}}/internal/v1/provider-app-providers
 X-Admin-API-Key: {{admin_api_key}}
-X-Emisell-Actor: postman:operator
 Content-Type: application/json
 ```
 
@@ -69,8 +68,8 @@ Contoh response `201 Created`:
     "description": "Midtrans payment connector for Emisell merchants.",
     "status": "DRAFT",
     "version_count": 0,
-    "created_by": "postman:operator",
-    "updated_by": "postman:operator"
+    "created_by": "payment-proxy-admin",
+    "updated_by": "payment-proxy-admin"
   }
 }
 ```
@@ -128,7 +127,6 @@ akan menjadi operasi eksplisit setelah isolated runner tersedia.
 ```http
 POST {{base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions
 X-Admin-API-Key: {{admin_api_key}}
-X-Emisell-Actor: postman:operator
 Content-Type: multipart/form-data
 ```
 
@@ -181,7 +179,6 @@ Contoh response `201 Created`:
 ```http
 POST {{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition
 X-Admin-API-Key: {{admin_api_key}}
-X-Emisell-Actor: postman:operator
 Content-Type: application/json
 ```
 

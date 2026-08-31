@@ -2258,14 +2258,10 @@ func problem(w http.ResponseWriter, status int, code, message string) {
 }
 func tenant(r *http.Request) string { return strings.TrimSpace(r.Header.Get("X-Emisell-Merchant-ID")) }
 func actor(r *http.Request) string {
-	value := strings.TrimSpace(r.Header.Get("X-Emisell-Actor"))
-	if value == "" {
-		return "emisell-backend"
+	if strings.HasPrefix(r.URL.Path, "/internal/v1/") {
+		return "payment-proxy-admin"
 	}
-	if len(value) > 128 {
-		return value[:128]
-	}
-	return value
+	return "emisell-backend"
 }
 func optionalMode(r *http.Request) string {
 	value := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Emisell-Execution-Mode")))

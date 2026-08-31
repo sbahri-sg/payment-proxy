@@ -35,7 +35,6 @@ Base path: `/api/v1`. API ini adalah kontrak canonical antara Emisell Backend da
 | `Authorization: Bearer <SERVICE_API_KEY>` | semua `/api/v1/*` | service authentication |
 | `X-Emisell-Merchant-ID` | semua `/api/v1/*` | tenant isolation |
 | `X-Emisell-API-Version: 2026-08-28` | recommended | pin kontrak; versi tidak didukung menghasilkan `406` |
-| `X-Emisell-Actor` | optional | actor audit; default `emisell-backend` |
 | `X-Emisell-Execution-Mode` | create/assignment/certification | `sandbox` atau `live` |
 | `Idempotency-Key` | payment/cancel/refund/reconciliation/replay | ID logical operation, 8–128 karakter |
 
@@ -114,7 +113,6 @@ fingerprint tersamarkan.
 ```http
 POST /internal/v1/service-api-keys
 X-Admin-API-Key: <admin-key>
-X-Emisell-Actor: dashboard:operator
 Content-Type: application/json
 
 {"name":"Emisell Backend Production"}
@@ -660,7 +658,6 @@ Contoh generate:
 ```http
 POST /internal/v1/emisell-webhook/secret
 X-Admin-API-Key: <admin-key>
-X-Emisell-Actor: dashboard:operator
 ```
 
 ```json

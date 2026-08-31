@@ -41,6 +41,20 @@ func TestPaymentStatusMapping(t *testing.T) {
 	}
 }
 
+func TestActorIsDerivedByServerAndIgnoresRequestHeader(t *testing.T) {
+	serviceRequest := httptest.NewRequest(http.MethodPost, "/api/v1/payment-sessions", nil)
+	serviceRequest.Header.Set("X-Emisell-Actor", "forged-operator")
+	if got := actor(serviceRequest); got != "emisell-backend" {
+		t.Fatalf("service actor = %q, want emisell-backend", got)
+	}
+
+	adminRequest := httptest.NewRequest(http.MethodPost, "/internal/v1/service-api-keys", nil)
+	adminRequest.Header.Set("X-Emisell-Actor", "forged-operator")
+	if got := actor(adminRequest); got != "payment-proxy-admin" {
+		t.Fatalf("admin actor = %q, want payment-proxy-admin", got)
+	}
+}
+
 func TestBearerTokenRequiresExactBearerScheme(t *testing.T) {
 	if got := bearerToken("Bearer epk_example"); got != "epk_example" {
 		t.Fatalf("valid bearer token was not parsed: %q", got)
