@@ -3,8 +3,8 @@
 ## Provider Apps (admin control plane)
 
 Connector baru dimulai dengan membuat identitas provider melalui
-`POST /internal/v1/provider-app-providers`. Setelah itu versi ZIP dikirim ke
-`POST /internal/v1/provider-app-providers/{providerCode}/versions`, kemudian
+`POST /api/v1/admin/provider-app-providers`. Setelah itu versi ZIP dikirim ke
+`POST /api/v1/admin/provider-app-providers/{providerCode}/versions`, kemudian
 melewati lifecycle `UPLOADED → VALIDATED → CERTIFIED → PUBLISHED`.
 Request menggunakan `multipart/form-data` dengan field file `bundle` dan header
 `X-Admin-API-Key`. Publish ditolak dengan `CONNECTOR_RUNTIME_NOT_READY` sampai
@@ -18,7 +18,7 @@ Dokumentasi dibagi berdasarkan pemanggil dan arah komunikasi. Kontrak tidak bole
 | Contract | Arah | Base path | Status |
 |---|---|---|---|
 | Emisell Internal Gateway | Emisell Backend → Payment Proxy | `/api/v1/*` | Active |
-| Admin control plane | Dashboard/operator → Payment Proxy | `/internal/v1/*` | Active; admin authentication + IP rate limit |
+| Admin control plane | Dashboard/operator → Payment Proxy | `/api/v1/admin/*` | Active; admin authentication + IP rate limit |
 | Emisell status webhook | Payment Proxy → Emisell Backend | callback URL milik Emisell | Active |
 | Provider webhook ingress | Provider → Payment Proxy | `/webhooks/v1/providers/{provider}/{installation_id}` | Active |
 | Partner API Contract | Payment Proxy → isolated Connector Runner | `/partner/v1/*` | Active; private service contract |
@@ -26,7 +26,8 @@ Dokumentasi dibagi berdasarkan pemanggil dan arah komunikasi. Kontrak tidak bole
 Detail payload Xendit, Midtrans, DOKU, atau Duitku tidak boleh bocor ke Emisell Backend atau checkout. Dashboard `/docs` dan collection Postman memakai pembagian kontrak yang sama.
 
 Collection Postman menggunakan satu `base_url` untuk `/api/v1/*` dan
-`/internal/v1/*`; kedua path dibedakan oleh credential masing-masing.
+`/api/v1/admin/*`. Keduanya berada dalam namespace versi yang sama; subpath admin
+dibedakan oleh `X-Admin-API-Key`, sedangkan endpoint merchant memakai service key.
 `partner_base_url` tetap khusus `/partner/v1/*` pada jaringan privat.
 
 ## Emisell Internal Gateway
@@ -107,16 +108,16 @@ seluruh endpoint `/api/v1/*` dengan merchant context yang valid.
 
 | Method | Endpoint admin | Fungsi |
 |---|---|---|
-| `GET` | `/internal/v1/service-api-keys` | List metadata key aktif dan revoked |
-| `POST` | `/internal/v1/service-api-keys` | Generate random 256-bit key; plaintext tampil satu kali |
-| `POST` | `/internal/v1/service-api-keys/{id}/revoke` | Revoke key tanpa restart API |
+| `GET` | `/api/v1/admin/service-api-keys` | List metadata key aktif dan revoked |
+| `POST` | `/api/v1/admin/service-api-keys` | Generate random 256-bit key; plaintext tampil satu kali |
+| `POST` | `/api/v1/admin/service-api-keys/{id}/revoke` | Revoke key tanpa restart API |
 
 Endpoint pengelolaan memakai `X-Admin-API-Key`. Secret berprefix `epk_`,
 database hanya menyimpan SHA-256 hash, sedangkan response list hanya memuat
 fingerprint tersamarkan.
 
 ```http
-POST /internal/v1/service-api-keys
+POST /api/v1/admin/service-api-keys
 X-Admin-API-Key: <admin-key>
 Content-Type: application/json
 
@@ -149,7 +150,7 @@ Endpoint observability memakai `X-Admin-API-Key` dan tidak boleh diekspos ke
 checkout atau browser publik:
 
 ```http
-GET /internal/v1/observability
+GET /api/v1/admin/observability
 X-Admin-API-Key: <admin-key>
 ```
 
@@ -171,11 +172,11 @@ X-Admin-API-Key: <admin-key>
 }
 ```
 
-`GET /internal/v1/metrics` mengembalikan format Prometheus. Counter merupakan
+`GET /api/v1/admin/metrics` mengembalikan format Prometheus. Counter merupakan
 snapshot process sejak startup dan harus di-scrape ke storage terpusat untuk
 agregasi lintas replica dan histori jangka panjang.
 
-`GET /internal/v1/engine/readiness` menggabungkan pemeriksaan database,
+`GET /api/v1/admin/engine/readiness` menggabungkan pemeriksaan database,
 connector registry, runtime configuration, serta nilai request timeout, body
 limit, rate limit, dan max in-flight efektif. Endpoint ini aman untuk automation
 admin, tetapi tetap tidak boleh diekspos sebagai endpoint publik.
@@ -303,7 +304,7 @@ PUT /api/v1/provider-installations/{id}/credentials
 
 `merchant_id` selalu berasal dari header terautentikasi `X-Emisell-Merchant-ID`, bukan dari body. Payment Proxy tidak menyimpan nama merchant atau store. Hanya satu installation non-uninstalled per Merchant ID, provider, dan environment. `public_webhook_url` dibuat server dari domain publik Payment Proxy dan dikonsumsi Emisell Backend untuk ditampilkan pada alur koneksi di Dashboard Emisell; client tidak boleh menyusun URL sendiri.
 
-Service API key untuk komunikasi Emisell Backend tetap dikelola terpisah melalui `/internal/v1/service-api-keys`. Installation hanya menyimpan credential provider di vault terenkripsi dan tidak pernah menyalin atau mengembalikan service API key tersebut.
+Service API key untuk komunikasi Emisell Backend tetap dikelola terpisah melalui `/api/v1/admin/service-api-keys`. Installation hanya menyimpan credential provider di vault terenkripsi dan tidak pernah menyalin atau mengembalikan service API key tersebut.
 
 ### `GET /provider-installations`
 
@@ -653,15 +654,15 @@ Endpoint admin menggunakan `X-Admin-API-Key`:
 
 | Method | Endpoint | Fungsi |
 |---|---|---|
-| `GET` | `/internal/v1/emisell-webhook` | Membaca URL, status, masked secret, dan hasil test terakhir |
-| `PUT` | `/internal/v1/emisell-webhook` | Menyimpan Callback URL manual dan status aktif |
-| `POST` | `/internal/v1/emisell-webhook/secret` | Generate/rotate secret `whsec_`; plaintext tampil satu kali |
-| `POST` | `/internal/v1/emisell-webhook/test` | Mengirim event canonical `webhook.test` tanpa data pembayaran |
+| `GET` | `/api/v1/admin/emisell-webhook` | Membaca URL, status, masked secret, dan hasil test terakhir |
+| `PUT` | `/api/v1/admin/emisell-webhook` | Menyimpan Callback URL manual dan status aktif |
+| `POST` | `/api/v1/admin/emisell-webhook/secret` | Generate/rotate secret `whsec_`; plaintext tampil satu kali |
+| `POST` | `/api/v1/admin/emisell-webhook/test` | Mengirim event canonical `webhook.test` tanpa data pembayaran |
 
 Contoh generate:
 
 ```http
-POST /internal/v1/emisell-webhook/secret
+POST /api/v1/admin/emisell-webhook/secret
 X-Admin-API-Key: <admin-key>
 ```
 

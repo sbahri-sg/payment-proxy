@@ -22,7 +22,7 @@ Dashboard mengikuti domain Emisell Payment Engine. Halaman tidak boleh memanggil
 - Webhook success rate: event `PROCESSED` atau `IGNORED` dibanding event selesai diproses.
 - Operational backlog: payment `UNKNOWN`, outbox pending/dead, dan webhook failed.
 
-Overview membaca data nyata melalui `GET /internal/v1/dashboard/overview`. Endpoint memerlukan `X-Admin-API-Key`; hanya Next.js server yang mengirim header tersebut. Browser hanya menerima hasil render dan tidak menerima admin key.
+Overview membaca data nyata melalui `GET /api/v1/admin/dashboard/overview`. Endpoint memerlukan `X-Admin-API-Key`; hanya Next.js server yang mengirim header tersebut. Browser hanya menerima hasil render dan tidak menerima admin key.
 
 ## Delivery phases
 

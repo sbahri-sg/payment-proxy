@@ -60,9 +60,9 @@ dipantau untuk menemukan integrasi checkout yang rusak.
 Keduanya dilindungi `X-Admin-API-Key`:
 
 ```text
-GET /internal/v1/observability
-GET /internal/v1/metrics
-GET /internal/v1/engine/readiness
+GET /api/v1/admin/observability
+GET /api/v1/admin/metrics
+GET /api/v1/admin/engine/readiness
 ```
 
 Endpoint pertama dipakai dashboard untuk snapshot process. Endpoint kedua
@@ -186,7 +186,7 @@ Tambahan aturan deployment:
 1. simpan API key dan encryption key dalam secret manager;
 2. pisahkan admin key dari service key;
 3. jangan kirim key melalui query string, log, Postman export, atau browser;
-4. lindungi `/internal/v1/*` dengan admin key kuat, per-IP rate limit, dan WAF/Cloudflare rate limiting;
+4. lindungi `/api/v1/admin/*` dengan admin key kuat, per-IP rate limit, dan WAF/Cloudflare rate limiting;
 5. rotasi service key dengan overlap pendek dan audit revoke;
 6. backup database terenkripsi dan uji restore;
 7. alert ketika decrypt/authentication failure muncul;

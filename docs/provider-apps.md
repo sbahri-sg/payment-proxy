@@ -40,7 +40,7 @@ Provider wajib dibuat sebelum connector ZIP dapat di-upload. `provider_code`
 adalah identitas permanen dan tidak berasal bebas dari setiap ZIP.
 
 ```http
-POST {{base_url}}/internal/v1/provider-app-providers
+POST {{base_url}}/api/v1/admin/provider-app-providers
 X-Admin-API-Key: {{admin_api_key}}
 Content-Type: application/json
 ```
@@ -125,7 +125,7 @@ akan menjadi operasi eksplisit setelah isolated runner tersedia.
 ## Postman: upload
 
 ```http
-POST {{base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions
+POST {{base_url}}/api/v1/admin/provider-app-providers/{{provider_app_code}}/versions
 X-Admin-API-Key: {{admin_api_key}}
 Content-Type: multipart/form-data
 ```
@@ -177,7 +177,7 @@ Contoh response `201 Created`:
 ## Postman: transition
 
 ```http
-POST {{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition
+POST {{base_url}}/api/v1/admin/provider-apps/{{provider_app_id}}/transition
 X-Admin-API-Key: {{admin_api_key}}
 Content-Type: application/json
 ```

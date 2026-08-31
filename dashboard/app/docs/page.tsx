@@ -46,10 +46,10 @@ const contracts: Contract[] = [
     label: "Emisell Internal Gateway",
     classification: "INTERNAL",
     status: "ACTIVE",
-    audience: "Emisell Backend → Payment Proxy",
+    audience: "Emisell Backend / operator → Payment Proxy",
     basePath: "/api/v1/*",
-    authentication: "Service API key + merchant context",
-    description: "Kontrak canonical untuk instalasi gateway, checkout, pembayaran, refund, status, dan callback ke Emisell Backend.",
+    authentication: "Service API key; admin key khusus /api/v1/admin/*",
+    description: "Satu namespace versioned untuk operasi merchant dan administrasi. Subpath admin tetap terisolasi oleh credential yang berbeda.",
   },
   {
     id: "partner",
@@ -244,7 +244,7 @@ const groups: Group[] = [
     summary: "Process-level HTTP latency, availability, connector ambiguity, dan provider webhook counters untuk dashboard serta Prometheus scraper internal.",
     endpoints: [
       {
-        method: "GET", path: "/internal/v1/observability", title: "Get live SLO snapshot", description: "Mengembalikan telemetry process API sejak startup. Snapshot ini tidak menggantikan long-term metrics storage lintas replica.",
+        method: "GET", path: "/api/v1/admin/observability", title: "Get live SLO snapshot", description: "Mengembalikan telemetry process API sejak startup. Snapshot ini tidak menggantikan long-term metrics storage lintas replica.",
         response: `{
   "data": {
     "started_at": "2026-08-28T13:00:00Z",
@@ -267,7 +267,7 @@ const groups: Group[] = [
         note: "Availability process dihitung sebagai response non-5xx / seluruh request. Counter reset ketika process restart; production wajib scrape ke penyimpanan Prometheus-compatible.",
       },
       {
-        method: "GET", path: "/internal/v1/metrics", title: "Prometheus metrics", description: "Format Prometheus untuk HTTP histogram, connector outcomes, dan provider webhook results. Endpoint menggunakan admin authentication yang sama.",
+        method: "GET", path: "/api/v1/admin/metrics", title: "Prometheus metrics", description: "Format Prometheus untuk HTTP histogram, connector outcomes, dan provider webhook results. Endpoint menggunakan admin authentication yang sama.",
         response: `emisell_http_requests_total{class="2xx"} 9995
 emisell_http_request_duration_seconds_bucket{le="0.5"} 9990
 emisell_connector_outcomes_total{outcome="unknown"} 0
@@ -275,7 +275,7 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
         note: "Konfigurasikan X-Admin-API-Key pada scraper melalui secret manager. Jangan menaruh admin key pada query string.",
       },
       {
-        method: "GET", path: "/internal/v1/engine/readiness", title: "Production readiness report", description: "Memeriksa database, connector registry, runtime configuration, dan menampilkan request guard efektif tanpa membocorkan secret.",
+        method: "GET", path: "/api/v1/admin/engine/readiness", title: "Production readiness report", description: "Memeriksa database, connector registry, runtime configuration, dan menampilkan request guard efektif tanpa membocorkan secret.",
         response: `{
   "data": {
     "status": "ready",
@@ -307,7 +307,7 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
     summary: "Provider-first control plane: daftarkan identitas provider, lalu upload, validasi, sertifikasi, dan publish versi connector miliknya.",
     endpoints: [
       {
-        method: "POST", path: "/internal/v1/provider-app-providers", title: "Create provider identity", description: "Mendaftarkan provider terlebih dahulu. Provider code menjadi identitas permanen dan nama/code di setiap manifest ZIP berikutnya wajib sama.",
+        method: "POST", path: "/api/v1/admin/provider-app-providers", title: "Create provider identity", description: "Mendaftarkan provider terlebih dahulu. Provider code menjadi identitas permanen dan nama/code di setiap manifest ZIP berikutnya wajib sama.",
         body: `{
   "provider_code": "midtrans",
   "provider_name": "Midtrans",
@@ -326,11 +326,11 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
         note: "Credential merchant/API key tidak dibuat di tahap ini. Credential tetap dimasukkan per installation dan disimpan terenkripsi.",
       },
       {
-        method: "GET", path: "/internal/v1/provider-app-providers", title: "List registered providers", description: "Menampilkan satu record per provider beserta active version, latest version/status, dan jumlah immutable version. Riwayat versi tidak lagi terlihat sebagai provider duplikat.",
+        method: "GET", path: "/api/v1/admin/provider-app-providers", title: "List registered providers", description: "Menampilkan satu record per provider beserta active version, latest version/status, dan jumlah immutable version. Riwayat versi tidak lagi terlihat sebagai provider duplikat.",
         response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 2, "active_version": "emisell-midtrans-v1.1.0", "latest_version": "emisell-midtrans-v1.1.0", "latest_status": "PUBLISHED" }] }`,
       },
       {
-        method: "POST", path: "/internal/v1/provider-app-providers/{providerCode}/versions", title: "Upload provider version", description: "Menerima multipart ZIP maksimum 25 MB di dalam provider yang sudah terdaftar. Root manifest.json, checksums.txt, safe paths, SDK contract, credential schema, payment methods, dan outbound host divalidasi; code/name manifest harus cocok dengan provider pada URL.",
+        method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/versions", title: "Upload provider version", description: "Menerima multipart ZIP maksimum 25 MB di dalam provider yang sudah terdaftar. Root manifest.json, checksums.txt, safe paths, SDK contract, credential schema, payment methods, dan outbound host divalidasi; code/name manifest harus cocok dengan provider pada URL.",
         headers: ["Content-Type: multipart/form-data"],
         body: `Postman → Body → form-data
 KEY       TYPE    VALUE
@@ -339,21 +339,21 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         note: "Bundle hanya membawa credential schema. Server key/API key merchant tidak boleh berada di manifest, binary, checksums, atau nama file.",
       },
       {
-        method: "GET", path: "/internal/v1/provider-app-providers/{providerCode}/versions", title: "List provider submission history", description: "Menampilkan seluruh versi untuk satu provider, termasuk release lama yang deprecated, tanpa mengembalikan binary ZIP.",
+        method: "GET", path: "/api/v1/admin/provider-app-providers/{providerCode}/versions", title: "List provider submission history", description: "Menampilkan seluruh versi untuk satu provider, termasuk release lama yang deprecated, tanpa mengembalikan binary ZIP.",
         response: `{ "data": [${providerAppBase}] }`,
       },
       {
-        method: "POST", path: "/internal/v1/provider-apps/{id}/transition", title: "Validate Provider App", description: "Membaca ulang artifact immutable dari database, memverifikasi digest, ZIP, manifest, dan checksum, lalu memindahkan UPLOADED menjadi VALIDATED.",
+        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Validate Provider App", description: "Membaca ulang artifact immutable dari database, memverifikasi digest, ZIP, manifest, dan checksum, lalu memindahkan UPLOADED menjadi VALIDATED.",
         body: `{ "expected_status": "UPLOADED", "status": "VALIDATED", "review_note": "" }`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "VALIDATED" } }`,
       },
       {
-        method: "POST", path: "/internal/v1/provider-apps/{id}/transition", title: "Certify Provider App", description: "Mencatat approval operator setelah conformance/security evidence diperiksa. Review note minimum delapan karakter dan seluruh perubahan diaudit.",
+        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Certify Provider App", description: "Mencatat approval operator setelah conformance/security evidence diperiksa. Review note minimum delapan karakter dan seluruh perubahan diaudit.",
         body: `{ "expected_status": "VALIDATED", "status": "CERTIFIED", "review_note": "Sandbox conformance and security review passed." }`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "CERTIFIED" } }`,
       },
       {
-        method: "POST", path: "/internal/v1/provider-apps/{id}/transition", title: "Publish Provider App", description: "Mempromosikan CERTIFIED menjadi PUBLISHED dan merilis metadata provider hanya ketika connector runtime memuat provider code dan exact manifest version yang sama.",
+        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Publish Provider App", description: "Mempromosikan CERTIFIED menjadi PUBLISHED dan merilis metadata provider hanya ketika connector runtime memuat provider code dan exact manifest version yang sama.",
         body: `{ "expected_status": "CERTIFIED", "status": "PUBLISHED", "review_note": "Isolated runtime 0.1.0 deployed and health checked." }`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "PUBLISHED", "published_at": "2026-08-28T15:00:00Z" } }`,
         note: "Jika runtime belum tersedia, response 409 CONNECTOR_RUNTIME_NOT_READY. Guard ini mencegah merchant meng-install connector yang belum dapat mengeksekusi transaksi.",
@@ -413,7 +413,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     summary: "Dashboard admin menerbitkan, melihat metadata, dan mencabut credential full-access untuk Main Service Emisell. Plaintext hanya tampil satu kali.",
     endpoints: [
       {
-        method: "GET", path: "/internal/v1/service-api-keys", title: "List service API keys", description: "Menampilkan key aktif dan revoked dalam bentuk fingerprint tersamarkan. Endpoint admin tidak pernah mengembalikan secret asli.",
+        method: "GET", path: "/api/v1/admin/service-api-keys", title: "List service API keys", description: "Menampilkan key aktif dan revoked dalam bentuk fingerprint tersamarkan. Endpoint admin tidak pernah mengembalikan secret asli.",
         response: `{
   "data": [{
     "id": "sak_01k3...",
@@ -427,7 +427,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
 }`,
       },
       {
-        method: "POST", path: "/internal/v1/service-api-keys", title: "Generate full-access API key", description: "Membuat random 256-bit Bearer credential. Database hanya menyimpan SHA-256 hash; field secret hanya ada pada response pertama.",
+        method: "POST", path: "/api/v1/admin/service-api-keys", title: "Generate full-access API key", description: "Membuat random 256-bit Bearer credential. Database hanya menyimpan SHA-256 hash; field secret hanya ada pada response pertama.",
         body: `{ "name": "Emisell Backend Production" }`,
         response: `{
   "data": {
@@ -444,7 +444,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         note: "Salin secret langsung ke secret manager Emisell Backend. Secret tidak dapat ditampilkan ulang dan tidak boleh ditempatkan pada browser, log, Postman export, atau source code.",
       },
       {
-        method: "POST", path: "/internal/v1/service-api-keys/{id}/revoke", title: "Revoke service API key", description: "Mencabut key secara langsung tanpa restart API. Record dan audit tetap dipertahankan.",
+        method: "POST", path: "/api/v1/admin/service-api-keys/{id}/revoke", title: "Revoke service API key", description: "Mencabut key secara langsung tanpa restart API. Record dan audit tetap dipertahankan.",
         response: `{
   "data": {
     "id": "sak_01k3...",
@@ -799,7 +799,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     summary: "Ingress event langsung dari provider dan durable delivery menuju Emisell.",
     endpoints: [
       {
-        method: "GET", path: "/internal/v1/emisell-webhook", title: "Read outbound webhook settings", description: "Membaca Callback URL, status aktif, masked secret, sumber konfigurasi, dan hasil connection test terakhir. Plaintext secret tidak pernah dikembalikan.",
+        method: "GET", path: "/api/v1/admin/emisell-webhook", title: "Read outbound webhook settings", description: "Membaca Callback URL, status aktif, masked secret, sumber konfigurasi, dan hasil connection test terakhir. Plaintext secret tidak pernah dikembalikan.",
         response: `{
   "data": {
     "configured": true,
@@ -816,7 +816,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         note: "Endpoint admin memakai X-Admin-API-Key dan hanya boleh dipanggil dashboard server, bukan browser langsung.",
       },
       {
-        method: "PUT", path: "/internal/v1/emisell-webhook", title: "Save Callback URL and delivery state", description: "Callback URL diisi manual. Worker membaca perubahan database pada poll berikutnya tanpa rebuild atau restart container.",
+        method: "PUT", path: "/api/v1/admin/emisell-webhook", title: "Save Callback URL and delivery state", description: "Callback URL diisi manual. Worker membaca perubahan database pada poll berikutnya tanpa rebuild atau restart container.",
         body: `{
   "callback_url": "https://api.emisell.com/webhooks/v1/payment-proxy",
   "enabled": true
@@ -834,7 +834,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         note: "Production hanya menerima HTTPS publik. Delivery tidak dapat diaktifkan sebelum secret dibuat.",
       },
       {
-        method: "POST", path: "/internal/v1/emisell-webhook/secret", title: "Generate or rotate webhook secret", description: "Membuat 256-bit random secret berprefix whsec_, mengenkripsinya dengan AES-GCM, dan menampilkan plaintext satu kali pada response.",
+        method: "POST", path: "/api/v1/admin/emisell-webhook/secret", title: "Generate or rotate webhook secret", description: "Membuat 256-bit random secret berprefix whsec_, mengenkripsinya dengan AES-GCM, dan menampilkan plaintext satu kali pada response.",
         response: `{
   "data": {
     "settings": {
@@ -850,7 +850,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         note: "Generate/rotate selalu fail-closed: delivery dinonaktifkan sampai secret baru dipasang di Emisell Backend, connection test berhasil, dan operator mengaktifkannya kembali. Secret tidak dapat dilihat lagi.",
       },
       {
-        method: "POST", path: "/internal/v1/emisell-webhook/test", title: "Send signed connection test", description: "Mengirim event canonical webhook.test menggunakan Callback URL dan secret tersimpan, tanpa customer, order, payment, atau credential provider.",
+        method: "POST", path: "/api/v1/admin/emisell-webhook/test", title: "Send signed connection test", description: "Mengirim event canonical webhook.test menggunakan Callback URL dan secret tersimpan, tanpa customer, order, payment, atau credential provider.",
         response: `{
   "data": {
     "success": true,
@@ -1304,7 +1304,7 @@ function Code({ children }: { children: string }) {
 }
 
 function postmanPath(path: string) {
-  if (path.startsWith("/internal/v1/service-api-keys/{id}")) return path.replace("{id}", "{{service_api_key_id}}");
+  if (path.startsWith("/api/v1/admin/service-api-keys/{id}")) return path.replace("{id}", "{{service_api_key_id}}");
   if (path.startsWith("/webhooks/v1/providers/{provider_code}/{installation_id}")) return path.replace("{provider_code}", "{{provider_code}}").replace("{installation_id}", "{{installation_id}}");
   if (path.startsWith("/api/v1/provider-installations/{id}")) return path.replace("{id}", "{{installation_id}}");
   if (path.startsWith("/api/v1/payment-method-assignments/{id}")) return path.replace("{id}", "{{payment_option_id}}");
@@ -1330,11 +1330,10 @@ function postmanRequest(endpoint: Endpoint) {
   const root = endpoint.path.startsWith("/partner/v1/") ? "{{partner_base_url}}" : "{{base_url}}";
   const requestURL = endpoint.path.startsWith("http") ? endpoint.path : `${root}${postmanPath(endpoint.path)}`;
   const lines = [`${endpoint.method} ${requestURL}`];
-  if (endpoint.path.startsWith("/api/v1/")) {
-    lines.push("Authorization: Bearer {{service_api_key}}", "X-Emisell-Merchant-ID: {{merchant_id}}", "X-Emisell-API-Version: {{api_contract_version}}");
-  }
-  if (endpoint.path.startsWith("/internal/v1/")) {
+  if (endpoint.path.startsWith("/api/v1/admin/")) {
     lines.push("X-Admin-API-Key: {{admin_api_key}}");
+  } else if (endpoint.path.startsWith("/api/v1/")) {
+    lines.push("Authorization: Bearer {{service_api_key}}", "X-Emisell-Merchant-ID: {{merchant_id}}", "X-Emisell-API-Version: {{api_contract_version}}");
   }
   if (endpoint.path.startsWith("/partner/v1/")) {
     lines.push("Authorization: Bearer {{connector_runner_token}}");
@@ -1506,7 +1505,7 @@ HandleWebhook()`}</Code>
               <section className="doc-section" id="postman">
                 <p className="label">POSTMAN</p>
                 <h2>Collection dipisah per kontrak</h2>
-                <p>Folder Internal Gateway memakai satu `base_url` untuk `/api/v1/*` dan `/internal/v1/*`; jenis credential tetap dibedakan per path. Folder Partner API memanggil Connector Runner terisolasi melalui jaringan privat.</p>
+                <p>Folder Internal Gateway memakai satu `base_url` dan satu namespace `/api/v1/*`. Operasi operator berada di `/api/v1/admin/*` dengan admin key; operasi merchant memakai service key. Folder Partner API memanggil Connector Runner terisolasi melalui jaringan privat.</p>
                 <div className="postman-card">
                   <div>
                     <strong>Emisell Payment Platform API v1</strong>
@@ -1534,7 +1533,7 @@ installation_id = ins_...
 provider_payment_id = <ID dari provider>
 provider_refund_id = <ID refund dari provider>
 provider_secret = <secret injected only in isolated runtime>`}</Code>
-                <div className="callout warning">Simpan API key hanya sebagai variable bertipe secret. Jangan export collection yang sudah berisi current value credential. `/internal/v1/*` wajib memakai `X-Admin-API-Key`, sedangkan `/api/v1/*` memakai service Bearer key.</div>
+                <div className="callout warning">Simpan API key hanya sebagai variable bertipe secret. Jangan export collection yang sudah berisi current value credential. `/api/v1/admin/*` wajib memakai `X-Admin-API-Key`; endpoint `/api/v1/*` lainnya memakai service Bearer key.</div>
               </section>
 
               {activeGroups.map((group) => (

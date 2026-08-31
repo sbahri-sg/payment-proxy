@@ -48,10 +48,27 @@ func TestActorIsDerivedByServerAndIgnoresRequestHeader(t *testing.T) {
 		t.Fatalf("service actor = %q, want emisell-backend", got)
 	}
 
-	adminRequest := httptest.NewRequest(http.MethodPost, "/internal/v1/service-api-keys", nil)
+	adminRequest := httptest.NewRequest(http.MethodPost, "/api/v1/admin/service-api-keys", nil)
 	adminRequest.Header.Set("X-Emisell-Actor", "forged-operator")
 	if got := actor(adminRequest); got != "payment-proxy-admin" {
 		t.Fatalf("admin actor = %q, want payment-proxy-admin", got)
+	}
+}
+
+func TestCanonicalAdminRouteUsesAdminAuthentication(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	handler := New(config.Config{AdminAPIKey: "test-admin-key"}, nil, nil, nil, nil, nil, logger)
+
+	canonical := httptest.NewRecorder()
+	handler.ServeHTTP(canonical, httptest.NewRequest(http.MethodGet, "/api/v1/admin/provider-app-providers", nil))
+	if canonical.Code != http.StatusUnauthorized || !strings.Contains(canonical.Body.String(), "invalid admin credential") {
+		t.Fatalf("canonical admin route used the wrong authentication chain: %d %s", canonical.Code, canonical.Body.String())
+	}
+
+	legacy := httptest.NewRecorder()
+	handler.ServeHTTP(legacy, httptest.NewRequest(http.MethodGet, "/internal/v1/provider-app-providers", nil))
+	if legacy.Code != http.StatusUnauthorized || legacy.Header().Get("Deprecation") != "true" {
+		t.Fatalf("legacy admin compatibility route is not marked deprecated: %d %#v", legacy.Code, legacy.Header())
 	}
 }
 
@@ -225,7 +242,7 @@ func TestAdminTrafficGuardUsesClientIP(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	request := func(remoteAddr string) *http.Request {
-		item := httptest.NewRequest(http.MethodGet, "/internal/v1/provider-app-providers", nil)
+		item := httptest.NewRequest(http.MethodGet, "/api/v1/admin/provider-app-providers", nil)
 		item.RemoteAddr = remoteAddr
 		return item
 	}

@@ -388,49 +388,49 @@ async function adminRequest<T>(path: string, _actor: string, init?: RequestInit)
 }
 
 export function getEmisellWebhookSettings(actor: string) {
-  return adminRequest<EmisellWebhookSettings>("/internal/v1/emisell-webhook", actor);
+  return adminRequest<EmisellWebhookSettings>("/api/v1/admin/emisell-webhook", actor);
 }
 
 export function updateEmisellWebhookSettings(actor: string, callbackURL: string, enabled: boolean) {
-  return adminRequest<EmisellWebhookSettings>("/internal/v1/emisell-webhook", actor, {
+  return adminRequest<EmisellWebhookSettings>("/api/v1/admin/emisell-webhook", actor, {
     method: "PUT",
     body: JSON.stringify({ callback_url: callbackURL, enabled }),
   });
 }
 
 export function generateEmisellWebhookSecret(actor: string) {
-  return adminRequest<GeneratedEmisellWebhookSecret>("/internal/v1/emisell-webhook/secret", actor, { method: "POST" });
+  return adminRequest<GeneratedEmisellWebhookSecret>("/api/v1/admin/emisell-webhook/secret", actor, { method: "POST" });
 }
 
 export function testEmisellWebhook(actor: string) {
-  return adminRequest<EmisellWebhookTestResult>("/internal/v1/emisell-webhook/test", actor, { method: "POST" });
+  return adminRequest<EmisellWebhookTestResult>("/api/v1/admin/emisell-webhook/test", actor, { method: "POST" });
 }
 
 export function listServiceAPIKeys(actor: string) {
-  return adminRequest<ServiceAPIKey[]>("/internal/v1/service-api-keys", actor);
+  return adminRequest<ServiceAPIKey[]>("/api/v1/admin/service-api-keys", actor);
 }
 
 export function generateServiceAPIKey(actor: string, name: string) {
-  return adminRequest<GeneratedServiceAPIKey>("/internal/v1/service-api-keys", actor, {
+  return adminRequest<GeneratedServiceAPIKey>("/api/v1/admin/service-api-keys", actor, {
     method: "POST",
     body: JSON.stringify({ name }),
   });
 }
 
 export function revokeServiceAPIKey(actor: string, id: string) {
-  return adminRequest<ServiceAPIKey>(`/internal/v1/service-api-keys/${encodeURIComponent(id)}/revoke`, actor, { method: "POST" });
+  return adminRequest<ServiceAPIKey>(`/api/v1/admin/service-api-keys/${encodeURIComponent(id)}/revoke`, actor, { method: "POST" });
 }
 
 export function listProviderApps(actor: string) {
-  return adminRequest<ProviderAppVersion[]>("/internal/v1/provider-apps", actor);
+  return adminRequest<ProviderAppVersion[]>("/api/v1/admin/provider-apps", actor);
 }
 
 export function listProviderAppProviders(actor: string) {
-  return adminRequest<ProviderAppProvider[]>("/internal/v1/provider-app-providers", actor);
+  return adminRequest<ProviderAppProvider[]>("/api/v1/admin/provider-app-providers", actor);
 }
 
 export function getProviderAppProvider(actor: string, providerCode: string) {
-  return adminRequest<ProviderAppProvider>(`/internal/v1/provider-app-providers/${encodeURIComponent(providerCode)}`, actor);
+  return adminRequest<ProviderAppProvider>(`/api/v1/admin/provider-app-providers/${encodeURIComponent(providerCode)}`, actor);
 }
 
 export function createProviderAppProvider(actor: string, input: {
@@ -441,24 +441,24 @@ export function createProviderAppProvider(actor: string, input: {
   documentation_url: string;
   support_email: string;
 }) {
-  return adminRequest<ProviderAppProvider>("/internal/v1/provider-app-providers", actor, {
+  return adminRequest<ProviderAppProvider>("/api/v1/admin/provider-app-providers", actor, {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
 export function listProviderAppVersions(actor: string, providerCode: string) {
-  return adminRequest<ProviderAppVersion[]>(`/internal/v1/provider-app-providers/${encodeURIComponent(providerCode)}/versions`, actor);
+  return adminRequest<ProviderAppVersion[]>(`/api/v1/admin/provider-app-providers/${encodeURIComponent(providerCode)}/versions`, actor);
 }
 
 export function uploadProviderApp(actor: string, providerCode: string, bundle: File) {
   const form = new FormData();
   form.set("bundle", bundle, bundle.name);
-  return adminRequest<ProviderAppVersion>(`/internal/v1/provider-app-providers/${encodeURIComponent(providerCode)}/versions`, actor, { method: "POST", body: form });
+  return adminRequest<ProviderAppVersion>(`/api/v1/admin/provider-app-providers/${encodeURIComponent(providerCode)}/versions`, actor, { method: "POST", body: form });
 }
 
 export function transitionProviderApp(actor: string, id: string, expectedStatus: ProviderAppVersion["status"], status: ProviderAppVersion["status"], reviewNote: string) {
-  return adminRequest<ProviderAppVersion>(`/internal/v1/provider-apps/${encodeURIComponent(id)}/transition`, actor, {
+  return adminRequest<ProviderAppVersion>(`/api/v1/admin/provider-apps/${encodeURIComponent(id)}/transition`, actor, {
     method: "POST",
     body: JSON.stringify({ expected_status: expectedStatus, status, review_note: reviewNote }),
   });

@@ -88,7 +88,7 @@ async function getOverview(): Promise<Overview | null> {
   const adminKey = process.env.ADMIN_API_KEY ?? "";
   if (!adminKey) return null;
   try {
-    const response = await fetch(`${base}/internal/v1/dashboard/overview`, {
+    const response = await fetch(`${base}/api/v1/admin/dashboard/overview`, {
       cache: "no-store",
       headers: { "X-Admin-API-Key": adminKey },
       signal: AbortSignal.timeout(3500),
@@ -105,7 +105,7 @@ async function getObservability(): Promise<Observability | null> {
   const adminKey = process.env.ADMIN_API_KEY ?? "";
   if (!adminKey) return null;
   try {
-    const response = await fetch(`${base}/internal/v1/observability`, {
+    const response = await fetch(`${base}/api/v1/admin/observability`, {
       cache: "no-store",
       headers: { "X-Admin-API-Key": adminKey },
       signal: AbortSignal.timeout(2500),

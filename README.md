@@ -86,7 +86,7 @@ Alamat default:
 - Liveness: `http://localhost:18080/health/live`
 - Readiness: `http://localhost:18080/health/ready`
 - Runtime capabilities: `GET http://localhost:18080/api/v1/engine/capabilities`
-- Admin readiness report: `GET http://localhost:18080/internal/v1/engine/readiness`
+- Admin readiness report: `GET http://localhost:18080/api/v1/admin/engine/readiness`
 
 ## Deploy production satu perintah
 

@@ -69,14 +69,17 @@ func (s *Postgres) CreateProviderAppProvider(ctx context.Context, in CreateProvi
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('provider-app:' || $1,0))`, in.ProviderCode); err != nil {
 		return model.ProviderAppProvider{}, err
 	}
-	var exists, available bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM providers WHERE code=$1),COALESCE((SELECT available FROM providers WHERE code=$1),false)`, in.ProviderCode).Scan(&exists, &available); err != nil {
+	var providerExists, registryExists bool
+	if err = tx.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM providers WHERE code=$1),
+		       EXISTS(SELECT 1 FROM provider_app_providers WHERE provider_code=$1)
+	`, in.ProviderCode).Scan(&providerExists, &registryExists); err != nil {
 		return model.ProviderAppProvider{}, err
 	}
-	if available {
+	if registryExists {
 		return model.ProviderAppProvider{}, ErrConflict
 	}
-	if exists {
+	if providerExists {
 		if _, err = tx.Exec(ctx, `
 			UPDATE providers SET name=$2,description=$3,engine_connector=$1,updated_at=now()
 			WHERE code=$1
