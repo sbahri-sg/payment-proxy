@@ -1327,7 +1327,11 @@ function postmanBody(body: string) {
 }
 
 function postmanRequest(endpoint: Endpoint) {
-  const root = endpoint.path.startsWith("/partner/v1/") ? "{{partner_base_url}}" : "{{base_url}}";
+  const root = endpoint.path.startsWith("/partner/v1/")
+    ? "{{partner_base_url}}"
+    : endpoint.path.startsWith("/internal/v1/")
+      ? "{{admin_base_url}}"
+      : "{{base_url}}";
   const requestURL = endpoint.path.startsWith("http") ? endpoint.path : `${root}${postmanPath(endpoint.path)}`;
   const lines = [`${endpoint.method} ${requestURL}`];
   if (endpoint.path.startsWith("/api/v1/")) {
@@ -1378,6 +1382,7 @@ export default async function DocsPage({
   const endpointCount = activeGroups.reduce((total, group) => total + group.endpoints.length, 0);
   await requireDashboardSession(`/docs?contract=${contractID}`);
   const baseURL = process.env.PAYMENT_PROXY_PUBLIC_URL ?? "http://localhost:18080";
+  const adminBaseURL = process.env.PAYMENT_PROXY_ADMIN_BASE_URL ?? "http://localhost:18080";
   const apiContractVersion = process.env.API_CONTRACT_VERSION ?? "2026-08-28";
   const health = await getReadiness();
   const healthy = health.status === "ready";
@@ -1506,7 +1511,7 @@ HandleWebhook()`}</Code>
               <section className="doc-section" id="postman">
                 <p className="label">POSTMAN</p>
                 <h2>Collection dipisah per kontrak</h2>
-                <p>Folder Internal Gateway memanggil Payment Proxy, sedangkan folder Partner API memanggil Connector Runner terisolasi. Keduanya aktif, tetapi Partner API hanya boleh dijalankan dari jaringan privat.</p>
+                <p>Folder Internal Gateway memakai public service origin untuk `/api/v1/*` dan private admin origin untuk `/internal/v1/*`. Folder Partner API memanggil Connector Runner terisolasi. Admin dan Partner API hanya boleh dijalankan dari jaringan privat.</p>
                 <div className="postman-card">
                   <div>
                     <strong>Emisell Payment Platform API v1</strong>
@@ -1516,6 +1521,7 @@ HandleWebhook()`}</Code>
                 </div>
                 <h3>Collection variables</h3>
                 <Code>{contractID === "internal" ? `base_url = ${baseURL}
+admin_base_url = ${adminBaseURL}
 service_api_key = <secret epk_ dari menu API Keys atau bootstrap SERVICE_API_KEY>
 service_api_key_id = <ID metadata sak_ untuk revoke>
 admin_api_key = <isi dari .env ADMIN_API_KEY>
@@ -1534,7 +1540,7 @@ installation_id = ins_...
 provider_payment_id = <ID dari provider>
 provider_refund_id = <ID refund dari provider>
 provider_secret = <secret injected only in isolated runtime>`}</Code>
-                <div className="callout warning">Simpan API key hanya sebagai variable bertipe secret. Jangan export collection yang sudah berisi current value credential.</div>
+                <div className="callout warning">Simpan API key hanya sebagai variable bertipe secret. Jangan export collection yang sudah berisi current value credential. `admin_base_url` wajib menunjuk origin privat/VPN dan tidak boleh diarahkan ke domain publik Payment Proxy.</div>
               </section>
 
               {activeGroups.map((group) => (
