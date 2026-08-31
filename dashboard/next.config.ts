@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
           destination: `${backendApiUrl}/api/v1/:path*`,
         },
         {
+          source: "/internal/v1/:path*",
+          destination: `${backendApiUrl}/internal/v1/:path*`,
+        },
+        {
           source: "/api/webhooks/v1/providers/:path*",
           destination: `${backendApiUrl}/webhooks/v1/providers/:path*`,
         },

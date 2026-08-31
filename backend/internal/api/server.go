@@ -65,16 +65,17 @@ type Engine interface {
 }
 
 type Server struct {
-	cfg             config.Config
-	store           *store.Postgres
-	engine          Engine
-	cipher          *secrets.Cipher
-	serviceKeys     *servicekeys.Service
-	webhookSettings *webhooksettings.Service
-	metrics         *observability.Metrics
-	rateLimiter     *ratelimit.Limiter
-	inFlight        chan struct{}
-	log             *slog.Logger
+	cfg              config.Config
+	store            *store.Postgres
+	engine           Engine
+	cipher           *secrets.Cipher
+	serviceKeys      *servicekeys.Service
+	webhookSettings  *webhooksettings.Service
+	metrics          *observability.Metrics
+	rateLimiter      *ratelimit.Limiter
+	adminRateLimiter *ratelimit.Limiter
+	inFlight         chan struct{}
+	log              *slog.Logger
 }
 
 func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *secrets.Cipher, keys *servicekeys.Service, settings *webhooksettings.Service, logger *slog.Logger) http.Handler {
@@ -82,6 +83,7 @@ func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *sec
 		cfg: cfg, store: database, engine: engine, cipher: cipher, serviceKeys: keys,
 		webhookSettings: settings, metrics: observability.New(),
 		rateLimiter: ratelimit.New(cfg.APIRateLimitRPS, cfg.APIRateLimitBurst), log: logger,
+		adminRateLimiter: ratelimit.New(cfg.AdminRateLimitRPS, cfg.AdminRateLimitBurst),
 	}
 	if cfg.APIMaxInFlight > 0 {
 		s.inFlight = make(chan struct{}, cfg.APIMaxInFlight)
@@ -92,7 +94,7 @@ func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *sec
 	r.Get("/health/ready", s.ready)
 	r.Post("/webhooks/v1/providers/{provider}/{installationID}", s.providerWebhook)
 	r.Route("/internal/v1", func(r chi.Router) {
-		r.Use(s.authenticateAdmin)
+		r.Use(s.protectAdminTraffic, s.authenticateAdmin, s.requestDeadline)
 		r.Get("/dashboard/overview", s.dashboardOverview)
 		r.Get("/engine/readiness", s.engineReadiness)
 		r.Get("/observability", s.observabilitySnapshot)
@@ -220,12 +222,14 @@ func (s *Server) engineReadiness(w http.ResponseWriter, r *http.Request) {
 		"connector_count":  len(s.engine.Manifests()),
 		"checks":           checks,
 		"request_guards": map[string]any{
-			"max_body_bytes":   maxRequestBody,
-			"timeout_seconds":  int(s.cfg.APIRequestTimeout.Seconds()),
-			"rate_limit_rps":   s.cfg.APIRateLimitRPS,
-			"rate_limit_burst": s.cfg.APIRateLimitBurst,
-			"max_in_flight":    s.cfg.APIMaxInFlight,
-			"rate_limit_scope": "per_replica_per_merchant",
+			"max_body_bytes":         maxRequestBody,
+			"timeout_seconds":        int(s.cfg.APIRequestTimeout.Seconds()),
+			"rate_limit_rps":         s.cfg.APIRateLimitRPS,
+			"rate_limit_burst":       s.cfg.APIRateLimitBurst,
+			"admin_rate_limit_rps":   s.cfg.AdminRateLimitRPS,
+			"admin_rate_limit_burst": s.cfg.AdminRateLimitBurst,
+			"max_in_flight":          s.cfg.APIMaxInFlight,
+			"rate_limit_scope":       "per_replica_per_merchant",
 		},
 	})
 }
@@ -2082,6 +2086,45 @@ func (s *Server) protectServiceTraffic(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) protectAdminTraffic(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.adminRateLimiter != nil && s.adminRateLimiter.Enabled() {
+			decision := s.adminRateLimiter.Allow(adminRateLimitKey(r))
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(decision.Limit))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(decision.Remaining))
+			w.Header().Set("X-Emisell-RateLimit-Scope", "replica-admin-ip")
+			if !decision.Allowed {
+				retrySeconds := int((decision.RetryAfter + time.Second - 1) / time.Second)
+				w.Header().Set("Retry-After", strconv.Itoa(retrySeconds))
+				problem(w, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", "admin request rate exceeded the API replica limit")
+				return
+			}
+		}
+		if s.inFlight != nil {
+			select {
+			case s.inFlight <- struct{}{}:
+				defer func() { <-s.inFlight }()
+			default:
+				w.Header().Set("Retry-After", "1")
+				problem(w, http.StatusServiceUnavailable, "API_BUSY", "API replica is at its concurrent request limit")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func adminRateLimitKey(r *http.Request) string {
+	value := strings.TrimSpace(r.RemoteAddr)
+	if host, _, err := net.SplitHostPort(value); err == nil {
+		value = host
+	}
+	if value == "" {
+		value = "unknown"
+	}
+	return "admin:" + value
 }
 
 func (s *Server) requestDeadline(next http.Handler) http.Handler {

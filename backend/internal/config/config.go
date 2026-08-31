@@ -17,6 +17,8 @@ type Config struct {
 	APIRequestTimeout      time.Duration
 	APIRateLimitRPS        int
 	APIRateLimitBurst      int
+	AdminRateLimitRPS      int
+	AdminRateLimitBurst    int
 	APIMaxInFlight         int
 	DatabaseURL            string
 	DatabaseMaxConns       int
@@ -63,10 +65,14 @@ func Load() (Config, error) {
 	}
 	rateLimitRPS := 0
 	rateLimitBurst := 0
+	adminRateLimitRPS := 0
+	adminRateLimitBurst := 0
 	maxInFlight := 0
 	if appEnv == "production" {
 		rateLimitRPS = 300
 		rateLimitBurst = 600
+		adminRateLimitRPS = 20
+		adminRateLimitBurst = 40
 		maxInFlight = 500
 	}
 	cfg := Config{
@@ -75,6 +81,8 @@ func Load() (Config, error) {
 		APIRequestTimeout:      seconds("API_REQUEST_TIMEOUT_SECONDS", 25),
 		APIRateLimitRPS:        nonNegativeInteger("API_RATE_LIMIT_RPS", rateLimitRPS),
 		APIRateLimitBurst:      nonNegativeInteger("API_RATE_LIMIT_BURST", rateLimitBurst),
+		AdminRateLimitRPS:      nonNegativeInteger("ADMIN_RATE_LIMIT_RPS", adminRateLimitRPS),
+		AdminRateLimitBurst:    nonNegativeInteger("ADMIN_RATE_LIMIT_BURST", adminRateLimitBurst),
 		APIMaxInFlight:         nonNegativeInteger("API_MAX_IN_FLIGHT", maxInFlight),
 		DatabaseURL:            strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		DatabaseMaxConns:       integer("DATABASE_MAX_CONNECTIONS", 40),
@@ -111,6 +119,9 @@ func Load() (Config, error) {
 	}
 	if (cfg.APIRateLimitRPS == 0) != (cfg.APIRateLimitBurst == 0) {
 		return Config{}, errors.New("API_RATE_LIMIT_RPS and API_RATE_LIMIT_BURST must both be zero or both be positive")
+	}
+	if (cfg.AdminRateLimitRPS == 0) != (cfg.AdminRateLimitBurst == 0) {
+		return Config{}, errors.New("ADMIN_RATE_LIMIT_RPS and ADMIN_RATE_LIMIT_BURST must both be zero or both be positive")
 	}
 	if cfg.PublicBaseURL != "" {
 		publicURL, publicErr := url.Parse(cfg.PublicBaseURL)
@@ -243,7 +254,7 @@ func (c Config) ValidateRuntime() error {
 		return errors.New("CREDENTIAL_ENCRYPTION_KEY must be base64 for exactly 32 bytes")
 	}
 	if c.AppEnv == "production" {
-		if c.APIRateLimitRPS == 0 || c.APIRateLimitBurst == 0 || c.APIMaxInFlight == 0 {
+		if c.APIRateLimitRPS == 0 || c.APIRateLimitBurst == 0 || c.AdminRateLimitRPS == 0 || c.AdminRateLimitBurst == 0 || c.APIMaxInFlight == 0 {
 			return errors.New("API traffic guards must be enabled in production")
 		}
 		if c.APIRequestTimeout <= c.ConnectorTimeout {

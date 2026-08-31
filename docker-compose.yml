@@ -103,6 +103,8 @@ services:
       API_REQUEST_TIMEOUT_SECONDS: ${API_REQUEST_TIMEOUT_SECONDS:-25}
       API_RATE_LIMIT_RPS: ${API_RATE_LIMIT_RPS:-0}
       API_RATE_LIMIT_BURST: ${API_RATE_LIMIT_BURST:-0}
+      ADMIN_RATE_LIMIT_RPS: ${ADMIN_RATE_LIMIT_RPS:-20}
+      ADMIN_RATE_LIMIT_BURST: ${ADMIN_RATE_LIMIT_BURST:-40}
       API_MAX_IN_FLIGHT: ${API_MAX_IN_FLIGHT:-0}
       EMISELL_BACKEND_WEBHOOK_URL: ${EMISELL_BACKEND_WEBHOOK_URL:-http://emisell-receiver:19090/webhooks/v1/payment-proxy}
       EMISELL_BACKEND_WEBHOOK_SECRET: ${EMISELL_BACKEND_WEBHOOK_SECRET:-local-emisell-webhook-secret-change-before-production}
@@ -178,7 +180,6 @@ services:
     environment:
       BACKEND_API_URL: http://api:8080
       PAYMENT_PROXY_PUBLIC_URL: ${PAYMENT_PROXY_PUBLIC_BASE_URL:-http://localhost:${API_PORT:-8080}}
-      PAYMENT_PROXY_ADMIN_BASE_URL: ${PAYMENT_PROXY_ADMIN_BASE_URL:-http://localhost:${API_PORT:-8080}}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key-change-before-production}
       SERVICE_API_KEY: ${SERVICE_API_KEY:-local-service-key-change-before-production}
       API_CONTRACT_VERSION: "2026-08-28"

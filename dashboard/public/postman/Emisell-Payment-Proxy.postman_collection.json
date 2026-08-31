@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "8b7b56e2-bc4c-4b16-a9ee-3a8b8cb8c101",
     "name": "Emisell Payment Platform API v1",
-    "description": "Emisell Internal Gateway and private Partner API in one collection. Public service traffic, private admin control-plane traffic, and isolated connector traffic use separate base URL variables. Every request includes an example response; secret current values are intentionally not exported.",
+    "description": "Emisell Internal Gateway and private Partner API in one collection. Service and admin control-plane traffic share one Payment Proxy base URL but use different credentials; isolated connector traffic uses its own private origin. Every request includes an example response; secret current values are intentionally not exported.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -19,11 +19,6 @@
     {
       "key": "base_url",
       "value": "https://payment-proxy.emisell.com",
-      "type": "string"
-    },
-    {
-      "key": "admin_base_url",
-      "value": "http://192.168.0.50:18080",
       "type": "string"
     },
     {
@@ -214,7 +209,7 @@
                 "header": [
                   { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
                 ],
-                "url": "{{admin_base_url}}/internal/v1/service-api-keys",
+                "url": "{{base_url}}/internal/v1/service-api-keys",
                 "description": "Mengembalikan metadata dan fingerprint tersamarkan. Plaintext key tidak pernah dikembalikan."
               },
               "response": [
@@ -256,7 +251,7 @@
                   "raw": "{\n  \"name\": \"Emisell Backend Production\"\n}",
                   "options": { "raw": { "language": "json" } }
                 },
-                "url": "{{admin_base_url}}/internal/v1/service-api-keys",
+                "url": "{{base_url}}/internal/v1/service-api-keys",
                 "description": "Membuat random 256-bit key berprefix epk_. Postman menyimpan secret ke collection variable agar endpoint /api/v1/* dapat langsung diuji. Salin ke secret manager Emisell sebelum response ditutup."
               },
               "response": [
@@ -276,7 +271,7 @@
                 "header": [
                   { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
                 ],
-                "url": "{{admin_base_url}}/internal/v1/service-api-keys/{{service_api_key_id}}/revoke",
+                "url": "{{base_url}}/internal/v1/service-api-keys/{{service_api_key_id}}/revoke",
                 "description": "Mencabut akses secara langsung tanpa restart Payment Proxy. Gunakan key baru di Emisell sebelum melakukan revoke saat rotasi."
               },
               "response": [
@@ -316,7 +311,7 @@
                   { "key": "Content-Type", "value": "application/json", "type": "text" }
                 ],
                 "body": { "mode": "raw", "raw": "{\n  \"provider_code\": \"{{provider_app_code}}\",\n  \"provider_name\": \"Connector Demo\",\n  \"description\": \"Provider connector registered before ZIP submission.\",\n  \"website_url\": \"https://example.com\",\n  \"documentation_url\": \"https://example.com/docs\",\n  \"support_email\": \"support@example.com\"\n}", "options": { "raw": { "language": "json" } } },
-                "url": "{{admin_base_url}}/internal/v1/provider-app-providers",
+                "url": "{{base_url}}/internal/v1/provider-app-providers",
                 "description": "Provider code menjadi identitas permanen. Nama dan code manifest ZIP berikutnya wajib cocok."
               },
               "response": [
@@ -349,7 +344,7 @@
                     { "key": "bundle", "type": "file", "src": "", "description": "Pilih Provider App .zip maksimum 25 MB" }
                   ]
                 },
-                "url": "{{admin_base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions",
+                "url": "{{base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions",
                 "description": "Memindai ZIP dan memastikan manifest code/name cocok dengan provider pada URL. Bundle tidak dieksekusi di Payment Kernel."
               },
               "response": [
@@ -371,7 +366,7 @@
                   { "key": "Content-Type", "value": "application/json", "type": "text" }
                 ],
                 "body": { "mode": "raw", "raw": "{\n  \"expected_status\": \"UPLOADED\",\n  \"status\": \"VALIDATED\",\n  \"review_note\": \"\"\n}", "options": { "raw": { "language": "json" } } },
-                "url": "{{admin_base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition",
+                "url": "{{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition",
                 "description": "Membaca ulang artifact immutable dan memverifikasi digest, manifest, serta seluruh checksum."
               },
               "response": [
@@ -388,7 +383,7 @@
                   { "key": "Content-Type", "value": "application/json", "type": "text" }
                 ],
                 "body": { "mode": "raw", "raw": "{\n  \"expected_status\": \"VALIDATED\",\n  \"status\": \"CERTIFIED\",\n  \"review_note\": \"Sandbox conformance and security review passed.\"\n}", "options": { "raw": { "language": "json" } } },
-                "url": "{{admin_base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition"
+                "url": "{{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition"
               },
               "response": [
                 { "name": "200 Certified", "status": "OK", "code": 200, "body": "{\n  \"data\": { \"id\": \"{{provider_app_id}}\", \"status\": \"CERTIFIED\" }\n}" }
@@ -404,7 +399,7 @@
                   { "key": "Content-Type", "value": "application/json", "type": "text" }
                 ],
                 "body": { "mode": "raw", "raw": "{\n  \"expected_status\": \"CERTIFIED\",\n  \"status\": \"PUBLISHED\",\n  \"review_note\": \"Isolated runtime 0.1.0 deployed and health checked.\"\n}", "options": { "raw": { "language": "json" } } },
-                "url": "{{admin_base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition",
+                "url": "{{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition",
                 "description": "Publish hanya berhasil bila runtime memuat provider code dan exact manifest version yang sama."
               },
               "response": [
@@ -419,7 +414,7 @@
                 "header": [
                   { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
                 ],
-                "url": "{{admin_base_url}}/internal/v1/provider-app-providers",
+                "url": "{{base_url}}/internal/v1/provider-app-providers",
                 "description": "Satu record per provider dengan active/latest version dan jumlah versi; tidak pernah mengembalikan binary artifact."
               },
               "response": [
@@ -434,7 +429,7 @@
                 "header": [
                   { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
                 ],
-                "url": "{{admin_base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions",
+                "url": "{{base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions",
                 "description": "Submission history untuk satu provider, termasuk release lama/deprecated."
               },
               "response": [
@@ -455,7 +450,7 @@
                 "header": [
                   { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
                 ],
-                "url": "{{admin_base_url}}/internal/v1/observability",
+                "url": "{{base_url}}/internal/v1/observability",
                 "description": "Process-local HTTP availability/latency, connector outcomes, dan provider webhook counters. Counter reset saat process restart."
               },
               "response": [
@@ -475,7 +470,7 @@
                 "header": [
                   { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
                 ],
-                "url": "{{admin_base_url}}/internal/v1/metrics",
+                "url": "{{base_url}}/internal/v1/metrics",
                 "description": "Prometheus exposition format untuk scraper internal."
               },
               "response": [
@@ -495,7 +490,7 @@
                 "header": [
                   { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
                 ],
-                "url": "{{admin_base_url}}/internal/v1/engine/readiness",
+                "url": "{{base_url}}/internal/v1/engine/readiness",
                 "description": "Database, connector registry, runtime configuration, dan request guard efektif tanpa secret."
               },
               "response": [
@@ -2003,8 +1998,8 @@
               { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
             ],
             "url": {
-              "raw": "{{admin_base_url}}/internal/v1/emisell-webhook",
-              "host": ["{{admin_base_url}}"],
+              "raw": "{{base_url}}/internal/v1/emisell-webhook",
+              "host": ["{{base_url}}"],
               "path": ["internal", "v1", "emisell-webhook"]
             },
             "description": "Reads Callback URL, enabled state, masked secret, and last connection test. Plaintext secret is never returned."
@@ -2033,8 +2028,8 @@
               "options": { "raw": { "language": "json" } }
             },
             "url": {
-              "raw": "{{admin_base_url}}/internal/v1/emisell-webhook",
-              "host": ["{{admin_base_url}}"],
+              "raw": "{{base_url}}/internal/v1/emisell-webhook",
+              "host": ["{{base_url}}"],
               "path": ["internal", "v1", "emisell-webhook"]
             },
             "description": "Callback URL is entered manually. Keep enabled=false until the receiver has the generated secret and the signed test succeeds."
@@ -2057,8 +2052,8 @@
               { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
             ],
             "url": {
-              "raw": "{{admin_base_url}}/internal/v1/emisell-webhook/secret",
-              "host": ["{{admin_base_url}}"],
+              "raw": "{{base_url}}/internal/v1/emisell-webhook/secret",
+              "host": ["{{base_url}}"],
               "path": ["internal", "v1", "emisell-webhook", "secret"]
             },
             "description": "Returns a whsec_ plaintext once, stores only AES-GCM ciphertext, and disables delivery during rotation. Copy the secret immediately to Emisell Backend."
@@ -2081,8 +2076,8 @@
               { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
             ],
             "url": {
-              "raw": "{{admin_base_url}}/internal/v1/emisell-webhook/test",
-              "host": ["{{admin_base_url}}"],
+              "raw": "{{base_url}}/internal/v1/emisell-webhook/test",
+              "host": ["{{base_url}}"],
               "path": ["internal", "v1", "emisell-webhook", "test"]
             },
             "description": "Sends a signed canonical webhook.test event without customer, order, payment, or provider credential data."

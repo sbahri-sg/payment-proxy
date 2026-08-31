@@ -39,8 +39,17 @@ func TestLoadConfiguresProductionTrafficGuards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.APIRateLimitRPS != 300 || cfg.APIRateLimitBurst != 600 || cfg.APIMaxInFlight != 500 {
+	if cfg.APIRateLimitRPS != 300 || cfg.APIRateLimitBurst != 600 || cfg.AdminRateLimitRPS != 20 || cfg.AdminRateLimitBurst != 40 || cfg.APIMaxInFlight != 500 {
 		t.Fatalf("unexpected production traffic defaults: %#v", cfg)
+	}
+}
+
+func TestLoadRejectsPartialAdminRateLimitConfiguration(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("ADMIN_RATE_LIMIT_RPS", "10")
+	t.Setenv("ADMIN_RATE_LIMIT_BURST", "0")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "ADMIN_RATE_LIMIT") {
+		t.Fatalf("partial admin rate limit configuration was accepted: %v", err)
 	}
 }
 

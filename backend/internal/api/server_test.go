@@ -219,6 +219,34 @@ func TestServiceTrafficGuards(t *testing.T) {
 	}
 }
 
+func TestAdminTrafficGuardUsesClientIP(t *testing.T) {
+	server := &Server{adminRateLimiter: ratelimit.New(1, 1)}
+	handler := server.protectAdminTraffic(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := func(remoteAddr string) *http.Request {
+		item := httptest.NewRequest(http.MethodGet, "/internal/v1/provider-app-providers", nil)
+		item.RemoteAddr = remoteAddr
+		return item
+	}
+
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(first, request("203.0.113.10:41000"))
+	if first.Code != http.StatusNoContent || first.Header().Get("X-Emisell-RateLimit-Scope") != "replica-admin-ip" {
+		t.Fatalf("first admin request was not accepted: %d %#v", first.Code, first.Header())
+	}
+	limited := httptest.NewRecorder()
+	handler.ServeHTTP(limited, request("203.0.113.10:41001"))
+	if limited.Code != http.StatusTooManyRequests || limited.Header().Get("Retry-After") == "" {
+		t.Fatalf("admin rate limit did not reject repeated client IP: %d %#v", limited.Code, limited.Header())
+	}
+	otherClient := httptest.NewRecorder()
+	handler.ServeHTTP(otherClient, request("203.0.113.11:41000"))
+	if otherClient.Code != http.StatusNoContent {
+		t.Fatalf("independent admin client was incorrectly limited: %d", otherClient.Code)
+	}
+}
+
 func TestRequestDeadlineIsPropagated(t *testing.T) {
 	server := &Server{cfg: config.Config{APIRequestTimeout: time.Second}}
 	seen := false

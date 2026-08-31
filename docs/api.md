@@ -18,17 +18,16 @@ Dokumentasi dibagi berdasarkan pemanggil dan arah komunikasi. Kontrak tidak bole
 | Contract | Arah | Base path | Status |
 |---|---|---|---|
 | Emisell Internal Gateway | Emisell Backend → Payment Proxy | `/api/v1/*` | Active |
-| Admin control plane | Dashboard/operator → Payment Proxy private origin | `/internal/v1/*` | Active; private ingress only |
+| Admin control plane | Dashboard/operator → Payment Proxy | `/internal/v1/*` | Active; admin authentication + IP rate limit |
 | Emisell status webhook | Payment Proxy → Emisell Backend | callback URL milik Emisell | Active |
 | Provider webhook ingress | Provider → Payment Proxy | `/webhooks/v1/providers/{provider}/{installation_id}` | Active |
 | Partner API Contract | Payment Proxy → isolated Connector Runner | `/partner/v1/*` | Active; private service contract |
 
 Detail payload Xendit, Midtrans, DOKU, atau Duitku tidak boleh bocor ke Emisell Backend atau checkout. Dashboard `/docs` dan collection Postman memakai pembagian kontrak yang sama.
 
-Collection Postman menggunakan `base_url` untuk `/api/v1/*`,
-`admin_base_url` untuk `/internal/v1/*`, dan `partner_base_url` untuk
-`/partner/v1/*`. `admin_base_url` harus berupa origin privat/VPN dan tidak boleh
-diarahkan ke domain publik Payment Proxy.
+Collection Postman menggunakan satu `base_url` untuk `/api/v1/*` dan
+`/internal/v1/*`; kedua path dibedakan oleh credential masing-masing.
+`partner_base_url` tetap khusus `/partner/v1/*` pada jaringan privat.
 
 ## Emisell Internal Gateway
 

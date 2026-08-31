@@ -186,7 +186,7 @@ Tambahan aturan deployment:
 1. simpan API key dan encryption key dalam secret manager;
 2. pisahkan admin key dari service key;
 3. jangan kirim key melalui query string, log, Postman export, atau browser;
-4. batasi `/internal/v1/*` melalui private ingress/WAF selain application auth;
+4. lindungi `/internal/v1/*` dengan admin key kuat, per-IP rate limit, dan WAF/Cloudflare rate limiting;
 5. rotasi service key dengan overlap pendek dan audit revoke;
 6. backup database terenkripsi dan uji restore;
 7. alert ketika decrypt/authentication failure muncul;
