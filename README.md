@@ -183,6 +183,16 @@ Untuk development dengan ngrok:
 ./scripts/xendit-dev-tunnel.sh start
 ```
 
+Deployment Emisell yang memakai Nginx bersama menggunakan
+`deploy/nginx-payment-proxy.conf`. Konfigurasi tersebut meneruskan `/api/v1/*`,
+`/webhooks/v1/providers/*`, dan health checks ke Payment Proxy API, sedangkan
+route dashboard diteruskan ke port dashboard. Set URL stabil berikut sebelum
+recreate API dan dashboard:
+
+```text
+PAYMENT_PROXY_PUBLIC_BASE_URL=https://payment-proxy.emisell.com
+```
+
 Setelah tunnel aktif, pasang URL yang ditampilkan pada topik Xendit Dashboard **Payments API v3 – Payment Status**, **Payment Request Status**, **Payment Session Completed**, dan **Payment Session Expired**. Gunakan path `/webhooks/v1/providers/xendit/{installation_id}`, lalu konfigurasi ulang credential dengan API key dan webhook token.
 
 Webhook Xendit di atas adalah **provider ingress**. Event keluar menuju Emisell Backend dikelola dari menu **Webhooks** pada dashboard:
