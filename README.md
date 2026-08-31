@@ -177,6 +177,20 @@ POST /webhooks/v1/providers/xendit/{installation_id}
 POST /webhooks/v1/providers/midtrans/{installation_id}
 ```
 
+Dashboard Next.js juga meneruskan kontrak publik ke Kernel melalui jaringan
+internal Docker. Dengan demikian satu origin dashboard dapat dipakai untuk
+checkout dan provider webhook meskipun reverse proxy publik hanya menunjuk ke
+port dashboard:
+
+```text
+/api/v1/*                         -> api:8080/api/v1/*
+/webhooks/v1/providers/*          -> api:8080/webhooks/v1/providers/*
+/api/webhooks/v1/providers/*      -> api:8080/webhooks/v1/providers/* (alias)
+/health/*                         -> api:8080/health/*
+```
+
+Route `/api/auth/*` tetap dimiliki dashboard dan tidak diteruskan ke Kernel.
+
 Untuk development dengan ngrok:
 
 ```bash
