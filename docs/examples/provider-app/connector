@@ -1,0 +1,2 @@
+This placeholder represents the isolated connector executable produced by the Provider SDK build pipeline.
+It is archived and validated by the control plane, but it is never executed inside the Payment Kernel process.

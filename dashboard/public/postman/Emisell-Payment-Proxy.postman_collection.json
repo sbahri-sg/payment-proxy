@@ -1,0 +1,2963 @@
+{
+  "info": {
+    "_postman_id": "8b7b56e2-bc4c-4b16-a9ee-3a8b8cb8c101",
+    "name": "Emisell Payment Platform API v1",
+    "description": "Two active contracts in one collection: Emisell Internal Gateway and the private Partner API used by the isolated Connector Runner. Every request includes an example response; secret current values are intentionally not exported.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{service_api_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:18080",
+      "type": "string"
+    },
+    {
+      "key": "partner_base_url",
+      "value": "http://127.0.0.1:18082",
+      "type": "string"
+    },
+    {
+      "key": "midtrans_partner_base_url",
+      "value": "http://127.0.0.1:18083",
+      "type": "string"
+    },
+    {
+      "key": "service_api_key",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "admin_api_key",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "service_api_key_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "provider_app_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "provider_app_code",
+      "value": "connector_demo",
+      "type": "string"
+    },
+    {
+      "key": "merchant_id",
+      "value": "merchant_postman_demo",
+      "type": "string"
+    },
+    {
+      "key": "api_contract_version",
+      "value": "2026-08-28",
+      "type": "string"
+    },
+    {
+      "key": "execution_mode",
+      "value": "sandbox",
+      "type": "string"
+    },
+    {
+      "key": "xendit_api_key",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "midtrans_server_key",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "connector_runner_token",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "midtrans_provider_app_token",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "provider_secret",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "provider_code",
+      "value": "xendit",
+      "type": "string"
+    },
+    {
+      "key": "provider_payment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "provider_refund_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "installation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "installation_version",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "target_provider_version",
+      "value": "emisell-midtrans-v1.1.0",
+      "type": "string"
+    },
+    {
+      "key": "payment_option_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "card_payment_option_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payment_option_version",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "payment_method_code",
+      "value": "qris",
+      "type": "string"
+    },
+    {
+      "key": "payment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "card_payment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refund_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "delivery_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "emisell_backend_webhook_url",
+      "value": "http://localhost:19090/webhooks/v1/payment-proxy",
+      "type": "string"
+    },
+    {
+      "key": "emisell_backend_webhook_secret",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "outbound_event_id",
+      "value": "evt_postman_contract_001",
+      "type": "string"
+    },
+    {
+      "key": "xendit_webhook_token",
+      "value": "",
+      "type": "secret"
+    },
+    {
+      "key": "webhook_id",
+      "value": "webhook-postman-001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 · Dashboard Administration",
+      "description": "Endpoint administratif untuk operator Payment Proxy. Jangan dipanggil dari Emisell Backend atau aplikasi publik.",
+      "item": [
+        {
+          "name": "Main Service API Keys",
+          "description": "Kelola Bearer credential full-access untuk komunikasi Emisell Backend ke /api/v1/*. Secret hanya muncul sekali saat generate.",
+          "item": [
+            {
+              "name": "List API keys",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+                ],
+                "url": "{{base_url}}/internal/v1/service-api-keys",
+                "description": "Mengembalikan metadata dan fingerprint tersamarkan. Plaintext key tidak pernah dikembalikan."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"sak_01k...\",\n      \"name\": \"Emisell Backend Production\",\n      \"key_hint\": \"epk_AbCd...9xYz\",\n      \"scopes\": [\"gateway:full\"],\n      \"status\": \"ACTIVE\",\n      \"created_by\": \"dashboard:operator\",\n      \"created_at\": \"2026-08-28T08:00:00Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Generate full-access API key",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('API key generated', () => pm.expect(pm.response.code).to.eql(201));",
+                      "if (pm.response.code === 201) {",
+                      "  const data = pm.response.json().data;",
+                      "  pm.collectionVariables.set('service_api_key_id', data.api_key.id);",
+                      "  pm.collectionVariables.set('service_api_key', data.secret);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Emisell Backend Production\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/internal/v1/service-api-keys",
+                "description": "Membuat random 256-bit key berprefix epk_. Postman menyimpan secret ke collection variable agar endpoint /api/v1/* dapat langsung diuji. Salin ke secret manager Emisell sebelum response ditutup."
+              },
+              "response": [
+                {
+                  "name": "201 Created — secret shown once",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"data\": {\n    \"api_key\": {\n      \"id\": \"sak_01k...\",\n      \"name\": \"Emisell Backend Production\",\n      \"key_hint\": \"epk_exam...cret\",\n      \"scopes\": [\"gateway:full\"],\n      \"status\": \"ACTIVE\",\n      \"created_by\": \"postman:operator\",\n      \"created_at\": \"2026-08-28T08:00:00Z\"\n    },\n    \"secret\": \"epk_example_one_time_secret\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Revoke API key",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+                ],
+                "url": "{{base_url}}/internal/v1/service-api-keys/{{service_api_key_id}}/revoke",
+                "description": "Mencabut akses secara langsung tanpa restart Payment Proxy. Gunakan key baru di Emisell sebelum melakukan revoke saat rotasi."
+              },
+              "response": [
+                {
+                  "name": "200 Revoked",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"id\": \"{{service_api_key_id}}\",\n    \"status\": \"REVOKED\",\n    \"revoked_by\": \"postman:operator\",\n    \"revoked_at\": \"2026-08-28T08:10:00Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Provider Apps",
+          "description": "Provider-first registry dan lifecycle connector bundle. Buat identitas provider, lalu upload versi ZIP di bawah provider tersebut; binary tidak disimpan di collection export.",
+          "item": [
+            {
+              "name": "1. Create Provider",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Provider created', () => pm.expect(pm.response.code).to.eql(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('provider_app_code', pm.response.json().data.provider_code);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"provider_code\": \"{{provider_app_code}}\",\n  \"provider_name\": \"Connector Demo\",\n  \"description\": \"Provider connector registered before ZIP submission.\",\n  \"website_url\": \"https://example.com\",\n  \"documentation_url\": \"https://example.com/docs\",\n  \"support_email\": \"support@example.com\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": "{{base_url}}/internal/v1/provider-app-providers",
+                "description": "Provider code menjadi identitas permanen. Nama dan code manifest ZIP berikutnya wajib cocok."
+              },
+              "response": [
+                { "name": "201 Created", "status": "Created", "code": 201, "body": "{\n  \"data\": {\n    \"provider_code\": \"connector_demo\",\n    \"provider_name\": \"Connector Demo\",\n    \"status\": \"DRAFT\",\n    \"version_count\": 0\n  }\n}" }
+              ]
+            },
+            {
+              "name": "2. Upload Provider Version",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Provider App uploaded', () => pm.expect(pm.response.code).to.eql(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('provider_app_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "bundle", "type": "file", "src": "", "description": "Pilih Provider App .zip maksimum 25 MB" }
+                  ]
+                },
+                "url": "{{base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions",
+                "description": "Memindai ZIP dan memastikan manifest code/name cocok dengan provider pada URL. Bundle tidak dieksekusi di Payment Kernel."
+              },
+              "response": [
+                {
+                  "name": "201 Uploaded",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"data\": {\n    \"id\": \"papp_01k...\",\n    \"provider_code\": \"midtrans\",\n    \"provider_name\": \"Midtrans\",\n    \"version\": \"0.1.0\",\n    \"status\": \"UPLOADED\",\n    \"runtime\": \"isolated_container\",\n    \"artifact_sha256\": \"a791f4...9d2c\",\n    \"scan_report\": { \"passed\": true, \"file_count\": 3 }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "3. Validate Provider App",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"expected_status\": \"UPLOADED\",\n  \"status\": \"VALIDATED\",\n  \"review_note\": \"\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": "{{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition",
+                "description": "Membaca ulang artifact immutable dan memverifikasi digest, manifest, serta seluruh checksum."
+              },
+              "response": [
+                { "name": "200 Validated", "status": "OK", "code": 200, "body": "{\n  \"data\": { \"id\": \"{{provider_app_id}}\", \"status\": \"VALIDATED\" }\n}" }
+              ]
+            },
+            {
+              "name": "4. Certify Provider App",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"expected_status\": \"VALIDATED\",\n  \"status\": \"CERTIFIED\",\n  \"review_note\": \"Sandbox conformance and security review passed.\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": "{{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition"
+              },
+              "response": [
+                { "name": "200 Certified", "status": "OK", "code": 200, "body": "{\n  \"data\": { \"id\": \"{{provider_app_id}}\", \"status\": \"CERTIFIED\" }\n}" }
+              ]
+            },
+            {
+              "name": "5. Publish Provider App",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" },
+                  { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"expected_status\": \"CERTIFIED\",\n  \"status\": \"PUBLISHED\",\n  \"review_note\": \"Isolated runtime 0.1.0 deployed and health checked.\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": "{{base_url}}/internal/v1/provider-apps/{{provider_app_id}}/transition",
+                "description": "Publish hanya berhasil bila runtime memuat provider code dan exact manifest version yang sama."
+              },
+              "response": [
+                { "name": "409 Runtime not ready", "status": "Conflict", "code": 409, "body": "{\n  \"error\": {\n    \"code\": \"CONNECTOR_RUNTIME_NOT_READY\",\n    \"message\": \"deploy the isolated connector runtime with this exact manifest version before publish\"\n  }\n}" }
+              ]
+            },
+            {
+              "name": "6. List Provider Registry",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+                ],
+                "url": "{{base_url}}/internal/v1/provider-app-providers",
+                "description": "Satu record per provider dengan active/latest version dan jumlah versi; tidak pernah mengembalikan binary artifact."
+              },
+              "response": [
+                { "name": "200 OK", "status": "OK", "code": 200, "body": "{\n  \"data\": [{ \"provider_code\": \"midtrans\", \"provider_name\": \"Midtrans\", \"status\": \"ACTIVE\", \"version_count\": 2, \"active_version\": \"emisell-midtrans-v1.1.0\" }]\n}" }
+              ]
+            },
+            {
+              "name": "7. List Provider Version History",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+                  { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+                ],
+                "url": "{{base_url}}/internal/v1/provider-app-providers/{{provider_app_code}}/versions",
+                "description": "Submission history untuk satu provider, termasuk release lama/deprecated."
+              },
+              "response": [
+                { "name": "200 OK", "status": "OK", "code": 200, "body": "{\n  \"data\": []\n}" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Engine Observability & SLO",
+          "description": "Snapshot process dan format Prometheus. Gunakan admin key melalui header, bukan query string.",
+          "item": [
+            {
+              "name": "Get live SLO snapshot",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
+                ],
+                "url": "{{base_url}}/internal/v1/observability",
+                "description": "Process-local HTTP availability/latency, connector outcomes, dan provider webhook counters. Counter reset saat process restart."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"uptime_seconds\": 3600,\n    \"requests_total\": 10000,\n    \"latency\": { \"average_ms\": 18.42, \"p95_ms\": 50 },\n    \"connector_outcomes\": { \"unknown_outcome\": 0, \"not_supported\": 0, \"rejected\": 2 },\n    \"provider_webhooks\": { \"accepted\": 120, \"duplicate\": 3, \"invalid\": 0 },\n    \"slo\": { \"status\": \"MEETING\", \"availability_target_percent\": 99.9, \"availability_percent\": 99.99, \"latency_p95_target_ms\": 500, \"latency_p95_ms\": 50 }\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Prometheus metrics",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
+                ],
+                "url": "{{base_url}}/internal/v1/metrics",
+                "description": "Prometheus exposition format untuk scraper internal."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "emisell_http_requests_total{class=\"2xx\"} 9995\nemisell_connector_outcomes_total{outcome=\"unknown\"} 0\nemisell_provider_webhooks_total{outcome=\"duplicate\"} 3\n"
+                }
+              ]
+            },
+            {
+              "name": "Get engine readiness report",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [
+                  { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" }
+                ],
+                "url": "{{base_url}}/internal/v1/engine/readiness",
+                "description": "Database, connector registry, runtime configuration, dan request guard efektif tanpa secret."
+              },
+              "response": [
+                {
+                  "name": "200 Ready",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"status\": \"ready\",\n    \"environment\": \"production\",\n    \"contract_version\": \"2026-08-28\",\n    \"connector_count\": 1,\n    \"checks\": { \"database\": \"ok\", \"connector_registry\": \"ok\", \"runtime_configuration\": \"ok\" },\n    \"request_guards\": { \"max_body_bytes\": 1048576, \"timeout_seconds\": 25, \"rate_limit_rps\": 300, \"rate_limit_burst\": 600, \"max_in_flight\": 500, \"rate_limit_scope\": \"per_replica_per_merchant\" }\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 · Emisell Internal Gateway (Active)",
+      "description": "Endpoint aktif antara Emisell Backend dan Payment Proxy. Base path utama /api/v1/*.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.request.headers.upsert({ key: 'X-Emisell-API-Version', value: pm.collectionVariables.get('api_contract_version') || '2026-08-28' });"
+            ]
+          }
+        }
+      ],
+      "item": [
+    {
+      "name": "Engine Capabilities",
+      "item": [
+        {
+          "name": "Get runtime connector capabilities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Emisell-Merchant-ID", "value": "{{merchant_id}}", "type": "text" }
+            ],
+            "url": "{{base_url}}/api/v1/engine/capabilities",
+            "description": "Kontrak machine-readable untuk connector, operation, credential field, dan certification profile yang tersedia pada runtime."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"engine\": \"emisell_payment_engine\",\n    \"contract_version\": \"2026-08-28\",\n    \"connector_contract\": \"v1\",\n    \"selection_mode\": \"merchant_assignment\",\n    \"unknown_policy\": \"reconcile_same_provider\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v1.1.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Provider Registry",
+      "item": [
+        {
+          "name": "List providers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/providers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "providers"
+              ]
+            },
+            "description": "Mengembalikan provider registry dan dynamic credential schema."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"code\": \"xendit\",\n      \"name\": \"Xendit\",\n      \"available\": true,\n      \"environments\": [\n        \"sandbox\",\n        \"live\"\n      ],\n      \"payment_methods\": [\n        \"qris\", \"va_bca\", \"va_mandiri\", \"va_bni\", \"va_bri\", \"va_permata\", \"va_cimb\", \"va_bsi\", \"va_muamalat\",\n        \"ewallet_ovo\", \"ewallet_dana\", \"ewallet_shopeepay\", \"ewallet_linkaja\", \"ewallet_astrapay\", \"card\"\n      ],\n      \"connector_code\": \"xendit\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Provider Installations",
+      "item": [
+        {
+          "name": "1. Install provider",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Provider installed', () => pm.expect(pm.response.code).to.eql(201));",
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set('installation_id', data.id);",
+                  "  pm.collectionVariables.set('installation_version', String(data.version));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider_code\": \"xendit\",\n  \"provider_version\": \"emisell-xendit-v1\",\n  \"environment\": \"{{execution_mode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-installations"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"merchant_id\": \"merchant_123\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"public_webhook_url\": \"https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...\",\n    \"provider_version\": \"emisell-xendit-v1\",\n    \"status\": \"CONFIG_REQUIRED\",\n    \"credential_metadata\": {},\n    \"payment_methods\": [],\n    \"version\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. Configure credentials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Credential configured', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set('installation_version', String(pm.response.json().data.version));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credentials\": {\n    \"api_key\": \"{{xendit_api_key}}\",\n    \"webhook_verification_token\": \"{{xendit_webhook_token}}\"\n  },\n  \"payment_methods\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations/{{installation_id}}/credentials",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-installations",
+                "{{installation_id}}",
+                "credentials"
+              ]
+            },
+            "description": "Credential diverifikasi langsung ke provider dan dienkripsi AES-256-GCM di vault Emisell. Atur topik Payments API v3 – Payment Status, Payment Request Status, Payment Session Completed, dan Payment Session Expired di Xendit Dashboard ke endpoint installation, lalu isi webhook token. Secret tidak pernah dikembalikan API."
+          },
+          "response": [
+            {
+              "name": "200 Ready",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"public_webhook_url\": \"https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...\",\n    \"connector_id\": \"mca_...\",\n    \"status\": \"READY\",\n    \"credential_metadata\": {\n      \"configured_fields\": [\n        {\n          \"code\": \"api_key\",\n          \"configured\": true\n        }\n      ],\n      \"configured_at\": \"2026-08-28T03:05:00Z\",\n      \"webhook_ready\": true,\n      \"public_webhook_url\": \"https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...\"\n    },\n    \"version\": 4\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. Activate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Installation active', () => pm.expect(pm.response.json().data.status).to.eql('ACTIVE'));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set('installation_version', String(pm.response.json().data.version));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{installation_version}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations/{{installation_id}}/activate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-installations",
+                "{{installation_id}}",
+                "activate"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Active",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"status\": \"ACTIVE\",\n    \"version\": 4\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List installations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "{{execution_mode}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-installations"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"ins_01k3...\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"status\": \"ACTIVE\",\n      \"version\": 4\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get installation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations/{{installation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-installations",
+                "{{installation_id}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"status\": \"ACTIVE\",\n    \"version\": 4\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "4. Deactivate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Installation inactive', () => pm.expect(pm.response.json().data.status).to.eql('INACTIVE'));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set('installation_version', String(pm.response.json().data.version));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{installation_version}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations/{{installation_id}}/deactivate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-installations",
+                "{{installation_id}}",
+                "deactivate"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Inactive",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"status\": \"INACTIVE\",\n    \"version\": 5\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "5. Upgrade Provider App",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Installation ready on target release', () => pm.expect(pm.response.json().data.status).to.eql('READY'));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set('installation_version', String(pm.response.json().data.version));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Emisell-Merchant-ID", "value": "{{merchant_id}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{installation_version}},\n  \"provider_version\": \"{{target_provider_version}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations/{{installation_id}}/upgrade",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "provider-installations", "{{installation_id}}", "upgrade"]
+            },
+            "description": "Installation harus INACTIVE. Target harus RELEASED dan sama dengan manifest runtime aktif; credential tetap tersimpan terenkripsi. Setelah response READY, aktifkan kembali dengan version terbaru."
+          },
+          "response": [
+            {
+              "name": "200 Ready on new release",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"midtrans\",\n    \"provider_version\": \"emisell-midtrans-v1.1.0\",\n    \"status\": \"READY\",\n    \"version\": 7\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "6. Uninstall",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/provider-installations/{{installation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "provider-installations",
+                "{{installation_id}}"
+              ]
+            },
+            "description": "Menghapus ciphertext credential lalu melakukan soft-uninstall. Installation ACTIVE harus dideaktivasi terlebih dahulu; riwayat transaksi dan audit tetap dipertahankan."
+          },
+          "response": [
+            {
+              "name": "200 Uninstalled",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"status\": \"UNINSTALLED\",\n    \"version\": 6,\n    \"uninstalled_at\": \"2026-08-28T03:09:00Z\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Connector Certification",
+      "item": [
+        {
+          "name": "1. List certification runs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "{{execution_mode}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/connector-certifications?provider=xendit&limit=25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "connector-certifications"
+              ],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "xendit"
+                },
+                {
+                  "key": "limit",
+                  "value": "25"
+                }
+              ]
+            },
+            "description": "List bukti certification tenant-scoped dan blocker execution engine."
+          },
+          "response": [
+            {
+              "name": "200 Certification runs",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"cert_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"provider_code\": \"xendit\",\n      \"payment_method_code\": \"qris\",\n      \"environment\": \"sandbox\",\n      \"status\": \"PASSED\",\n      \"checks\": [\n        {\n          \"code\": \"payment_create\",\n          \"label\": \"Sandbox payment create\",\n          \"status\": \"PASSED\"\n        }\n      ],\n      \"payment_id\": \"pay_01k3...\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. Run sandbox certification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "sandbox",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"payment_method_code\": \"{{payment_method_code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/connector-certifications/run",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "connector-certifications",
+                "run"
+              ]
+            },
+            "description": "Menjalankan create, next action, retrieve, simulator atau customer authorization, direct provider webhook, dan signed delivery ke Emisell Backend. E-wallet dapat mengembalikan BLOCKED sampai halaman sandbox provider diselesaikan."
+          },
+          "response": [
+            {
+              "name": "201 Passed",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"cert_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"payment_method_code\": \"qris\",\n    \"status\": \"PASSED\",\n    \"payment_id\": \"pay_01k3...\",\n    \"message\": \"Provider webhook and Emisell delivery passed.\"\n  }\n}"
+            },
+            {
+              "name": "201 Virtual account passed",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"cert_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"payment_method_code\": \"va_bca\",\n    \"status\": \"PASSED\",\n    \"checks\": [\n      {\n        \"code\": \"payment_create\",\n        \"status\": \"PASSED\"\n      },\n      {\n        \"code\": \"payment_retrieve\",\n        \"status\": \"PASSED\"\n      },\n      {\n        \"code\": \"sandbox_simulation\",\n        \"status\": \"PASSED\"\n      },\n      {\n        \"code\": \"webhook_delivery\",\n        \"status\": \"PASSED\"\n      },\n      {\n        \"code\": \"emisell_delivery\",\n        \"status\": \"PASSED\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. Resume customer-authorized certification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Emisell-Merchant-ID", "value": "{{merchant_id}}", "type": "text" },
+              { "key": "X-Emisell-Execution-Mode", "value": "sandbox", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"payment_method_code\": \"{{payment_method_code}}\",\n  \"payment_id\": \"{{payment_id}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/connector-certifications/run",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "connector-certifications", "run"]
+            },
+            "description": "Setelah redirect atau mobile authorization sandbox selesai, verifikasi provider status, provider webhook, dan signed Emisell delivery untuk payment yang sama. Endpoint ini tidak membuat payment baru."
+          },
+          "response": [
+            {
+              "name": "201 E-wallet passed",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"cert_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"payment_method_code\": \"ewallet_dana\",\n    \"status\": \"PASSED\",\n    \"payment_id\": \"pay_01k3...\",\n    \"message\": \"Provider customer authorization, webhook processing, and Emisell delivery passed; the method is certified for checkout.\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Checkout Payment Methods",
+      "item": [
+        {
+          "name": "1. List master payment methods",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-methods",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-methods"
+              ]
+            },
+            "description": "Master canonical payment methods dan capability matrix Xendit, Midtrans, Duitku, serta DOKU. Hanya status CERTIFIED yang boleh di-assign."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"code\": \"qris\",\n      \"category\": \"QR_CODE\",\n      \"name\": \"QRIS\",\n      \"currencies\": [\n        \"IDR\"\n      ],\n      \"providers\": [\n        {\n          \"provider_code\": \"xendit\",\n          \"provider_name\": \"Xendit\",\n          \"support_status\": \"CERTIFIED\",\n          \"provider_channel_code\": \"QRIS\"\n        },\n        {\n          \"provider_code\": \"midtrans\",\n          \"provider_name\": \"Midtrans\",\n          \"support_status\": \"DOCUMENTED\",\n          \"provider_channel_code\": \"other_qris\"\n        }\n      ]\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. Assign master method to active gateway",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment method assigned', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set('payment_option_id', data.id);",
+                  "  pm.collectionVariables.set('payment_option_version', String(data.version));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "{{execution_mode}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"payment_method_code\": \"{{payment_method_code}}\",\n  \"label\": \"QRIS\",\n  \"version\": {{payment_option_version}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-method-assignments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-method-assignments"
+              ]
+            },
+            "description": "Membuat atau memindahkan QRIS ke satu gateway aktif pada environment merchant. Kirim version terakhir untuk optimistic concurrency."
+          },
+          "response": [
+            {
+              "name": "201 Assigned",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"pmo_01k3...\",\n    \"environment\": \"sandbox\",\n    \"payment_method_code\": \"qris\",\n    \"payment_method\": \"real_time_payment\",\n    \"payment_method_type\": \"qris\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"provider_name\": \"Xendit\",\n    \"label\": \"QRIS\",\n    \"status\": \"ACTIVE\",\n    \"version\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. List method assignments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "{{execution_mode}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-method-assignments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-method-assignments"
+              ]
+            },
+            "description": "Daftar konfigurasi metode pembayaran merchant, termasuk assignment yang sedang inactive."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"payment_method\": \"real_time_payment\",\n      \"payment_method_type\": \"qris\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"QRIS\",\n      \"status\": \"ACTIVE\",\n      \"version\": 1\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "4. List checkout payment options",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Checkout options returned', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const options = pm.response.json().data || [];",
+                  "  const qris = options.find((option) => option.payment_method_code === 'qris');",
+                  "  if (qris) pm.collectionVariables.set('payment_option_id', qris.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "{{execution_mode}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-options",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-options"
+              ]
+            },
+            "description": "Endpoint checkout. Hanya mengembalikan opsi aktif yang terhubung ke installation aktif. Checkout menyimpan id yang opaque, bukan provider_code."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"pmo_01k3...\",\n      \"environment\": \"sandbox\",\n      \"payment_method_code\": \"qris\",\n      \"category\": \"QR_CODE\",\n      \"label\": \"QRIS\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "5. Deactivate method assignment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment method deactivated', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set('payment_option_version', String(data.version));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{payment_option_version}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-method-assignments/{{payment_option_id}}/deactivate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-method-assignments",
+                "{{payment_option_id}}",
+                "deactivate"
+              ]
+            },
+            "description": "Menutup opsi checkout baru. Payment lama tetap terikat ke installation yang dipilih ketika payment dibuat."
+          },
+          "response": [
+            {
+              "name": "200 Inactive",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"pmo_01k3...\",\n    \"status\": \"INACTIVE\",\n    \"version\": 2\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create QRIS payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment accepted', () => pm.expect([200, 201, 202]).to.include(pm.response.code));",
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "  const data = pm.response.json().data;",
+                  "  const payment = data.payment || data;",
+                  "  pm.collectionVariables.set('payment_id', payment.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "{{execution_mode}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "checkout-{{$guid}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_option_id\": \"{{payment_option_id}}\",\n  \"merchant_reference\": \"order_{{$timestamp}}\",\n  \"amount\": 1000000,\n  \"currency\": \"IDR\",\n  \"confirm\": true,\n  \"capture_method\": \"automatic\",\n  \"payment_method_data\": {\n    \"real_time_payment\": {\n      \"qris\": {}\n    }\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-sessions"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"payment_option_id\": \"pmo_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"merchant_reference\": \"order_2026_0001\",\n      \"amount\": 1000000,\n      \"currency\": \"IDR\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"pay_engine_...\",\n      \"next_action\": {\n        \"type\": \"qr_code_url\",\n        \"url\": \"https://...\"\n      }\n    },\n    \"client_secret\": \"pay_engine_..._secret_...\"\n  }\n}"
+            },
+            {
+              "name": "202 Outcome unknown",
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": {\n    \"code\": \"OUTCOME_UNKNOWN\",\n    \"message\": \"payment engine outcome is unknown; query the resource before retrying\"\n  },\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"status\": \"UNKNOWN\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-sessions/{{payment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-sessions",
+                "{{payment_id}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"amount\": 1000000,\n    \"currency\": \"IDR\",\n    \"status\": \"PENDING\",\n    \"provider_payment_id\": \"pay_engine_...\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create hosted card payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Hosted card session created', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "  const data = pm.response.json().data;",
+                  "  const payment = data.payment || data;",
+                  "  pm.expect(payment.provider_payment_id).to.match(/^ps-/);",
+                  "  pm.expect(payment.next_action.type).to.eql('redirect');",
+                  "  pm.collectionVariables.set('card_payment_id', payment.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Execution-Mode",
+                "value": "{{execution_mode}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "checkout-card-{{$guid}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_option_id\": \"{{card_payment_option_id}}\",\n  \"merchant_reference\": \"card-order-{{$timestamp}}\",\n  \"amount\": 1000000,\n  \"currency\": \"IDR\",\n  \"description\": \"Hosted card sandbox payment\",\n  \"customer\": {\n    \"name\": \"Budi Santoso\",\n    \"email\": \"budi@example.com\"\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman-card-hosted\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-sessions"
+              ]
+            },
+            "description": "Set card_payment_option_id dari assignment card yang ACTIVE. Response berisi hosted Xendit redirect_url. Jangan pernah menambahkan nomor kartu, expiry, CVV/CVN, atau OTP ke request ini; input tersebut hanya dilakukan pelanggan pada domain checkout Xendit."
+          },
+          "response": [
+            {
+              "name": "201 Hosted card session",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"provider_code\": \"xendit\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"ps-6a915387...\",\n      \"next_action\": {\n        \"type\": \"redirect\",\n        \"redirect_url\": \"https://dev.xen.to/...\"\n      }\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "cancel-{{$guid}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"requested_by_customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-sessions/{{payment_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-sessions",
+                "{{payment_id}}",
+                "cancel"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Cancelled",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"amount\": 1000000,\n    \"currency\": \"IDR\",\n    \"status\": \"CANCELLED\",\n    \"provider_payment_id\": \"pay_engine_...\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-sessions?provider=xendit&limit=25&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-sessions"
+              ],
+              "query": [
+                {
+                  "key": "provider",
+                  "value": "xendit"
+                },
+                {
+                  "key": "limit",
+                  "value": "25"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "List canonical payments with provider, status, search, execution-mode, and pagination filters."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"items\": [{\"id\": \"pay_01k3...\", \"provider_code\": \"xendit\", \"status\": \"PENDING\", \"amount\": 1000000, \"currency\": \"IDR\"}],\n    \"total\": 1,\n    \"limit\": 25,\n    \"offset\": 0,\n    \"has_more\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Payment timeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payment-sessions/{{payment_id}}/timeline",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payment-sessions",
+                "{{payment_id}}",
+                "timeline"
+              ]
+            },
+            "description": "Durable payment state history with source and timestamps."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\"id\": 101, \"payment_id\": \"pay_01k3...\", \"status\": \"CREATED\", \"source\": \"api.create\", \"created_at\": \"2026-08-28T03:10:00Z\"},\n    {\"id\": 102, \"payment_id\": \"pay_01k3...\", \"status\": \"PENDING\", \"source\": \"engine.create\", \"created_at\": \"2026-08-28T03:10:01Z\"}\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Refunds",
+      "item": [
+        {
+          "name": "Create refund",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Xendit QRIS refund is gated', () => pm.expect(pm.response.code).to.eql(422));",
+                  "pm.test('Stable capability error', () => pm.expect(pm.response.json().error.code).to.eql('REFUND_NOT_SUPPORTED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "refund-{{$guid}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_id\": \"{{payment_id}}\",\n  \"amount\": 50000,\n  \"reason\": \"requested_by_customer\",\n  \"metadata\": {\n    \"case_id\": \"case_123\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/refunds",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "refunds"
+              ]
+            },
+            "description": "Kontrak refund generik. Xendit native v1 saat ini menghasilkan 422 REFUND_NOT_SUPPORTED sebelum diteruskan ke connector."
+          },
+          "response": [
+            {
+              "name": "422 Xendit QRIS not supported",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": {\n    \"code\": \"REFUND_NOT_SUPPORTED\",\n    \"message\": \"refund is not certified for the current Xendit QRIS connector version\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get refund",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/refunds/{{refund_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "refunds",
+                "{{refund_id}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"ref_01k3...\",\n    \"payment_id\": \"pay_01k3...\",\n    \"amount\": 50000,\n    \"currency\": \"IDR\",\n    \"status\": \"PENDING\",\n    \"provider_refund_id\": \"ref_engine_...\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Read Emisell webhook settings",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [
+              { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+              { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/internal/v1/emisell-webhook",
+              "host": ["{{base_url}}"],
+              "path": ["internal", "v1", "emisell-webhook"]
+            },
+            "description": "Reads Callback URL, enabled state, masked secret, and last connection test. Plaintext secret is never returned."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"configured\": true,\n    \"callback_url\": \"https://api.emisell.com/webhooks/v1/payment-proxy\",\n    \"enabled\": true,\n    \"secret_configured\": true,\n    \"secret_hint\": \"whsec_Abc••••••••9Xyz\",\n    \"source\": \"database\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Save Emisell Callback URL",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [
+              { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+              { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callback_url\": \"{{emisell_backend_webhook_url}}\",\n  \"enabled\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/internal/v1/emisell-webhook",
+              "host": ["{{base_url}}"],
+              "path": ["internal", "v1", "emisell-webhook"]
+            },
+            "description": "Callback URL is entered manually. Keep enabled=false until the receiver has the generated secret and the signed test succeeds."
+          },
+          "response": [
+            {
+              "name": "200 Saved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"configured\": true,\n    \"callback_url\": \"{{emisell_backend_webhook_url}}\",\n    \"enabled\": false,\n    \"secret_configured\": true,\n    \"source\": \"database\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Generate or rotate Emisell webhook secret",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+              { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/internal/v1/emisell-webhook/secret",
+              "host": ["{{base_url}}"],
+              "path": ["internal", "v1", "emisell-webhook", "secret"]
+            },
+            "description": "Returns a whsec_ plaintext once, stores only AES-GCM ciphertext, and disables delivery during rotation. Copy the secret immediately to Emisell Backend."
+          },
+          "response": [
+            {
+              "name": "200 Generated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"settings\": {\"enabled\": false, \"secret_configured\": true, \"secret_hint\": \"whsec_Abc••••••••9Xyz\"},\n    \"secret\": \"whsec_<one-time-plaintext>\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Test Emisell webhook connection",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "X-Admin-API-Key", "value": "{{admin_api_key}}", "type": "text" },
+              { "key": "X-Emisell-Actor", "value": "postman:operator", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/internal/v1/emisell-webhook/test",
+              "host": ["{{base_url}}"],
+              "path": ["internal", "v1", "emisell-webhook", "test"]
+            },
+            "description": "Sends a signed canonical webhook.test event without customer, order, payment, or provider credential data."
+          },
+          "response": [
+            {
+              "name": "200 Test accepted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"success\": true,\n    \"http_status\": 202,\n    \"event_id\": \"evt_test_01k3...\",\n    \"message\": \"Signed webhook test was accepted by Emisell Backend.\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List webhook inbox",
+          "event": [],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhook-inbox?status=PROCESSED&limit=25&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhook-inbox"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PROCESSED"
+                },
+                {
+                  "key": "limit",
+                  "value": "25"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Metadata webhook tenant-scoped. Raw payload tetap encrypted dan tidak dikirim dalam response."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"items\": [\n      {\n        \"id\": \"wh_01k3...\",\n        \"event_type\": \"payment_succeeded\",\n        \"aggregate_type\": \"payment\",\n        \"aggregate_id\": \"pay_01k3...\",\n        \"status\": \"PROCESSED\"\n      }\n    ],\n    \"counts\": {\n      \"PROCESSED\": 1\n    },\n    \"total\": 1,\n    \"limit\": 25,\n    \"offset\": 0,\n    \"has_more\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Emisell Backend receiver contract",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const timestamp = Math.floor(Date.now() / 1000).toString();",
+                  "pm.collectionVariables.set('outbound_created_at', new Date().toISOString());",
+                  "const body = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const secret = pm.collectionVariables.get('emisell_backend_webhook_secret');",
+                  "const digest = CryptoJS.HmacSHA256(`${timestamp}.${body}`, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.variables.set('emisell_webhook_timestamp', timestamp);",
+                  "pm.variables.set('emisell_webhook_signature', `v1=${digest}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Emisell receiver accepted canonical event', () => pm.expect([200, 202]).to.include(pm.response.code));",
+                  "if ([200, 202].includes(pm.response.code)) pm.expect(pm.response.json().event_id).to.eql(pm.collectionVariables.get('outbound_event_id'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Webhook-ID",
+                "value": "{{outbound_event_id}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Webhook-Timestamp",
+                "value": "{{emisell_webhook_timestamp}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Webhook-Signature",
+                "value": "{{emisell_webhook_signature}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Webhook-Version",
+                "value": "1",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Event-Type",
+                "value": "payment.updated",
+                "type": "text"
+              },
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{outbound_event_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{outbound_event_id}}\",\n  \"object\": \"event\",\n  \"api_version\": \"2026-08-28\",\n  \"type\": \"payment.updated\",\n  \"created_at\": \"{{outbound_created_at}}\",\n  \"merchant_id\": \"{{merchant_id}}\",\n  \"resource\": {\n    \"type\": \"payment\",\n    \"id\": \"pay_postman_contract_001\"\n  },\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_postman_contract_001\",\n      \"merchant_reference\": \"order_postman_contract_001\",\n      \"amount\": 1000000,\n      \"currency\": \"IDR\",\n      \"environment\": \"sandbox\",\n      \"status\": \"SUCCEEDED\",\n      \"updated_at\": \"{{outbound_created_at}}\"\n    },\n    \"previous_status\": \"PENDING\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{emisell_backend_webhook_url}}",
+              "host": [
+                "{{emisell_backend_webhook_url}}"
+              ]
+            },
+            "description": "Contract test untuk endpoint yang harus dibangun di Emisell Backend. Signature dihitung dari timestamp + '.' + raw body. Gunakan receiver development lokal atau URL backend sandbox; jangan gunakan endpoint provider ingress."
+          },
+          "response": [
+            {
+              "name": "202 Accepted",
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"accepted\": true,\n  \"duplicate\": false,\n  \"event_id\": \"evt_postman_contract_001\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Emisell deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhook-deliveries?limit=25&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhook-deliveries"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "25"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Canonical outbox event dan metadata delivery menuju Emisell Backend."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"items\": [\n      {\n        \"id\": \"evt_01k3...\",\n        \"event_type\": \"payment.updated\",\n        \"status\": \"DEAD\",\n        \"attempt_count\": 8,\n        \"max_attempts\": 8,\n        \"replay_count\": 0\n      }\n    ],\n    \"counts\": {\n      \"DEAD\": 1\n    },\n    \"total\": 1,\n    \"limit\": 25,\n    \"offset\": 0,\n    \"has_more\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Replay dead delivery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "replay-event-123-attempt-1",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expected_replay_count\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhook-deliveries/{{delivery_id}}/replay",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhook-deliveries",
+                "{{delivery_id}}",
+                "replay"
+              ]
+            },
+            "description": "Hanya delivery DEAD dapat direplay. Consumer Emisell wajib idempotent."
+          },
+          "response": [
+            {
+              "name": "200 Replayed",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"evt_01k3...\",\n    \"status\": \"PENDING\",\n    \"attempt_count\": 0,\n    \"replay_count\": 1\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reconciliation",
+      "item": [
+        {
+          "name": "List reconciliation cases",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reconciliation/cases?limit=25&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reconciliation",
+                "cases"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "25"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Tenant-scoped queue untuk payment/refund UNKNOWN, delivery DEAD, webhook FAILED, dan installation ERROR."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"items\": [\n      {\n        \"id\": \"payment:pay_01k3...\",\n        \"kind\": \"PAYMENT_UNKNOWN\",\n        \"resource_type\": \"payment\",\n        \"resource_id\": \"pay_01k3...\",\n        \"current_status\": \"UNKNOWN\",\n        \"severity\": \"HIGH\",\n        \"recommended_action\": \"SYNC_ENGINE\",\n        \"can_resolve\": true,\n        \"reconciliation_count\": 0\n      }\n    ],\n    \"counts\": {\n      \"PAYMENT_UNKNOWN\": 1\n    },\n    \"total\": 1,\n    \"limit\": 25,\n    \"offset\": 0,\n    \"has_more\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Resolve unknown payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "reconcile-payment-123-attempt-1",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expected_reconciliation_count\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/reconciliation/payments/{{payment_id}}/resolve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reconciliation",
+                "payments",
+                "{{payment_id}}",
+                "resolve"
+              ]
+            },
+            "description": "Mengambil payment ID yang sama langsung dari provider lalu menerapkan status canonical, timeline, reconciliation counter, dan audit secara atomic. Tidak membuat payment pengganti dan tidak melakukan failover."
+          },
+          "response": [
+            {
+              "name": "200 Resolved",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"status\": \"PENDING\",\n    \"reconciliation_count\": 1,\n    \"last_reconciled_by\": \"dashboard:operator\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/live",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"service\": \"payment-proxy\",\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Ready",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"ready\",\n  \"checks\": {\n    \"database\": \"ok\",\n    \"emisell_engine\": \"ok\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Error examples",
+      "item": [
+        {
+          "name": "Unauthorized example",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Emisell-Merchant-ID",
+                "value": "{{merchant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/providers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "providers"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHORIZED\",\n    \"message\": \"invalid service credential\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+      ]
+    },
+    {
+      "name": "02 · Partner API Contract",
+      "description": "ACTIVE private contract from Payment Kernel to the isolated Connector Runner on /partner/v1/*. All requests use CONNECTOR_RUNNER_TOKEN and must remain on a private network; production requires TLS.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{connector_runner_token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Discovery & Capabilities",
+          "item": [
+            {
+              "name": "Connector health",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{partner_base_url}}/partner/v1/health",
+                "description": "ACTIVE. Probe ringan tanpa memanggil provider upstream."
+              },
+              "response": [
+                {
+                  "name": "200 Ready",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"status\": \"ready\",\n  \"connector_count\": 1\n}"
+                }
+              ]
+            },
+            {
+              "name": "List runtime capabilities",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{partner_base_url}}/partner/v1/capabilities",
+                "description": "ACTIVE. Manifest runtime tetap memerlukan sertifikasi Emisell sebelum method ditampilkan di checkout."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v1.1.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Midtrans Provider App capabilities",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{midtrans_provider_app_token}}", "type": "string" }]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{midtrans_partner_base_url}}/partner/v1/capabilities",
+                "description": "Runtime Midtrans terpisah. Manifest version dan executable_sha256 dipakai publish gate untuk membuktikan container identik dengan ZIP certified."
+              },
+              "response": [
+                {
+                  "name": "200 Midtrans v1.1.0",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [{\n      \"code\": \"midtrans\",\n      \"name\": \"Midtrans\",\n      \"version\": \"emisell-midtrans-v1.1.0\",\n      \"runtime\": \"isolated_container\",\n      \"executable_sha256\": \"a069ea...82a\",\n      \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"handle_webhook\"]\n    }]\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Installation Lifecycle",
+          "item": [
+            {
+              "name": "Verify installation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"provider_code\": \"{{provider_code}}\",\n  \"environment\": \"{{execution_mode}}\",\n  \"credentials\": {\"api_key\": \"{{provider_secret}}\"},\n  \"public_webhook_url\": \"{{base_url}}/webhooks/v1/providers/{{provider_code}}/{{installation_id}}\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/installations/verify",
+                "description": "ACTIVE. Secret hanya diproses pada isolated Connector Runner, tidak dicatat, dan tidak dikembalikan pada response."
+              },
+              "response": [
+                {
+                  "name": "200 Verified",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"connector_id\": \"xendit:ins_01k3...\",\n    \"webhook_ready\": true\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Disable installation",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"provider_code\": \"{{provider_code}}\",\n  \"environment\": \"{{execution_mode}}\",\n  \"credentials\": {}\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/installations/disable"
+              },
+              "response": [
+                {
+                  "name": "200 Disabled",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": { \"disabled\": true }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Payment Operations",
+          "item": [
+            {
+              "name": "CreatePayment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_code\": \"{{provider_code}}\",\n  \"installation_id\": \"{{installation_id}}\",\n  \"local_payment_id\": \"{{payment_id}}\",\n  \"merchant_reference\": \"order_2026_0001\",\n  \"environment\": \"{{execution_mode}}\",\n  \"credentials\": {\"api_key\": \"{{provider_secret}}\"},\n  \"idempotency_key\": \"payment-order-123-attempt-1\",\n  \"amount\": 1000000,\n  \"currency\": \"IDR\",\n  \"payment_method_code\": \"qris\",\n  \"channel_code\": \"QRIS\",\n  \"customer\": {\"name\": \"Budi Santoso\", \"email\": \"budi@example.com\"}\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/payments/create",
+                "description": "ACTIVE. Ambiguous timeout menjadi OUTCOME_UNKNOWN; jangan membuat transaksi kedua."
+              },
+              "response": [
+                {
+                  "name": "200 Created",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"id\": \"pr-8877c08a-740d-4153-9816-3d744ed197a5\",\n    \"status\": \"PENDING\",\n    \"next_action\": {\"type\": \"qr_code_information\", \"raw_qr_data\": \"00020101...\"}\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "GetStatus",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_code\": \"{{provider_code}}\",\n  \"environment\": \"{{execution_mode}}\",\n  \"credentials\": {\"api_key\": \"{{provider_secret}}\"},\n  \"payment_id\": \"{{provider_payment_id}}\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/payments/get"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"id\": \"{{provider_payment_id}}\",\n    \"status\": \"SUCCEEDED\",\n    \"connector_transaction_id\": \"txn-provider-001\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Capture",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_code\": \"{{provider_code}}\",\n  \"environment\": \"{{execution_mode}}\",\n  \"credentials\": {\"api_key\": \"{{provider_secret}}\"},\n  \"payment_id\": \"{{provider_payment_id}}\",\n  \"idempotency_key\": \"capture-payment-123-attempt-1\",\n  \"amount\": 1000000,\n  \"currency\": \"IDR\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/payments/capture"
+              },
+              "response": [
+                {
+                  "name": "200 Captured",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": { \"id\": \"{{provider_payment_id}}\", \"status\": \"SUCCEEDED\" }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"input\": {\n    \"provider_code\": \"{{provider_code}}\",\n    \"environment\": \"{{execution_mode}}\",\n    \"credentials\": {\"api_key\": \"{{provider_secret}}\"},\n    \"payment_id\": \"{{provider_payment_id}}\"\n  },\n  \"idempotency_key\": \"cancel-payment-123-attempt-1\",\n  \"reason\": \"requested_by_customer\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/payments/cancel"
+              },
+              "response": [
+                {
+                  "name": "200 Cancelled",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": { \"id\": \"{{provider_payment_id}}\", \"status\": \"CANCELLED\" }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Refund Operations",
+          "item": [
+            {
+              "name": "Refund",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_code\": \"{{provider_code}}\",\n  \"environment\": \"{{execution_mode}}\",\n  \"credentials\": {\"api_key\": \"{{provider_secret}}\"},\n  \"payment_id\": \"{{provider_payment_id}}\",\n  \"idempotency_key\": \"refund-payment-123-part-1\",\n  \"amount\": 50000,\n  \"currency\": \"IDR\",\n  \"reason\": \"requested_by_customer\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/refunds/create"
+              },
+              "response": [
+                {
+                  "name": "200 Created",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": { \"id\": \"ref_provider_123\", \"status\": \"PENDING\" }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get refund status",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_code\": \"{{provider_code}}\",\n  \"environment\": \"{{execution_mode}}\",\n  \"credentials\": {\"api_key\": \"{{provider_secret}}\"},\n  \"refund_id\": \"{{provider_refund_id}}\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/refunds/get"
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": { \"id\": \"{{provider_refund_id}}\", \"status\": \"SUCCEEDED\" }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Provider Webhook Contract",
+          "item": [
+            {
+              "name": "Provider webhook ingress (Active)",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [
+                  { "key": "x-callback-token", "value": "{{xendit_webhook_token}}" },
+                  { "key": "webhook-id", "value": "{{webhook_id}}" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": \"payment.capture\",\n  \"data\": {\"payment_request_id\": \"{{provider_payment_id}}\", \"status\": \"SUCCEEDED\"}\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/webhooks/v1/providers/{{provider_code}}/{{installation_id}}",
+                "description": "ACTIVE ingress milik Payment Proxy. Payload dan signature mengikuti provider."
+              },
+              "response": [
+                {
+                  "name": "200 Accepted",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"accepted\": true\n}"
+                }
+              ]
+            },
+            {
+              "name": "HandleWebhook",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_code\": \"{{provider_code}}\",\n  \"credentials\": {\"webhook_verification_token\": \"{{xendit_webhook_token}}\"},\n  \"headers\": {\"webhook-id\": [\"{{webhook_id}}\"], \"x-callback-token\": [\"{{xendit_webhook_token}}\"]},\n  \"body\": \"eyJldmVudCI6InBheW1lbnQuY2FwdHVyZSJ9\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{partner_base_url}}/partner/v1/webhooks/normalize",
+                "description": "ACTIVE. Connector mengembalikan event minimal canonical; raw payload tidak diteruskan ke Emisell Backend."
+              },
+              "response": [
+                {
+                  "name": "200 Normalized",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"id\": \"{{webhook_id}}\",\n    \"type\": \"payment.updated\",\n    \"payment_id\": \"{{provider_payment_id}}\",\n    \"status\": \"SUCCEEDED\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

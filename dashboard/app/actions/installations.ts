@@ -1,0 +1,88 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { configureInstallation, createInstallation, PaymentProxyError, transitionInstallation, uninstallInstallation } from "../lib/payment-proxy";
+import { requireDashboardSession } from "../lib/session";
+
+export type InstallationActionState = { status: "idle" | "success" | "error"; message: string };
+
+function clean(value: FormDataEntryValue | null, max = 256) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function actionError(error: unknown): InstallationActionState {
+  if (error instanceof PaymentProxyError) return { status: "error", message: `${error.code}: ${error.message}` };
+  return { status: "error", message: "Operasi tidak dapat diselesaikan. Periksa konfigurasi dashboard dan coba kembali." };
+}
+
+function refreshManagementPages() {
+  revalidatePath("/");
+  revalidatePath("/providers");
+  revalidatePath("/installations");
+}
+
+export async function installProviderAction(_: InstallationActionState, form: FormData): Promise<InstallationActionState> {
+  const session = await requireDashboardSession();
+  const providerCode = clean(form.get("provider_code"), 48).toLowerCase();
+  const environment = clean(form.get("environment"), 16).toLowerCase();
+  if (!/^[a-z0-9_-]{2,48}$/.test(providerCode) || !["sandbox", "live"].includes(environment)) {
+    return { status: "error", message: "Provider dan environment harus dipilih." };
+  }
+  try {
+    await createInstallation(session.subject, {
+      provider_code: providerCode,
+      provider_version: `emisell-${providerCode}-v1`,
+      environment,
+    });
+    refreshManagementPages();
+    return { status: "success", message: `${providerCode.toUpperCase()} ${environment} berhasil di-install. Lanjutkan dengan konfigurasi credential.` };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function configureCredentialsAction(_: InstallationActionState, form: FormData): Promise<InstallationActionState> {
+  const session = await requireDashboardSession();
+  const installationID = clean(form.get("installation_id"), 128);
+  if (!/^ins_[A-Za-z0-9]+$/.test(installationID)) return { status: "error", message: "Installation ID tidak valid." };
+  const credentials: Record<string, string> = {};
+  for (const [key, value] of form.entries()) {
+    if (!key.startsWith("credential_") || typeof value !== "string") continue;
+    const code = key.slice("credential_".length);
+    if (/^[a-z0-9_]{2,64}$/.test(code)) credentials[code] = value.trim();
+  }
+  if (!Object.values(credentials).some(Boolean)) return { status: "error", message: "Credential wajib diisi." };
+  try {
+    await configureInstallation(session.subject, installationID, credentials);
+    for (const key of Object.keys(credentials)) credentials[key] = "";
+    refreshManagementPages();
+    return { status: "success", message: "Credential diverifikasi, disimpan terenkripsi, dan installation berstatus READY." };
+  } catch (error) {
+    for (const key of Object.keys(credentials)) credentials[key] = "";
+    return actionError(error);
+  }
+}
+
+export async function installationOperationAction(_: InstallationActionState, form: FormData): Promise<InstallationActionState> {
+  const session = await requireDashboardSession();
+  const installationID = clean(form.get("installation_id"), 128);
+  const operation = clean(form.get("operation"), 16);
+  const version = Number(clean(form.get("version"), 20));
+  if (!/^ins_[A-Za-z0-9]+$/.test(installationID) || !Number.isSafeInteger(version) || version < 1) {
+    return { status: "error", message: "Installation atau version tidak valid." };
+  }
+  try {
+    if (operation === "activate" || operation === "deactivate") {
+      await transitionInstallation(session.subject, installationID, operation, version);
+    } else if (operation === "uninstall") {
+      await uninstallInstallation(session.subject, installationID);
+    } else {
+      return { status: "error", message: "Operasi tidak didukung." };
+    }
+    refreshManagementPages();
+    const message = operation === "activate" ? "Installation berhasil diaktifkan." : operation === "deactivate" ? "Installation berhasil dinonaktifkan." : "Installation berhasil di-uninstall dan credential connector dihapus.";
+    return { status: "success", message };
+  } catch (error) {
+    return actionError(error);
+  }
+}

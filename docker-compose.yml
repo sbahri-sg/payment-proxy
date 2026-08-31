@@ -1,0 +1,190 @@
+name: emisell-payment-proxy
+
+x-database-environment: &database-environment
+  APP_ENV: ${APP_ENV:-development}
+  API_PORT: "8080"
+  DATABASE_URL: postgres://${POSTGRES_USER:-payment_proxy}:${POSTGRES_PASSWORD:-payment_proxy_dev}@postgres:5432/${POSTGRES_DB:-payment_proxy}?sslmode=disable
+  DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-40}
+  DATABASE_MIN_CONNECTIONS: ${DATABASE_MIN_CONNECTIONS:-4}
+  DATABASE_CONNECTION_MAX_LIFETIME_SECONDS: ${DATABASE_CONNECTION_MAX_LIFETIME_SECONDS:-3600}
+  DATABASE_CONNECTION_MAX_IDLE_SECONDS: ${DATABASE_CONNECTION_MAX_IDLE_SECONDS:-300}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-payment_proxy}
+      POSTGRES_USER: ${POSTGRES_USER:-payment_proxy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payment_proxy_dev}
+    volumes:
+      - payment_proxy_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ./backend
+    environment: *database-environment
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  connector-runner:
+    build:
+      context: ./backend
+    entrypoint: ["/usr/local/bin/connector-runner"]
+    command: []
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      CONNECTOR_RUNNER_PORT: "18081"
+      CONNECTOR_RUNNER_TOKEN: ${CONNECTOR_RUNNER_TOKEN:-local-connector-runner-token-change-before-production}
+      XENDIT_BASE_URL: ${XENDIT_BASE_URL:-https://api.xendit.co}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    ports:
+      - "127.0.0.1:${CONNECTOR_RUNNER_PORT:-18082}:18081"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:18081/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  midtrans-provider-app:
+    build:
+      context: ./backend
+    entrypoint: ["/usr/local/bin/midtrans-provider-app"]
+    command: []
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      PROVIDER_APP_PORT: "18083"
+      PROVIDER_APP_TOKEN: ${MIDTRANS_PROVIDER_APP_TOKEN:-local-midtrans-provider-app-token-change-before-production}
+      MIDTRANS_SANDBOX_BASE_URL: ${MIDTRANS_SANDBOX_BASE_URL:-https://api.sandbox.midtrans.com}
+      MIDTRANS_LIVE_BASE_URL: ${MIDTRANS_LIVE_BASE_URL:-https://api.midtrans.com}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    ports:
+      - "127.0.0.1:${MIDTRANS_PROVIDER_APP_PORT:-18083}:18083"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:18083/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      <<: *database-environment
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-local-service-key-change-before-production}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key-change-before-production}
+      PAYMENT_PROXY_PUBLIC_BASE_URL: ${PAYMENT_PROXY_PUBLIC_BASE_URL:-}
+      CERTIFICATION_RETURN_URL: ${CERTIFICATION_RETURN_URL:-}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+      CONNECTOR_RUNNER_BASE_URLS: ${CONNECTOR_RUNNER_BASE_URLS:-http://connector-runner:18081,http://midtrans-provider-app:18083}
+      CONNECTOR_RUNNER_TOKENS: "${CONNECTOR_RUNNER_TOKEN:-local-connector-runner-token-change-before-production},${MIDTRANS_PROVIDER_APP_TOKEN:-local-midtrans-provider-app-token-change-before-production}"
+      API_REQUEST_TIMEOUT_SECONDS: ${API_REQUEST_TIMEOUT_SECONDS:-25}
+      API_RATE_LIMIT_RPS: ${API_RATE_LIMIT_RPS:-0}
+      API_RATE_LIMIT_BURST: ${API_RATE_LIMIT_BURST:-0}
+      API_MAX_IN_FLIGHT: ${API_MAX_IN_FLIGHT:-0}
+      EMISELL_BACKEND_WEBHOOK_URL: ${EMISELL_BACKEND_WEBHOOK_URL:-http://emisell-receiver:19090/webhooks/v1/payment-proxy}
+      EMISELL_BACKEND_WEBHOOK_SECRET: ${EMISELL_BACKEND_WEBHOOK_SECRET:-local-emisell-webhook-secret-change-before-production}
+      WEBHOOK_ALLOW_INSECURE_HTTP: ${WEBHOOK_ALLOW_INSECURE_HTTP:-true}
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-true}
+      WEBHOOK_DELIVERY_TIMEOUT_SECONDS: ${WEBHOOK_DELIVERY_TIMEOUT_SECONDS:-10}
+    command: ["api"]
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      connector-runner:
+        condition: service_healthy
+      midtrans-provider-app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  emisell-receiver:
+    build:
+      context: ./backend
+    environment:
+      <<: *database-environment
+      EMISELL_RECEIVER_PORT: "19090"
+      EMISELL_RECEIVER_SECRET: ${EMISELL_BACKEND_WEBHOOK_SECRET:-local-emisell-webhook-secret-change-before-production}
+      EMISELL_RECEIVER_MAX_SKEW_SECONDS: ${EMISELL_RECEIVER_MAX_SKEW_SECONDS:-300}
+    command: ["emisell-receiver"]
+    ports:
+      - "${EMISELL_RECEIVER_PORT:-19090}:19090"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:19090/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+    environment:
+      <<: *database-environment
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+      EMISELL_BACKEND_WEBHOOK_URL: ${EMISELL_BACKEND_WEBHOOK_URL:-http://emisell-receiver:19090/webhooks/v1/payment-proxy}
+      EMISELL_BACKEND_WEBHOOK_SECRET: ${EMISELL_BACKEND_WEBHOOK_SECRET:-local-emisell-webhook-secret-change-before-production}
+      WEBHOOK_ALLOW_INSECURE_HTTP: ${WEBHOOK_ALLOW_INSECURE_HTTP:-true}
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-true}
+      WEBHOOK_POLL_INTERVAL_SECONDS: ${WEBHOOK_POLL_INTERVAL_SECONDS:-2}
+      WEBHOOK_DELIVERY_TIMEOUT_SECONDS: ${WEBHOOK_DELIVERY_TIMEOUT_SECONDS:-10}
+      WEBHOOK_BASE_BACKOFF_SECONDS: ${WEBHOOK_BASE_BACKOFF_SECONDS:-5}
+      WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-8}
+      WEBHOOK_BATCH_SIZE: ${WEBHOOK_BATCH_SIZE:-20}
+    command: ["worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      emisell-receiver:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+    environment:
+      BACKEND_API_URL: http://api:8080
+      PAYMENT_PROXY_PUBLIC_URL: http://localhost:${API_PORT:-8080}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key-change-before-production}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-local-service-key-change-before-production}
+      API_CONTRACT_VERSION: "2026-08-28"
+      DASHBOARD_MERCHANT_ID: ${DASHBOARD_MERCHANT_ID:-merchant_dashboard_demo}
+      DASHBOARD_ADMIN_PASSWORD: ${DASHBOARD_ADMIN_PASSWORD:-local-dashboard-password}
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:-local-dashboard-session-secret-change-before-production}
+      EMISELL_BACKEND_WEBHOOK_URL: ${EMISELL_BACKEND_WEBHOOK_URL:-http://emisell-receiver:19090/webhooks/v1/payment-proxy}
+    ports:
+      - "${DASHBOARD_PORT:-13000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  payment_proxy_postgres:
