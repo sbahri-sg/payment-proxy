@@ -1479,8 +1479,8 @@ type ReservePaymentInput struct {
 }
 
 type PaymentListFilter struct {
-	Environment, Status, Provider, Query string
-	Limit, Offset                        int
+	TenantID, Environment, Status, Provider, Query string
+	Limit, Offset                                  int
 }
 
 type ReconciliationListFilter struct {
@@ -1565,6 +1565,39 @@ func (s *Postgres) ListPayments(ctx context.Context, tenantID string, filter Pay
 		AND ($4='' OR provider_code=$4)
 		AND ($5='' OR id ILIKE '%' || $5 || '%' OR merchant_reference ILIKE '%' || $5 || '%' OR COALESCE(engine_payment_id,'') ILIKE '%' || $5 || '%')`
 	args := []any{tenantID, filter.Environment, filter.Status, filter.Provider, filter.Query}
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM payment_sessions`+where, args...).Scan(&result.Total); err != nil {
+		return model.PaymentList{}, err
+	}
+	rows, err := s.pool.Query(ctx, paymentListSelect+where+` ORDER BY updated_at DESC,id DESC LIMIT $6 OFFSET $7`, append(args, filter.Limit, filter.Offset)...)
+	if err != nil {
+		return model.PaymentList{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		item, _, scanErr := scanPayment(rows)
+		if scanErr != nil {
+			return model.PaymentList{}, scanErr
+		}
+		result.Items = append(result.Items, item)
+	}
+	if err = rows.Err(); err != nil {
+		return model.PaymentList{}, err
+	}
+	result.HasMore = int64(result.Offset+len(result.Items)) < result.Total
+	return result, nil
+}
+
+// ListPaymentsAdmin is the Control Plane projection used by the operator
+// dashboard. Merchant-facing APIs must keep using ListPayments so tenant
+// isolation cannot be bypassed with a query parameter.
+func (s *Postgres) ListPaymentsAdmin(ctx context.Context, filter PaymentListFilter) (model.PaymentList, error) {
+	result := model.PaymentList{Items: make([]model.PaymentSession, 0), Limit: filter.Limit, Offset: filter.Offset}
+	const where = ` WHERE ($1='' OR tenant_id=$1)
+		AND ($2='' OR environment=$2)
+		AND ($3='' OR status=$3)
+		AND ($4='' OR provider_code=$4)
+		AND ($5='' OR id ILIKE '%' || $5 || '%' OR tenant_id ILIKE '%' || $5 || '%' OR merchant_reference ILIKE '%' || $5 || '%' OR COALESCE(engine_payment_id,'') ILIKE '%' || $5 || '%')`
+	args := []any{filter.TenantID, filter.Environment, filter.Status, filter.Provider, filter.Query}
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM payment_sessions`+where, args...).Scan(&result.Total); err != nil {
 		return model.PaymentList{}, err
 	}
@@ -1706,6 +1739,11 @@ func (s *Postgres) GetPayment(ctx context.Context, tenantID, id string) (model.P
 	return item, translateNotFound(err)
 }
 
+func (s *Postgres) GetPaymentAdmin(ctx context.Context, id string) (model.PaymentSession, error) {
+	item, _, err := scanPayment(s.pool.QueryRow(ctx, paymentSelect+` WHERE id=$1`, id))
+	return item, translateNotFound(err)
+}
+
 func (s *Postgres) ReconcilePayment(ctx context.Context, tenantID, id, actor, requestID, idempotencyKey, engineID, connectorID, status string, nextAction []byte, expectedCount int) (model.PaymentSession, error) {
 	if len(nextAction) == 0 {
 		nextAction = []byte("null")
@@ -1836,6 +1874,27 @@ func (s *Postgres) PaymentTimeline(ctx context.Context, tenantID, id string) ([]
 			return nil, err
 		}
 		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Postgres) PaymentTimelineAdmin(ctx context.Context, id string) ([]model.PaymentStatusEvent, error) {
+	item, err := s.GetPaymentAdmin(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id,payment_id,status,source,details,created_at FROM payment_status_history WHERE tenant_id=$1 AND payment_id=$2 ORDER BY created_at,id`, item.TenantID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]model.PaymentStatusEvent, 0)
+	for rows.Next() {
+		var event model.PaymentStatusEvent
+		if err = rows.Scan(&event.ID, &event.PaymentID, &event.Status, &event.Source, &event.Details, &event.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, event)
 	}
 	return items, rows.Err()
 }

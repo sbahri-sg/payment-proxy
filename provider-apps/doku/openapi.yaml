@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: DOKU Emisell Payment Connector
-  version: emisell-doku-v1.0.0
+  version: emisell-doku-v2.0.1
   description: Normalized connector contract backed by the official DOKU Checkout payment page.
 servers:
   - url: https://connector-runtime.emisell.com/partner/v1
@@ -107,14 +107,14 @@ components:
       required: [provider_code, provider_version, input]
       properties:
         provider_code: {type: string, example: doku}
-        provider_version: {type: string, example: emisell-doku-v1.0.0}
+        provider_version: {type: string, example: emisell-doku-v2.0.1}
         input: {type: object, additionalProperties: true}
     InstallationInput:
       type: object
       required: [provider_code, provider_version, environment, credentials]
       properties:
         provider_code: {type: string, example: doku}
-        provider_version: {type: string, example: emisell-doku-v1.0.0}
+        provider_version: {type: string, example: emisell-doku-v2.0.1}
         environment: {type: string, enum: [live, sandbox]}
         credentials: {type: object, additionalProperties: {type: string}, writeOnly: true}
         public_webhook_url: {type: string, format: uri}
@@ -127,7 +127,7 @@ components:
             local_payment_id: {type: string}
             checkout_mode: {type: string, enum: [direct, provider_hosted]}
             payment_method_code: {type: string}
-            amount: {type: integer, format: int64, description: Minor IDR units; must resolve to whole rupiah}
+            amount: {type: integer, format: int64, minimum: 1, description: Whole IDR rupiah; 10000 means Rp10.000}
             currency: {type: string, enum: [IDR]}
             idempotency_key: {type: string}
             return_url: {type: string, format: uri}
@@ -142,7 +142,7 @@ components:
       required: [provider_code, provider_version, headers, body]
       properties:
         provider_code: {type: string, example: doku}
-        provider_version: {type: string, example: emisell-doku-v1.0.0}
+        provider_version: {type: string, example: emisell-doku-v2.0.1}
         headers: {type: object, additionalProperties: {type: string}}
         body: {type: string, format: byte, description: Exact original DOKU JSON notification body}
   responses:

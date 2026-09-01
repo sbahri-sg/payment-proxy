@@ -204,7 +204,7 @@ type ConnectorCertificationRun struct {
 
 type PaymentSession struct {
 	ID                    string          `json:"id"`
-	TenantID              string          `json:"-"`
+	TenantID              string          `json:"merchant_id,omitempty"`
 	InstallationID        string          `json:"installation_id"`
 	PaymentOptionID       string          `json:"payment_option_id,omitempty"`
 	PaymentMethodCode     string          `json:"payment_method_code,omitempty"`

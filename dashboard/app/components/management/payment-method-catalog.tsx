@@ -26,7 +26,7 @@ export function PaymentMethodCatalog({ methods }: { methods: PaymentMethodCatalo
   });
   return (
     <section className="dashboard-panel master-method-panel">
-      <div className="panel-heading"><div><p className="panel-kicker">EMISELL CANONICAL REGISTRY</p><h2>Master payment methods</h2><p>Satu identitas metode dipakai bersama untuk Xendit, Midtrans, Duitku, dan DOKU.</p></div><span>{filtered.length} of {methods.length}</span></div>
+      <div className="panel-heading"><div><p className="panel-kicker">EMISELL CANONICAL REGISTRY</p><h2>Master payment methods</h2><p>Satu identitas metode dipakai bersama untuk Xendit, Midtrans, Duitku, DOKU, dan iPaymu.</p></div><span>{filtered.length} of {methods.length}</span></div>
       <div className="master-method-toolbar">
         <input aria-label="Search master payment methods" placeholder="Search QRIS, BCA, OVO, gateway..." value={query} onChange={(event) => setQuery(event.target.value)}/>
         <div><button type="button" className={category === "ALL" ? "active" : ""} onClick={() => setCategory("ALL")}>All</button>{categories.map((item) => <button type="button" className={category === item ? "active" : ""} onClick={() => setCategory(item)} key={item}>{categoryLabels[item]}</button>)}</div>

@@ -77,7 +77,7 @@ func TestHostedCheckoutUsesDuitkuPOPAndLeavesPaymentMethodEmpty(t *testing.T) {
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", CheckoutMode: connector.CheckoutModeProviderHosted,
 		Credentials:    map[string]string{"merchant_code": "D12345", "api_key": "api-key"},
-		LocalPaymentID: "pay_duitku_1", Amount: 1_000_000, Currency: "IDR",
+		LocalPaymentID: "pay_duitku_1", Amount: 10_000, Currency: "IDR",
 		Customer:  connector.Customer{Name: "Budi", Email: "budi@example.com"},
 		ReturnURL: "https://shop.example.com/payment/return", PublicWebhookURL: "https://payments.example.com/webhooks/duitku",
 	})
@@ -102,7 +102,7 @@ func TestDirectCheckoutMapsCanonicalMethodToDuitkuCode(t *testing.T) {
 	client, _ := New(server.URL, server.URL, server.URL, server.URL, time.Second)
 	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"merchant_code": "D12345", "api_key": "api-key"},
-		LocalPaymentID: "pay_bca", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "va_bca",
+		LocalPaymentID: "pay_bca", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "va_bca",
 		Customer: connector.Customer{Email: "budi@example.com"}, ReturnURL: "https://shop.example.com/return",
 		PublicWebhookURL: "https://payments.example.com/webhooks/duitku",
 	})
@@ -183,7 +183,7 @@ func TestManifestMatchesCatalogAndKeepsUnsupportedMutationsClosed(t *testing.T) 
 	if err := manifest.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != "emisell-duitku-v1.0.0" || !manifest.Supports(connector.OperationCreateHostedCheckout) {
+	if manifest.Version != "emisell-duitku-v2.0.1" || !manifest.Supports(connector.OperationCreateHostedCheckout) {
 		t.Fatalf("unexpected manifest: %#v", manifest)
 	}
 	for _, operation := range []connector.Operation{connector.OperationCancelPayment, connector.OperationCreateRefund, connector.OperationGetRefund} {

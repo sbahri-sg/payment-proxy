@@ -16,7 +16,7 @@ Dashboard mengikuti domain Emisell Payment Engine. Halaman tidak boleh memanggil
 
 ## Analytics definitions
 
-- Successful volume: jumlah `amount` payment `SUCCEEDED`; IDR disimpan dalam minor unit dan dibagi 100 saat ditampilkan.
+- Successful volume: jumlah `amount` payment `SUCCEEDED`; IDR disimpan dan ditampilkan sebagai Rupiah utuh tanpa konversi skala.
 - Payment attempts: seluruh payment yang dibuat dalam rentang waktu.
 - Success rate: `SUCCEEDED / terminal`, dengan terminal = `SUCCEEDED + FAILED + CANCELLED + EXPIRED`.
 - Webhook success rate: event `PROCESSED` atau `IGNORED` dibanding event selesai diproses.

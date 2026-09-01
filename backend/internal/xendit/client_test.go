@@ -50,7 +50,7 @@ func TestNativeQRISPayment(t *testing.T) {
 	}
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "xnd_development_secret"}, MerchantReference: "order-1",
-		IdempotencyKey: "idem-12345678", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
+		IdempotencyKey: "idem-12345678", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
 	})
 	if err != nil || result.ID == "" || string(result.NextAction) == "" {
 		t.Fatalf("unexpected payment: %#v, %v", result, err)
@@ -101,7 +101,7 @@ func TestNativeBCAVirtualAccountMapping(t *testing.T) {
 	client, _ := New(server.URL, time.Second)
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "order-bca",
-		IdempotencyKey: "idem-bca-1234", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "va_bca",
+		IdempotencyKey: "idem-bca-1234", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "va_bca",
 		ChannelCode: "BCA_VIRTUAL_ACCOUNT", Customer: connector.Customer{Name: "Budi Santoso"},
 	})
 	if err != nil || string(result.NextAction) == "" {
@@ -123,7 +123,7 @@ func TestNativeBRIVirtualAccountUsesCatalogChannel(t *testing.T) {
 	client, _ := New(server.URL, time.Second)
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "order-bri", LocalPaymentID: "pay_bri",
-		IdempotencyKey: "idem-bri-1234", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "va_bri",
+		IdempotencyKey: "idem-bri-1234", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "va_bri",
 		ChannelCode: "BRI_VIRTUAL_ACCOUNT", Customer: connector.Customer{Name: "Budi Santoso"},
 	})
 	if err != nil || !strings.Contains(string(result.NextAction), "virtual_account_information") {
@@ -148,9 +148,9 @@ func TestNativeEwalletMapping(t *testing.T) {
 	client, _ := New(server.URL, time.Second)
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "order-dana", LocalPaymentID: "pay_dana",
-		IdempotencyKey: "idem-dana-1234", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "ewallet_dana", ChannelCode: "DANA",
+		IdempotencyKey: "idem-dana-1234", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "ewallet_dana", ChannelCode: "DANA",
 		Customer:  connector.Customer{Name: "Budi Santoso", Email: "budi@example.com", Phone: "+6281234567890"},
-		Items:     []connector.Item{{ReferenceID: "item-1", Type: "DIGITAL_PRODUCT", Name: "Item", NetUnitAmount: 1_000_000, Quantity: 1, Category: "software"}},
+		Items:     []connector.Item{{ReferenceID: "item-1", Type: "DIGITAL_PRODUCT", Name: "Item", NetUnitAmount: 10_000, Quantity: 1, Category: "software"}},
 		ReturnURL: "https://emisell.example/return",
 	})
 	if err != nil || !strings.Contains(string(result.NextAction), "redirect") {
@@ -173,7 +173,7 @@ func TestOVOUsesMobileAuthorization(t *testing.T) {
 	client, _ := New(server.URL, time.Second)
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "order-ovo", LocalPaymentID: "pay_ovo",
-		IdempotencyKey: "idem-ovo-1234", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "ewallet_ovo", ChannelCode: "OVO",
+		IdempotencyKey: "idem-ovo-1234", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "ewallet_ovo", ChannelCode: "OVO",
 		Customer: connector.Customer{Name: "Budi", Phone: "+6281234567890"}, ReturnURL: "https://emisell.example/return",
 	})
 	if err != nil || !strings.Contains(string(result.NextAction), "mobile_authorization") {
@@ -203,7 +203,7 @@ func TestCardUsesHostedPaymentSessionWithoutPAN(t *testing.T) {
 	client, _ := New(server.URL, time.Second)
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "order-card", LocalPaymentID: "pay_card",
-		IdempotencyKey: "idem-card-1234", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "card", ChannelCode: "CARDS",
+		IdempotencyKey: "idem-card-1234", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "card", ChannelCode: "CARDS",
 		Customer: connector.Customer{Name: "Budi", Email: "budi@example.com", Phone: "+6281234567890"}, ReturnURL: "https://emisell.example/return",
 	})
 	if err != nil || result.ID != "ps-661f87c614802d6c402cd82d" || !strings.Contains(string(result.NextAction), "redirect") {
@@ -229,7 +229,7 @@ func TestProviderHostedCheckoutLeavesChannelSelectionToXendit(t *testing.T) {
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, CheckoutMode: connector.CheckoutModeProviderHosted,
 		MerchantReference: "order-hosted", LocalPaymentID: "pay_hosted", IdempotencyKey: "idem-hosted-1",
-		Amount: 1_000_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
+		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
 	})
 	if err != nil || result.ID != "ps-hosted-1" || !strings.Contains(string(result.NextAction), "https://dev.xen.to/all-methods") {
 		t.Fatalf("unexpected hosted checkout: %#v, %v", result, err)
@@ -279,12 +279,12 @@ func TestXenditPaymentSessionWebhook(t *testing.T) {
 }
 
 func TestProviderAmount(t *testing.T) {
-	value, err := providerAmount(1_000_000, "IDR")
+	value, err := providerAmount(10_000, "IDR")
 	if err != nil || value != int64(10_000) {
-		t.Fatalf("unexpected amount conversion: %#v, %v", value, err)
+		t.Fatalf("IDR amount must be forwarded as whole rupiah: %#v, %v", value, err)
 	}
-	if _, err = providerAmount(1_000_001, "IDR"); err == nil {
-		t.Fatal("fractional rupiah was accepted")
+	if _, err = providerAmount(10_000, "USD"); err == nil {
+		t.Fatal("unsupported currency was accepted")
 	}
 }
 
@@ -296,7 +296,7 @@ func TestMutationTimeoutIsUnknownButReadTimeoutIsNot(t *testing.T) {
 	client, _ := New(server.URL, 20*time.Millisecond)
 	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "timeout-create",
-		IdempotencyKey: "timeout-create-123", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
+		IdempotencyKey: "timeout-create-123", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
 	})
 	if !errors.Is(err, connector.ErrOutcomeUnknown) {
 		t.Fatalf("mutation timeout must be UNKNOWN, got %v", err)
@@ -328,7 +328,7 @@ func TestMutationServerFailureAndMalformedSuccessAreUnknown(t *testing.T) {
 			client, _ := New(server.URL, time.Second)
 			_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 				Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "ambiguous-create",
-				IdempotencyKey: "ambiguous-create-123", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
+				IdempotencyKey: "ambiguous-create-123", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
 			})
 			if !errors.Is(err, connector.ErrOutcomeUnknown) {
 				t.Fatalf("ambiguous mutation response must be UNKNOWN, got %v", err)
@@ -346,7 +346,7 @@ func TestMutationClientRejectionIsDeterministic(t *testing.T) {
 	client, _ := New(server.URL, time.Second)
 	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, MerchantReference: "rejected-create",
-		IdempotencyKey: "rejected-create-123", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
+		IdempotencyKey: "rejected-create-123", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris", ChannelCode: "QRIS",
 	})
 	var apiErr *connector.APIError
 	if !errors.As(err, &apiErr) || apiErr.Code != "API_VALIDATION_ERROR" || errors.Is(err, connector.ErrOutcomeUnknown) {
@@ -401,14 +401,14 @@ func TestXenditCreateRefundIsAsynchronousAndReturnToSource(t *testing.T) {
 	client, _ := New(server.URL, time.Second)
 	result, err := client.CreateRefund(context.Background(), connector.RefundInput{
 		Credentials: map[string]string{"api_key": "xnd_development_test"}, PaymentID: "pr-pay-1",
-		IdempotencyKey: "refund-1", Amount: 50_000, Currency: "IDR", Reason: "REQUESTED_BY_CUSTOMER",
+		IdempotencyKey: "refund-1", Amount: 500, Currency: "IDR", Reason: "REQUESTED_BY_CUSTOMER",
 	})
 	if err != nil || result.ID != "rfd-1" || result.Status != "PENDING" {
 		t.Fatalf("unexpected refund result: %#v, %v", result, err)
 	}
 	if _, err = client.CreateRefund(context.Background(), connector.RefundInput{
 		Credentials: map[string]string{"api_key": "xnd_development_test"}, PaymentID: "ps-session-1",
-		IdempotencyKey: "refund-2", Amount: 50_000, Currency: "IDR", Reason: "REQUESTED_BY_CUSTOMER",
+		IdempotencyKey: "refund-2", Amount: 500, Currency: "IDR", Reason: "REQUESTED_BY_CUSTOMER",
 	}); err == nil {
 		t.Fatal("a payment session ID was accepted as a Unified Refund payment_request_id")
 	}
@@ -443,15 +443,14 @@ func TestConnectorPaymentAmountValidation(t *testing.T) {
 		input     connector.PaymentValidation
 		wantError bool
 	}{
-		{name: "valid QRIS", input: connector.PaymentValidation{PaymentMethodCode: "qris", Currency: "IDR", Amount: 1_000_000}},
-		{name: "IDR fraction", input: connector.PaymentValidation{PaymentMethodCode: "qris", Currency: "IDR", Amount: 1_000_001}, wantError: true},
-		{name: "below QRIS minimum", input: connector.PaymentValidation{PaymentMethodCode: "qris", Currency: "IDR", Amount: 99}, wantError: true},
-		{name: "above QRIS maximum", input: connector.PaymentValidation{PaymentMethodCode: "qris", Currency: "IDR", Amount: 1_000_000_100}, wantError: true},
-		{name: "valid BCA VA", input: connector.PaymentValidation{PaymentMethodCode: "va_bca", Currency: "IDR", Amount: 1_000_000}},
-		{name: "below BRI VA minimum", input: connector.PaymentValidation{PaymentMethodCode: "va_bri", Currency: "IDR", Amount: 999_900}, wantError: true},
-		{name: "valid card", input: connector.PaymentValidation{PaymentMethodCode: "card", Currency: "IDR", Amount: 1_000_000}},
-		{name: "below card minimum", input: connector.PaymentValidation{PaymentMethodCode: "card", Currency: "IDR", Amount: 499_900}, wantError: true},
-		{name: "unsupported method", input: connector.PaymentValidation{PaymentMethodCode: "cash", Currency: "IDR", Amount: 1_000_000}, wantError: true},
+		{name: "valid QRIS", input: connector.PaymentValidation{PaymentMethodCode: "qris", Currency: "IDR", Amount: 10_000}},
+		{name: "below QRIS minimum", input: connector.PaymentValidation{PaymentMethodCode: "qris", Currency: "IDR", Amount: 0}, wantError: true},
+		{name: "above QRIS maximum", input: connector.PaymentValidation{PaymentMethodCode: "qris", Currency: "IDR", Amount: 10_000_001}, wantError: true},
+		{name: "valid BCA VA", input: connector.PaymentValidation{PaymentMethodCode: "va_bca", Currency: "IDR", Amount: 10_000}},
+		{name: "below BRI VA minimum", input: connector.PaymentValidation{PaymentMethodCode: "va_bri", Currency: "IDR", Amount: 9_999}, wantError: true},
+		{name: "valid card", input: connector.PaymentValidation{PaymentMethodCode: "card", Currency: "IDR", Amount: 10_000}},
+		{name: "below card minimum", input: connector.PaymentValidation{PaymentMethodCode: "card", Currency: "IDR", Amount: 4_999}, wantError: true},
+		{name: "unsupported method", input: connector.PaymentValidation{PaymentMethodCode: "cash", Currency: "IDR", Amount: 10_000}, wantError: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

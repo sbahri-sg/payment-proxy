@@ -17,6 +17,7 @@ export function PaymentActions({ payment }: { payment: PaymentSession }) {
   return (
     <form action={action} onSubmit={confirmOperation} className="payment-actions">
       <input type="hidden" name="payment_id" value={payment.id}/>
+      <input type="hidden" name="merchant_id" value={payment.merchant_id}/>
       <input type="hidden" name="reason" value="requested_by_operator"/>
       <div>
         <button className="dashboard-primary-button" name="operation" value="sync" disabled={pending}>{pending ? "Processing..." : "Sync status"}</button>

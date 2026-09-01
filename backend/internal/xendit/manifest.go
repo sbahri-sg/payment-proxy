@@ -49,7 +49,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Xendit",
-		Version:          "emisell-xendit-v1.1.0",
+		Version:          "emisell-xendit-v2.0.1",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -95,18 +95,15 @@ func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 		return errors.New("payment amount must be positive")
 	}
 	if !strings.EqualFold(strings.TrimSpace(input.Currency), "IDR") {
-		return nil
+		return errors.New("Xendit connector only supports IDR")
 	}
-	if input.Amount%100 != 0 {
-		return errors.New("Xendit IDR amount must use whole rupiah expressed in minor units")
-	}
-	if code == "qris" && (input.Amount < 100 || input.Amount > 1_000_000_000) {
+	if code == "qris" && (input.Amount < 1 || input.Amount > 10_000_000) {
 		return errors.New("Xendit QRIS amount must be between Rp1 and Rp10,000,000")
 	}
-	if strings.HasPrefix(code, "va_") && (input.Amount < 1_000_000 || input.Amount > 5_000_000_000) {
+	if strings.HasPrefix(code, "va_") && (input.Amount < 10_000 || input.Amount > 50_000_000) {
 		return errors.New("Xendit Virtual Account amount must be between Rp10,000 and Rp50,000,000")
 	}
-	if code == "card" && (input.Amount < 500_000 || input.Amount > 20_000_000_000) {
+	if code == "card" && (input.Amount < 5_000 || input.Amount > 200_000_000) {
 		return errors.New("Xendit card amount must be between Rp5,000 and Rp200,000,000")
 	}
 	return nil

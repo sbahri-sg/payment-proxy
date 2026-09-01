@@ -65,7 +65,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Duitku",
-		Version:          "emisell-duitku-v1.0.0",
+		Version:          "emisell-duitku-v2.0.1",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -107,10 +107,7 @@ func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 	if !strings.EqualFold(strings.TrimSpace(input.Currency), "IDR") {
 		return errors.New("Duitku POP connector supports IDR only")
 	}
-	if input.Amount%100 != 0 {
-		return errors.New("Duitku IDR amount must use whole rupiah expressed in minor units")
-	}
-	if input.Amount < 1_000_000 {
+	if input.Amount < 10_000 {
 		return errors.New("Duitku payment amount must be at least IDR 10,000")
 	}
 	return nil

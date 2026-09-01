@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Xendit Emisell Payment Connector
-  version: emisell-xendit-v1.1.0
+  version: emisell-xendit-v2.0.1
   description: Normalized Payment Connector contract used by the shared Xendit runtime.
 servers:
   - url: https://connector-runtime.emisell.com/partner/v1
@@ -145,14 +145,14 @@ components:
       required: [provider_code, provider_version, input]
       properties:
         provider_code: {type: string, example: xendit}
-        provider_version: {type: string, example: emisell-xendit-v1.1.0}
+        provider_version: {type: string, example: emisell-xendit-v2.0.1}
         input: {type: object, additionalProperties: true}
     InstallationInput:
       type: object
       required: [provider_code, provider_version, environment, credentials]
       properties:
         provider_code: {type: string, example: xendit}
-        provider_version: {type: string, example: emisell-xendit-v1.1.0}
+        provider_version: {type: string, example: emisell-xendit-v2.0.1}
         environment: {type: string, enum: [live, sandbox]}
         credentials: {type: object, additionalProperties: {type: string}, writeOnly: true}
         public_webhook_url: {type: string, format: uri}
@@ -172,7 +172,7 @@ components:
             local_payment_id: {type: string}
             checkout_mode: {type: string, enum: [direct, provider_hosted]}
             payment_method_code: {type: string}
-            amount: {type: integer, format: int64, minimum: 1}
+            amount: {type: integer, format: int64, minimum: 1, description: Whole IDR rupiah; 10000 means Rp10.000}
             currency: {type: string, example: IDR}
             idempotency_key: {type: string}
     PaymentLookup:
@@ -187,14 +187,14 @@ components:
       required: [input, amount, currency]
       properties:
         input: {$ref: "#/components/schemas/PaymentLookup"}
-        amount: {type: integer, format: int64}
+        amount: {type: integer, format: int64, description: Whole IDR rupiah}
         currency: {type: string}
     WebhookInput:
       type: object
       required: [provider_code, provider_version, headers, body]
       properties:
         provider_code: {type: string, example: xendit}
-        provider_version: {type: string, example: emisell-xendit-v1.1.0}
+        provider_version: {type: string, example: emisell-xendit-v2.0.1}
         headers: {type: object, additionalProperties: {type: string}}
         body: {type: string, format: byte}
   responses:

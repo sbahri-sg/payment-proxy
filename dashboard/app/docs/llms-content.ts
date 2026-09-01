@@ -6,7 +6,7 @@ Canonical documentation: /docs?contract=backend
 
 ## Purpose
 
-Payment Proxy exposes one provider-neutral API. Emisell Backend must not call Xendit, Midtrans, DOKU, Duitku, or connector runtime endpoints directly. Provider credentials are accepted only by the installation credential endpoint and are never returned.
+Payment Proxy exposes one provider-neutral API. Emisell Backend must not call Xendit, Midtrans, DOKU, Duitku, iPaymu, or connector runtime endpoints directly. Provider credentials are accepted only by the installation credential endpoint and are never returned.
 
 ## Common headers
 
@@ -32,9 +32,9 @@ Sandbox and Live are separate installation slots with separate merchant credenti
 
 POST /api/v1/payment-sessions
 Header: Idempotency-Key is required. Do not send X-Emisell-Execution-Mode; Payment Proxy derives environment from installation_id or payment_option_id.
-Preferred request fields: installation_id, checkout_mode=provider_hosted, merchant_reference, amount in minor units, currency, customer, return_url, metadata.
+Preferred request fields: installation_id, checkout_mode=provider_hosted, merchant_reference, amount as whole rupiah for IDR, currency, customer, return_url, metadata. IDR 10000 means exactly Rp10.000.
 
-For provider_hosted checkout, do not send payment_option_id or payment_method_code. Payment Proxy creates a Xendit Payment Session or Midtrans Snap transaction and returns payment.checkout_url plus next_action.redirect_url. Redirect the customer to that provider-owned URL. Emisell must not render its own payment-method page or collect PAN, CVV, OTP, VA, QR, or wallet authorization details.
+For provider_hosted checkout, do not send payment_option_id or payment_method_code. Payment Proxy creates the provider's official hosted checkout (Xendit Payment Session, Midtrans Snap, Duitku POP, DOKU Checkout, or iPaymu Redirect Payment) and returns payment.checkout_url plus next_action.redirect_url. Redirect the customer to that provider-owned URL. Emisell must not render its own payment-method page or collect PAN, CVV, OTP, VA, QR, or wallet authorization details.
 
 GET /api/v1/payment-methods?q=<keyword> is the merchant discovery catalog. q is optional, case-insensitive, and searches canonical method code, name, category, and description. Debounce merchant-dashboard input by 300-500 ms. payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout. GET /api/v1/payment-method-assignments returns both ACTIVE and INACTIVE records. PUT /api/v1/payment-method-assignments accepts {"assignments":[...]} with 1-50 items, applies the batch atomically, derives environment from each installation_id, and must not send X-Emisell-Execution-Mode. Use GET /api/v1/payment-options?environment=sandbox|live for active checkout options only.
 

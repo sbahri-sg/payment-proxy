@@ -15,6 +15,7 @@ Diambil dan diverifikasi pada 28 Agustus 2026:
 | Midtrans dan channel | [Midtrans official logo repository](https://github.com/veritrans/logo) | Midtrans, CIMB Niaga, Danamon, Maybank, ATM Bersama, GoPay, Akulaku |
 | DOKU | [Official DOKU website](https://www.doku.com/en-us) | Provider DOKU dan DOKU payment methods |
 | Duitku | [Official Duitku website](https://www.duitku.com/) | Provider Duitku |
+| iPaymu | [Official iPaymu website](https://ipaymu.com/) | Provider iPaymu; logo dapat di-upload saat provider identity dibuat |
 | AstraPay | [Official AstraPay website](https://www.astrapay.com/) | AstraPay |
 | Jenius | [Official Jenius website](https://www.jenius.com/) | Jenius Pay |
 | Indodana | [Official Indodana website](https://www.indodana.id/) | Indodana |

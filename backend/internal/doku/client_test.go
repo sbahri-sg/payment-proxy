@@ -71,7 +71,7 @@ func TestHostedCheckoutReturnsOfficialDOKUPaymentURL(t *testing.T) {
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", CheckoutMode: connector.CheckoutModeProviderHosted,
 		Credentials:    map[string]string{"client_id": testClientID, "secret_key": testSecretKey},
-		LocalPaymentID: "pay_doku_1", IdempotencyKey: "idem_doku_1", Amount: 1_000_000, Currency: "IDR",
+		LocalPaymentID: "pay_doku_1", IdempotencyKey: "idem_doku_1", Amount: 10_000, Currency: "IDR",
 		ReturnURL: "https://shop.example.com/return", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/doku/ins_doku_1",
 	})
 	if err != nil || result.ID != "EMS123" || result.Status != "REQUIRES_ACTION" || result.ConnectorTransactionID != "SESSION-1" || !strings.Contains(string(result.NextAction), "checkout.doku.com") {
@@ -93,7 +93,7 @@ func TestDirectCheckoutSelectsOneDOKUChannel(t *testing.T) {
 	client, _ := New(server.URL, server.URL, time.Second)
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"client_id": testClientID, "secret_key": testSecretKey},
-		LocalPaymentID: "pay_bca", Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "va_bca",
+		LocalPaymentID: "pay_bca", Amount: 10_000, Currency: "IDR", PaymentMethodCode: "va_bca",
 		ReturnURL: "https://shop.example.com/return", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/doku/ins_1",
 	})
 	if err != nil || result.ConnectorTransactionID != "TOKEN-1" {
@@ -136,7 +136,7 @@ func TestManifestMatchesSafeDOKUCheckoutScope(t *testing.T) {
 	if err := manifest.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != "emisell-doku-v1.0.0" || len(manifest.CertificationProfiles) != 20 || !manifest.Supports(connector.OperationCreateHostedCheckout) {
+	if manifest.Version != "emisell-doku-v2.0.1" || len(manifest.CertificationProfiles) != 20 || !manifest.Supports(connector.OperationCreateHostedCheckout) {
 		t.Fatalf("unexpected DOKU manifest: %#v", manifest)
 	}
 	for code, mapping := range supportedMethods {
@@ -145,7 +145,7 @@ func TestManifestMatchesSafeDOKUCheckoutScope(t *testing.T) {
 		}
 	}
 	for _, code := range []string{"paylater_akulaku", "paylater_kredivo", "paylater_indodana", "direct_debit_bri", "digital_banking_jenius", "kki"} {
-		if err := client.ValidatePayment(connector.PaymentValidation{PaymentMethodCode: code, Amount: 1_000_000, Currency: "IDR"}); err == nil {
+		if err := client.ValidatePayment(connector.PaymentValidation{PaymentMethodCode: code, Amount: 10_000, Currency: "IDR"}); err == nil {
 			t.Fatalf("%s must stay documented until its extra contract fields exist", code)
 		}
 	}

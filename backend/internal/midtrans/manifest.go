@@ -38,7 +38,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Midtrans",
-		Version:          "emisell-midtrans-v1.2.1",
+		Version:          "emisell-midtrans-v2.0.1",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -82,9 +82,6 @@ func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 	}
 	if !strings.EqualFold(strings.TrimSpace(input.Currency), "IDR") {
 		return errors.New("Midtrans Core API connector currently supports IDR only")
-	}
-	if input.Amount%100 != 0 {
-		return errors.New("Midtrans IDR amount must use whole rupiah expressed in minor units")
 	}
 	return nil
 }

@@ -18,8 +18,8 @@ function statusTone(status: PaymentStatus) {
 }
 
 function formatAmount(payment: PaymentSession) {
-  if (payment.currency === "IDR") return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(payment.amount / 100);
-  return `${payment.currency} ${(payment.amount / 100).toLocaleString("id-ID")}`;
+  if (payment.currency === "IDR") return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(payment.amount);
+  return `${payment.currency} ${payment.amount.toLocaleString("id-ID")}`;
 }
 
 function sourceLabel(source: string) {
@@ -75,10 +75,11 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
               <article className="dashboard-panel payment-summary-card">
                 <div className="panel-heading"><div><p className="panel-kicker">PAYMENT SUMMARY</p><h2>{formatAmount(payment)}</h2><p>Canonical amount recorded by Payment Proxy.</p></div><BrandLogo code={payment.provider_code} label={payment.provider_code} className={`provider-logo ${payment.provider_code}`}/></div>
                 <dl className="payment-data-grid">
-                  <div><dt>Provider</dt><dd>{payment.provider_code.toUpperCase()}</dd></div><div><dt>Environment</dt><dd>{payment.environment}</dd></div>
+                  <div><dt>Merchant ID</dt><dd><code>{payment.merchant_id}</code></dd></div><div><dt>Provider</dt><dd>{payment.provider_code.toUpperCase()}</dd></div>
+                  <div><dt>Environment</dt><dd>{payment.environment}</dd></div>
                   <div><dt>Provider release</dt><dd><code>{payment.provider_version}</code></dd></div><div><dt>Checkout mode</dt><dd><code>{payment.checkout_mode}</code></dd></div>
                   <div><dt>Payment method</dt><dd><code>{payment.payment_method_code || "Selected on provider page"}</code></dd></div>
-                  <div><dt>Installation ID</dt><dd><code>{payment.installation_id}</code></dd></div><div><dt>Currency / minor amount</dt><dd>{payment.currency} · {payment.amount.toLocaleString("id-ID")}</dd></div>
+                  <div><dt>Installation ID</dt><dd><code>{payment.installation_id}</code></dd></div><div><dt>Currency / amount</dt><dd>{payment.currency} · {payment.amount.toLocaleString("id-ID")}</dd></div>
                   <div><dt>Created</dt><dd>{created}</dd></div><div><dt>Last updated</dt><dd>{updated}</dd></div>
                 </dl>
               </article>

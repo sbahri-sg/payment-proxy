@@ -44,7 +44,7 @@ func TestRuntimeRoutesMetadataAndValidationThroughRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest, err := runtime.Manifest("xendit")
-	if err != nil || manifest.Version != "emisell-xendit-v1.1.0" {
+	if err != nil || manifest.Version != "emisell-xendit-v2.0.1" {
 		t.Fatalf("unexpected manifest: %#v, %v", manifest, err)
 	}
 	if err = runtime.ValidatePaymentMethod("xendit", connector.PaymentMethodMapping{

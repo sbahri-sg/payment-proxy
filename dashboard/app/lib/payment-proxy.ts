@@ -232,6 +232,7 @@ export type PaymentNextAction = {
 
 export type PaymentSession = {
   id: string;
+  merchant_id: string;
   installation_id: string;
   payment_option_id?: string;
   payment_method_code?: string;
@@ -373,14 +374,14 @@ function configuration() {
   return { baseURL: baseURL.replace(/\/$/, ""), serviceKey, merchantID };
 }
 
-async function proxyRequest<T>(path: string, _actor: string, init?: RequestInit): Promise<T> {
+async function proxyRequest<T>(path: string, _actor: string, init?: RequestInit, merchantIDOverride?: string): Promise<T> {
   const { baseURL, serviceKey, merchantID } = configuration();
   const response = await fetch(`${baseURL}${path}`, {
     ...init,
     cache: "no-store",
     headers: {
       Authorization: `Bearer ${serviceKey}`,
-      "X-Emisell-Merchant-ID": merchantID,
+      "X-Emisell-Merchant-ID": merchantIDOverride?.trim() || merchantID,
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
@@ -588,8 +589,9 @@ export function deactivatePaymentMethodAssignment(actor: string, id: string, ver
   });
 }
 
-export function listPayments(actor: string, filters: { environment?: string; status?: string; provider?: string; q?: string; limit?: number; offset?: number } = {}) {
+export function listPayments(actor: string, filters: { merchantID?: string; environment?: string; status?: string; provider?: string; q?: string; limit?: number; offset?: number } = {}) {
   const query = new URLSearchParams();
+  if (filters.merchantID) query.set("merchant_id", filters.merchantID);
   if (filters.environment) query.set("environment", filters.environment);
   if (filters.status) query.set("status", filters.status);
   if (filters.provider) query.set("provider", filters.provider);
@@ -597,23 +599,27 @@ export function listPayments(actor: string, filters: { environment?: string; sta
   if (filters.limit) query.set("limit", String(filters.limit));
   if (filters.offset) query.set("offset", String(filters.offset));
   const suffix = query.size ? `?${query}` : "";
-  return proxyRequest<PaymentList>(`/api/v1/payment-sessions${suffix}`, actor);
+  return adminRequest<PaymentList>(`/api/v1/admin/payment-sessions${suffix}`, actor);
 }
 
 export function getPayment(actor: string, id: string) {
-  return proxyRequest<PaymentSession>(`/api/v1/payment-sessions/${encodeURIComponent(id)}`, actor);
+  return adminRequest<PaymentSession>(`/api/v1/admin/payment-sessions/${encodeURIComponent(id)}`, actor);
 }
 
 export function getPaymentTimeline(actor: string, id: string) {
-  return proxyRequest<PaymentStatusEvent[]>(`/api/v1/payment-sessions/${encodeURIComponent(id)}/timeline`, actor);
+  return adminRequest<PaymentStatusEvent[]>(`/api/v1/admin/payment-sessions/${encodeURIComponent(id)}/timeline`, actor);
 }
 
-export function cancelPayment(actor: string, id: string, reason: string, idempotencyKey: string) {
+export function syncPayment(actor: string, merchantID: string, id: string) {
+  return proxyRequest<PaymentSession>(`/api/v1/payment-sessions/${encodeURIComponent(id)}`, actor, undefined, merchantID);
+}
+
+export function cancelPayment(actor: string, merchantID: string, id: string, reason: string, idempotencyKey: string) {
   return proxyRequest<PaymentSession>(`/api/v1/payment-sessions/${encodeURIComponent(id)}/cancel`, actor, {
     method: "POST",
     headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ reason }),
-  });
+  }, merchantID);
 }
 
 function webhookQuery(filters: { status?: string; q?: string; limit?: number; offset?: number }) {

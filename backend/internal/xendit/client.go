@@ -687,13 +687,10 @@ func providerAmount(amount int64, currency string) (any, error) {
 	if amount <= 0 {
 		return nil, errors.New("payment amount must be positive")
 	}
-	if strings.EqualFold(currency, "IDR") {
-		if amount%100 != 0 {
-			return nil, errors.New("IDR amount must use whole rupiah expressed in minor units")
-		}
-		return amount / 100, nil
+	if strings.EqualFold(strings.TrimSpace(currency), "IDR") {
+		return amount, nil
 	}
-	return float64(amount) / 100, nil
+	return nil, errors.New("Xendit connector only supports IDR")
 }
 
 func xenditRefundReason(value string) (string, error) {

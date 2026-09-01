@@ -58,7 +58,7 @@ func TestMidtransInstallationAndQRISPayment(t *testing.T) {
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		ProviderCode: "midtrans", Environment: "sandbox", Credentials: map[string]string{"server_key": "SB-Mid-server-test"},
 		LocalPaymentID: "pay_1", MerchantReference: "order-1", IdempotencyKey: "idem-1",
-		Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris",
+		Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris",
 		PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/midtrans/ins_1",
 	})
 	if err != nil || result.ID != "pay_1" || result.Status != "PENDING" || !strings.Contains(string(result.NextAction), "qr_code_url") {
@@ -103,7 +103,7 @@ func TestProviderHostedCheckoutUsesMidtransSnapRedirect(t *testing.T) {
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"server_key": "SB-Mid-server-test"},
 		CheckoutMode: connector.CheckoutModeProviderHosted, LocalPaymentID: "pay_hosted_1", MerchantReference: "order-hosted",
-		Amount: 1_000_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
+		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
 		PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/midtrans/ins_1",
 	})
 	if err != nil || result.ID != "pay_hosted_1" || result.Status != "REQUIRES_ACTION" || !strings.Contains(string(result.NextAction), "app.sandbox.midtrans.com") {
@@ -142,7 +142,7 @@ func TestMidtransVirtualAccountAndStatus(t *testing.T) {
 	client, _ := New(server.URL, server.URL, time.Second)
 	created, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"server_key": "server"}, LocalPaymentID: "pay_va_1",
-		Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "va_bca",
+		Amount: 10_000, Currency: "IDR", PaymentMethodCode: "va_bca",
 	})
 	if err != nil || !strings.Contains(string(created.NextAction), "1234567890") {
 		t.Fatalf("unexpected VA result: %#v, %v", created, err)
@@ -168,7 +168,7 @@ func TestMidtransPermataUsesDedicatedPaymentType(t *testing.T) {
 	client, _ := New(server.URL, server.URL, time.Second)
 	created, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"server_key": "server"}, LocalPaymentID: "pay_permata_1",
-		Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "va_permata",
+		Amount: 10_000, Currency: "IDR", PaymentMethodCode: "va_permata",
 	})
 	if err != nil || !strings.Contains(string(created.NextAction), "1234567890") {
 		t.Fatalf("unexpected Permata result: %#v, %v", created, err)
@@ -178,7 +178,7 @@ func TestMidtransPermataUsesDedicatedPaymentType(t *testing.T) {
 func TestMidtransRejectsMethodsNotImplementedByCoreV2(t *testing.T) {
 	client, _ := New("https://api.sandbox.midtrans.test", "https://api.midtrans.test", time.Second)
 	for _, code := range []string{"va_danamon", "va_bsi", "card"} {
-		err := client.ValidatePayment(connector.PaymentValidation{PaymentMethodCode: code, Amount: 1_000_000, Currency: "IDR"})
+		err := client.ValidatePayment(connector.PaymentValidation{PaymentMethodCode: code, Amount: 10_000, Currency: "IDR"})
 		if err == nil {
 			t.Fatalf("method %s must remain unavailable until its own implementation exists", code)
 		}
@@ -226,7 +226,7 @@ func TestMidtransCancelAndRefund(t *testing.T) {
 	}
 	refunded, err := client.CreateRefund(context.Background(), connector.RefundInput{
 		Environment: "sandbox", Credentials: lookup.Credentials, PaymentID: "pay_1", IdempotencyKey: "refund-1",
-		Amount: 50_000, Currency: "IDR", Reason: "customer request",
+		Amount: 500, Currency: "IDR", Reason: "customer request",
 	})
 	if err != nil || refunded.Status != "PENDING" || refunded.ID != "pay_1|refund-1" {
 		t.Fatalf("unexpected refund: %#v, %v", refunded, err)
@@ -286,7 +286,7 @@ func TestMidtransMutationServerErrorIsUnknown(t *testing.T) {
 	client, _ := New(server.URL, server.URL, time.Second)
 	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"server_key": "server"}, LocalPaymentID: "pay_1",
-		Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris",
+		Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris",
 	})
 	if !errors.Is(err, connector.ErrOutcomeUnknown) {
 		t.Fatalf("server ambiguity was not preserved: %v", err)
@@ -301,7 +301,7 @@ func TestMidtransHTTP200WithBusinessErrorIsRejected(t *testing.T) {
 	client, _ := New(server.URL, server.URL, time.Second)
 	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"server_key": "server"}, LocalPaymentID: "pay_1",
-		Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris",
+		Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris",
 	})
 	var apiErr *connector.APIError
 	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound || apiErr.Code != "MIDTRANS_POP_ID_REQUIRED" || errors.Is(err, connector.ErrOutcomeUnknown) {
@@ -336,7 +336,7 @@ func TestMidtransHTTP200WithBusinessServerErrorIsUnknown(t *testing.T) {
 	client, _ := New(server.URL, server.URL, time.Second)
 	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"server_key": "server"}, LocalPaymentID: "pay_1",
-		Amount: 1_000_000, Currency: "IDR", PaymentMethodCode: "qris",
+		Amount: 10_000, Currency: "IDR", PaymentMethodCode: "qris",
 	})
 	if !errors.Is(err, connector.ErrOutcomeUnknown) {
 		t.Fatalf("HTTP 200 Midtrans business 5xx did not preserve ambiguity: %v", err)

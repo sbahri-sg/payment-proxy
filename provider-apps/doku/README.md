@@ -1,6 +1,6 @@
 # DOKU Provider App
 
-Source-only release submission for the shared `emisell-doku-v1.0.0` runtime.
+Source-only release submission for the shared `emisell-doku-v2.0.1` runtime.
 The runtime calls DOKU Checkout, returns DOKU's official hosted payment URL,
 checks order status, and verifies Non-SNAP notification signatures.
 

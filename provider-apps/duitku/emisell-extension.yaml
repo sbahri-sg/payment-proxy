@@ -3,7 +3,7 @@ provider:
   code: duitku
   name: Duitku
 release:
-  version: emisell-duitku-v1.0.0
+  version: emisell-duitku-v2.0.1
 connector:
   contract_version: v1
   runtime: isolated_container

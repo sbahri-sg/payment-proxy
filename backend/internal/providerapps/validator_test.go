@@ -12,6 +12,7 @@ import (
 
 	"github.com/emisell/api-payment-proxy/internal/doku"
 	"github.com/emisell/api-payment-proxy/internal/duitku"
+	"github.com/emisell/api-payment-proxy/internal/ipaymu"
 	"github.com/emisell/api-payment-proxy/internal/midtrans"
 	"github.com/emisell/api-payment-proxy/internal/xendit"
 )
@@ -285,6 +286,55 @@ func TestDOKUProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
 	}
 	if !result.Report.Passed || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Report.FileCount != len(files) || !verification.Passed {
 		t.Fatalf("DOKU submission failed release verification: submission=%#v verification=%#v", result, verification)
+	}
+}
+
+func TestIPaymuProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
+	files := []struct {
+		archivePath string
+		sourcePath  string
+	}{
+		{archivePath: "emisell-extension.yaml", sourcePath: "../../../provider-apps/ipaymu/emisell-extension.yaml"},
+		{archivePath: "openapi.yaml", sourcePath: "../../../provider-apps/ipaymu/openapi.yaml"},
+		{archivePath: "README.md", sourcePath: "../../../provider-apps/ipaymu/README.md"},
+		{archivePath: "SECURITY.md", sourcePath: "../../../provider-apps/ipaymu/SECURITY.md"},
+		{archivePath: "contract-tests/README.md", sourcePath: "../../../provider-apps/ipaymu/contract-tests/README.md"},
+		{archivePath: "src/ipaymu/client.go", sourcePath: "../ipaymu/client.go"},
+		{archivePath: "src/ipaymu/manifest.go", sourcePath: "../ipaymu/manifest.go"},
+	}
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for _, item := range files {
+		content, err := os.ReadFile(item.sourcePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := writer.Create(item.archivePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = file.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	result, err := ValidateBundle(buffer.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := ipaymu.New("", "", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.SetExecutableSHA256(strings.Repeat("d", 64))
+	verification := VerifyRuntimeContract(result.Manifest, client.Manifest())
+	if result.Manifest.Code != "ipaymu" || result.Manifest.Version != client.Manifest().Version || len(result.Manifest.CredentialFields) != 2 || len(result.Manifest.PaymentMethods) != 18 {
+		t.Fatalf("iPaymu Provider App manifest diverged from runtime release: %#v", result.Manifest)
+	}
+	if !result.Report.Passed || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Report.FileCount != len(files) || !verification.Passed {
+		t.Fatalf("iPaymu submission failed release verification: submission=%#v verification=%#v", result, verification)
 	}
 }
 

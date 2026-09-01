@@ -154,6 +154,9 @@ func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Get("/service-api-keys", s.listServiceAPIKeys)
 	r.Post("/service-api-keys", s.createServiceAPIKey)
 	r.Post("/service-api-keys/{id}/revoke", s.revokeServiceAPIKey)
+	r.Get("/payment-sessions", s.listAdminPayments)
+	r.Get("/payment-sessions/{id}", s.getAdminPayment)
+	r.Get("/payment-sessions/{id}/timeline", s.adminPaymentTimeline)
 	r.Get("/provider-apps", s.listProviderApps)
 	r.Post("/provider-apps/{id}/transition", s.transitionProviderApp)
 	r.Get("/provider-app-providers", s.listProviderAppProviders)
@@ -1898,6 +1901,73 @@ func (s *Server) listPayments(w http.ResponseWriter, r *http.Request) {
 	items, err := s.store.ListPayments(r.Context(), tenant(r), store.PaymentListFilter{Environment: environment, Status: status, Provider: provider, Query: search, Limit: limit, Offset: offset})
 	if err != nil {
 		s.internal(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, items)
+}
+
+// listAdminPayments is a Control Plane view across merchants. The service
+// endpoint above remains strictly tenant-scoped and never accepts merchant_id.
+func (s *Server) listAdminPayments(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	merchantID := strings.TrimSpace(query.Get("merchant_id"))
+	if merchantID != "" && !tenantPattern.MatchString(merchantID) {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_TENANT", "merchant_id filter is invalid")
+		return
+	}
+	environment := strings.ToLower(strings.TrimSpace(query.Get("environment")))
+	if environment != "" && environment != "sandbox" && environment != "live" {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_ENVIRONMENT", "environment must be sandbox or live")
+		return
+	}
+	status := strings.ToUpper(strings.TrimSpace(query.Get("status")))
+	if status != "" && !validPaymentStatus(status) {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_STATUS", "status is not a supported payment status")
+		return
+	}
+	provider := strings.ToLower(strings.TrimSpace(query.Get("provider")))
+	if len(provider) > 64 || (provider != "" && !regexp.MustCompile(`^[a-z0-9_-]+$`).MatchString(provider)) {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_PROVIDER", "provider filter is invalid")
+		return
+	}
+	search := strings.TrimSpace(query.Get("q"))
+	if len(search) > 128 {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_QUERY", "q must not exceed 128 characters")
+		return
+	}
+	limit, err := queryInt(query.Get("limit"), 25, 1, 100)
+	if err != nil {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_LIMIT", "limit must be between 1 and 100")
+		return
+	}
+	offset, err := queryInt(query.Get("offset"), 0, 0, 10000)
+	if err != nil {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_OFFSET", "offset must be between 0 and 10000")
+		return
+	}
+	items, err := s.store.ListPaymentsAdmin(r.Context(), store.PaymentListFilter{
+		TenantID: merchantID, Environment: environment, Status: status, Provider: provider, Query: search, Limit: limit, Offset: offset,
+	})
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, items)
+}
+
+func (s *Server) getAdminPayment(w http.ResponseWriter, r *http.Request) {
+	item, err := s.store.GetPaymentAdmin(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		s.storeError(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, item)
+}
+
+func (s *Server) adminPaymentTimeline(w http.ResponseWriter, r *http.Request) {
+	items, err := s.store.PaymentTimelineAdmin(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		s.storeError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusOK, items)

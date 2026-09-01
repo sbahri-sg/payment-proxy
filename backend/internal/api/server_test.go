@@ -125,6 +125,14 @@ func TestAdminRoutesUseCanonicalNamespace(t *testing.T) {
 		t.Fatalf("canonical admin route used the wrong authentication chain: %d %s", canonical.Code, canonical.Body.String())
 	}
 
+	adminPayments := httptest.NewRecorder()
+	adminPaymentsRequest := httptest.NewRequest(http.MethodGet, "/api/v1/admin/payment-sessions?merchant_id=merchant_test", nil)
+	adminPaymentsRequest.Header.Set("Authorization", "Bearer test-service-key")
+	handler.ServeHTTP(adminPayments, adminPaymentsRequest)
+	if adminPayments.Code != http.StatusUnauthorized || !strings.Contains(adminPayments.Body.String(), "invalid admin credential") {
+		t.Fatalf("cross-merchant payment route did not require admin authentication: %d %s", adminPayments.Code, adminPayments.Body.String())
+	}
+
 	legacy := httptest.NewRecorder()
 	legacyRequest := httptest.NewRequest(http.MethodGet, "/internal/v1/provider-app-providers", nil)
 	legacyRequest.Header.Set("X-Admin-API-Key", "test-admin-key")

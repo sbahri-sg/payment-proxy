@@ -137,7 +137,7 @@ export function EmisellWebhookContractGuide({
           <h3>Kontrak penerima webhook Payment Proxy</h3>
           <p>
             Endpoint ini dibuat di backend Emisell. Payment Proxy mengirim event
-            canonical dari durable outbox; payload mentah Xendit, Midtrans, DOKU,
+            canonical dari durable outbox; payload mentah Xendit, Midtrans, DOKU, Duitku, iPaymu,
             atau provider lain tidak pernah diteruskan langsung.
           </p>
         </div>

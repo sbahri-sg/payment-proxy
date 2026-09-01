@@ -411,13 +411,10 @@ func providerAmount(amount int64, currency string) (int64, error) {
 	if !strings.EqualFold(strings.TrimSpace(currency), "IDR") {
 		return 0, errors.New("Duitku POP connector supports IDR only")
 	}
-	if amount < 1_000_000 {
+	if amount < 10_000 {
 		return 0, errors.New("Duitku payment amount must be at least IDR 10,000")
 	}
-	if amount%100 != 0 {
-		return 0, errors.New("Duitku IDR amount must use whole rupiah expressed in minor units")
-	}
-	return amount / 100, nil
+	return amount, nil
 }
 
 func merchantOrderID(input connector.PaymentInput) (string, error) {
@@ -488,10 +485,10 @@ func itemDetails(items []connector.Item, currency string, expected int64) []map[
 }
 
 func providerAmountForItem(amount int64, currency string) (int64, error) {
-	if !strings.EqualFold(strings.TrimSpace(currency), "IDR") || amount <= 0 || amount%100 != 0 {
+	if !strings.EqualFold(strings.TrimSpace(currency), "IDR") || amount <= 0 {
 		return 0, errors.New("invalid Duitku item amount")
 	}
-	return amount / 100, nil
+	return amount, nil
 }
 
 func expiryPeriod(value string, now time.Time) (int64, error) {

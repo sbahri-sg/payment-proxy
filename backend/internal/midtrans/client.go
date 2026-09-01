@@ -590,10 +590,7 @@ func providerAmount(amount int64, currency string) (int64, error) {
 	if !strings.EqualFold(strings.TrimSpace(currency), "IDR") {
 		return 0, errors.New("Midtrans Core API connector currently supports IDR only")
 	}
-	if amount%100 != 0 {
-		return 0, errors.New("IDR amount must use whole rupiah expressed in minor units")
-	}
-	return amount / 100, nil
+	return amount, nil
 }
 
 func orderID(input connector.PaymentInput) (string, error) {

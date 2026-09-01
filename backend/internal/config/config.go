@@ -500,6 +500,56 @@ func LoadDokuProviderApp() (DokuProviderAppConfig, error) {
 	return cfg, nil
 }
 
+type IPaymuProviderAppConfig struct {
+	AppEnv           string
+	HTTPAddr         string
+	Token            string
+	SandboxBaseURL   string
+	LiveBaseURL      string
+	ConnectorTimeout time.Duration
+	TLSCertPEM       []byte
+	TLSKeyPEM        []byte
+}
+
+func LoadIPaymuProviderApp() (IPaymuProviderAppConfig, error) {
+	tlsCertPEM, tlsKeyPEM, err := connectorTLSKeyPair()
+	if err != nil {
+		return IPaymuProviderAppConfig{}, err
+	}
+	cfg := IPaymuProviderAppConfig{
+		AppEnv:           envOr("APP_ENV", "development"),
+		HTTPAddr:         ":" + envOr("PROVIDER_APP_PORT", "18086"),
+		Token:            strings.TrimSpace(os.Getenv("PROVIDER_APP_TOKEN")),
+		SandboxBaseURL:   strings.TrimRight(envOr("IPAYMU_SANDBOX_BASE_URL", "https://sandbox.ipaymu.com"), "/"),
+		LiveBaseURL:      strings.TrimRight(envOr("IPAYMU_LIVE_BASE_URL", "https://my.ipaymu.com"), "/"),
+		ConnectorTimeout: seconds("CONNECTOR_TIMEOUT_SECONDS", 15),
+		TLSCertPEM:       tlsCertPEM,
+		TLSKeyPEM:        tlsKeyPEM,
+	}
+	for name, value := range map[string]string{
+		"IPAYMU_SANDBOX_BASE_URL": cfg.SandboxBaseURL,
+		"IPAYMU_LIVE_BASE_URL":    cfg.LiveBaseURL,
+	} {
+		parsed, parseErr := url.Parse(value)
+		if parseErr != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return IPaymuProviderAppConfig{}, fmt.Errorf("%s must be an HTTP(S) URL without credentials", name)
+		}
+		if cfg.AppEnv == "production" && parsed.Scheme != "https" {
+			return IPaymuProviderAppConfig{}, fmt.Errorf("%s must use HTTPS in production", name)
+		}
+	}
+	if cfg.Token == "" {
+		return IPaymuProviderAppConfig{}, errors.New("PROVIDER_APP_TOKEN is required")
+	}
+	if cfg.AppEnv == "production" && weakProductionSecret(cfg.Token) {
+		return IPaymuProviderAppConfig{}, errors.New("PROVIDER_APP_TOKEN must be a non-default secret with at least 32 characters in production")
+	}
+	if cfg.AppEnv == "production" && len(cfg.TLSCertPEM) == 0 {
+		return IPaymuProviderAppConfig{}, errors.New("CONNECTOR_TLS_CERT_BASE64 and CONNECTOR_TLS_KEY_BASE64 are required in production")
+	}
+	return cfg, nil
+}
+
 func connectorTLSKeyPair() ([]byte, []byte, error) {
 	certPEM, err := optionalBase64("CONNECTOR_TLS_CERT_BASE64")
 	if err != nil {

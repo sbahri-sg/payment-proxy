@@ -123,7 +123,7 @@ provider-submission.zip
 └── contract-tests/
 ```
 
-Sumber submission Xendit, Midtrans, Duitku, dan DOKU berada di `provider-apps/<provider>` dan
+Sumber submission Xendit, Midtrans, Duitku, DOKU, dan iPaymu berada di `provider-apps/<provider>` dan
 dibangun dengan `./scripts/build-<provider>-provider-app.sh`. Hasilnya kecil dan
 portable karena tidak berisi binary Linux. Runtime provider dibangun terpisah
 sebagai OCI image dari `backend/Dockerfile`, lalu dideploy satu kali untuk setiap
@@ -171,17 +171,22 @@ Pada **Body → form-data**:
 
 | Key | Type | Value |
 |---|---|---|
-| `bundle` | File | `xendit-provider-app-emisell-v1.1.0.zip` |
+| `bundle` | File | `xendit-provider-app-emisell-v2.0.1.zip` |
 
 Untuk Duitku gunakan hasil deterministic builder
-`dist/provider-apps/duitku-provider-app-emisell-v1.0.0.zip`. Submission ini
+`dist/provider-apps/duitku-provider-app-emisell-v2.0.1.zip`. Submission ini
 memuat kontrak dan source review saja; runtime `duitku-provider-app` harus sudah
 memuat versi dan executable digest yang sama sebelum release dapat dipublish.
 
-Untuk DOKU gunakan `dist/provider-apps/doku-provider-app-emisell-v1.0.0.zip`.
+Untuk DOKU gunakan `dist/provider-apps/doku-provider-app-emisell-v2.0.1.zip`.
 Submission mendeklarasikan DOKU Checkout hosted/direct, status order, notification
 HMAC, credential `client_id` + `secret_key`, serta 20 metode awal yang dapat
 dipenuhi oleh kontrak canonical saat ini.
+
+Untuk iPaymu gunakan `dist/provider-apps/ipaymu-provider-app-emisell-v2.0.1.zip`.
+Submission mendeklarasikan Redirect Payment resmi, direct payment per channel,
+lookup status berdasarkan `referenceId`, callback `X-Signature`, credential
+`va` + `api_key`, dan 18 metode canonical API v2.
 
 Contoh response `201 Created`:
 
@@ -191,18 +196,18 @@ Contoh response `201 Created`:
     "id": "papp_9d3a...",
     "provider_code": "midtrans",
     "provider_name": "Midtrans",
-    "version": "emisell-xendit-v1.1.0",
+    "version": "emisell-xendit-v2.0.1",
     "status": "UPLOADED",
     "runtime": "isolated_container",
     "sdk_version": "v1",
-    "file_name": "xendit-provider-app-emisell-v1.1.0.zip",
+    "file_name": "xendit-provider-app-emisell-v2.0.1.zip",
     "artifact_size": 11220,
     "artifact_sha256": "a791f4...9d2c",
     "manifest": {
       "package_format": "provider_submission_v1",
       "contract_version": "v1",
       "code": "xendit",
-      "version": "emisell-xendit-v1.1.0",
+      "version": "emisell-xendit-v2.0.1",
       "environments": ["sandbox", "live"],
       "payment_methods": ["qris", "card", "va_bca", "va_mandiri", "ewallet_ovo", "ewallet_dana"],
       "outbound_hosts": ["api.xendit.co"]

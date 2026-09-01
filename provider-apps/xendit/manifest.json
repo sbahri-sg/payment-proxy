@@ -2,7 +2,7 @@
   "contract_version": "v1",
   "code": "xendit",
   "name": "Xendit",
-  "version": "emisell-xendit-v1.1.0",
+  "version": "emisell-xendit-v2.0.1",
   "runtime": "isolated_container",
   "sdk_version": "v1",
   "entrypoint": "connector",

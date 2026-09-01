@@ -87,6 +87,7 @@ generate_tls_material() {
   generate_connector_certificate midtrans-provider-app midtrans
   generate_connector_certificate duitku-provider-app duitku
   generate_connector_certificate doku-provider-app doku
+  generate_connector_certificate ipaymu-provider-app ipaymu
   chmod 600 "$TLS_DIR"/*.key
   chmod 644 "$TLS_DIR"/*.crt
 }
@@ -120,6 +121,7 @@ write_environment() {
   MIDTRANS_PROVIDER_APP_TOKEN=${MIDTRANS_PROVIDER_APP_TOKEN:-$(random_hex 32)}
   DUITKU_PROVIDER_APP_TOKEN=${DUITKU_PROVIDER_APP_TOKEN:-$(random_hex 32)}
   DOKU_PROVIDER_APP_TOKEN=${DOKU_PROVIDER_APP_TOKEN:-$(random_hex 32)}
+  IPAYMU_PROVIDER_APP_TOKEN=${IPAYMU_PROVIDER_APP_TOKEN:-$(random_hex 32)}
   DASHBOARD_ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD:-$(random_hex 16)}
   DASHBOARD_SESSION_SECRET=${DASHBOARD_SESSION_SECRET:-$(random_hex 32)}
   EMISELL_BACKEND_WEBHOOK_SECRET=${EMISELL_BACKEND_WEBHOOK_SECRET:-whsec_$(random_hex 32)}
@@ -135,7 +137,9 @@ write_environment() {
     DUITKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/duitku.key")
     DOKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/doku.crt")
     DOKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/doku.key")
-  elif { [ -z "${DUITKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DUITKU_CONNECTOR_TLS_KEY_BASE64:-}" ] || [ -z "${DOKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DOKU_CONNECTOR_TLS_KEY_BASE64:-}" ]; } && { [ ! -f "$TLS_DIR/connector-ca.crt" ] || [ ! -f "$TLS_DIR/connector-ca.key" ]; }; then
+    IPAYMU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/ipaymu.crt")
+    IPAYMU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/ipaymu.key")
+  elif { [ -z "${DUITKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DUITKU_CONNECTOR_TLS_KEY_BASE64:-}" ] || [ -z "${DOKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DOKU_CONNECTOR_TLS_KEY_BASE64:-}" ] || [ -z "${IPAYMU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${IPAYMU_CONNECTOR_TLS_KEY_BASE64:-}" ]; } && { [ ! -f "$TLS_DIR/connector-ca.crt" ] || [ ! -f "$TLS_DIR/connector-ca.key" ]; }; then
     generate_tls_material
     CONNECTOR_TLS_CA_BASE64=$(base64_file "$TLS_DIR/connector-ca.crt")
     XENDIT_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/xendit.crt")
@@ -146,6 +150,8 @@ write_environment() {
     DUITKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/duitku.key")
     DOKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/doku.crt")
     DOKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/doku.key")
+    IPAYMU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/ipaymu.crt")
+    IPAYMU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/ipaymu.key")
   else
     if [ -z "${DUITKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DUITKU_CONNECTOR_TLS_KEY_BASE64:-}" ]; then
       generate_connector_certificate duitku-provider-app duitku
@@ -160,6 +166,13 @@ write_environment() {
       chmod 644 "$TLS_DIR/doku.crt"
       DOKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/doku.crt")
       DOKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/doku.key")
+    fi
+    if [ -z "${IPAYMU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${IPAYMU_CONNECTOR_TLS_KEY_BASE64:-}" ]; then
+      generate_connector_certificate ipaymu-provider-app ipaymu
+      chmod 600 "$TLS_DIR/ipaymu.key"
+      chmod 644 "$TLS_DIR/ipaymu.crt"
+      IPAYMU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/ipaymu.crt")
+      IPAYMU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/ipaymu.key")
     fi
   fi
 
@@ -179,6 +192,7 @@ write_environment() {
     echo "MIDTRANS_PROVIDER_APP_TOKEN=$MIDTRANS_PROVIDER_APP_TOKEN"
     echo "DUITKU_PROVIDER_APP_TOKEN=$DUITKU_PROVIDER_APP_TOKEN"
     echo "DOKU_PROVIDER_APP_TOKEN=$DOKU_PROVIDER_APP_TOKEN"
+    echo "IPAYMU_PROVIDER_APP_TOKEN=$IPAYMU_PROVIDER_APP_TOKEN"
     echo "CONNECTOR_TLS_CA_BASE64=$CONNECTOR_TLS_CA_BASE64"
     echo "XENDIT_CONNECTOR_TLS_CERT_BASE64=$XENDIT_CONNECTOR_TLS_CERT_BASE64"
     echo "XENDIT_CONNECTOR_TLS_KEY_BASE64=$XENDIT_CONNECTOR_TLS_KEY_BASE64"
@@ -188,6 +202,8 @@ write_environment() {
     echo "DUITKU_CONNECTOR_TLS_KEY_BASE64=$DUITKU_CONNECTOR_TLS_KEY_BASE64"
     echo "DOKU_CONNECTOR_TLS_CERT_BASE64=$DOKU_CONNECTOR_TLS_CERT_BASE64"
     echo "DOKU_CONNECTOR_TLS_KEY_BASE64=$DOKU_CONNECTOR_TLS_KEY_BASE64"
+    echo "IPAYMU_CONNECTOR_TLS_CERT_BASE64=$IPAYMU_CONNECTOR_TLS_CERT_BASE64"
+    echo "IPAYMU_CONNECTOR_TLS_KEY_BASE64=$IPAYMU_CONNECTOR_TLS_KEY_BASE64"
     echo "DASHBOARD_MERCHANT_ID=${DASHBOARD_MERCHANT_ID:-payment_proxy_operator}"
     echo "DASHBOARD_ADMIN_PASSWORD=$DASHBOARD_ADMIN_PASSWORD"
     echo "DASHBOARD_SESSION_SECRET=$DASHBOARD_SESSION_SECRET"

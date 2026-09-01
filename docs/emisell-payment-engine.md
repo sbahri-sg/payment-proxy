@@ -5,7 +5,7 @@ Status: **ACTIVE FOUNDATION**
 Owner: **Emisell**
 
 Runtime: **Go Payment Kernel + isolated Connector Runner**
-Reference connectors: **Xendit `emisell-xendit-v1.1.0` + Midtrans `emisell-midtrans-v1.2.1` + Duitku `emisell-duitku-v1.0.0` + DOKU `emisell-doku-v1.0.0`**
+Reference connectors: **Xendit `emisell-xendit-v2.0.1` + Midtrans `emisell-midtrans-v2.0.1` + Duitku `emisell-duitku-v2.0.1` + DOKU `emisell-doku-v2.0.1` + iPaymu `emisell-ipaymu-v2.0.1`**
 
 Dokumen ini mengunci batas arsitektur Payment Proxy. Implementasi, endpoint,
 dashboard, dan connector baru tidak boleh menyimpang dari kontrak di bawah tanpa
@@ -34,9 +34,9 @@ Emisell Checkout / Backend
           ▼
  Isolated Connector Runner
           │
-     ┌────┼──────────┬─────────┐
-     ▼    ▼          ▼         ▼
-  Xendit Midtrans   DOKU     Duitku
+     ┌────┼──────────┬─────────┬────────┐
+     ▼    ▼          ▼         ▼        ▼
+  Xendit Midtrans   DOKU     Duitku   iPaymu
 ```
 
 Kernel tidak mengetahui URL, authentication, channel code, request payload,
@@ -132,17 +132,17 @@ Browser tidak menerima service key dan tidak memanggil provider connector.
 
 ## 6. Operation matrix reference connector
 
-| Operation | Xendit v1 | Midtrans v1 | Duitku v1 | DOKU v1 | Catatan |
-|---|---:|---:|---:|---:|---|
-| Verify/disable installation | Ya | Ya | Ya | Ya | Credential diverifikasi langsung ke provider; disable lokal |
-| Create/get payment | Ya | Ya | Ya | Ya | DOKU memakai Checkout order dan Check Status API |
-| Provider-hosted checkout | Ya | Ya | Ya | Ya | UI checkout tetap milik provider |
-| Sandbox simulation | Ya | Tidak | Tidak | Tidak | Provider lain memakai customer action pada halaman provider |
-| Handle webhook | Ya | Ya | Ya | Ya | Signature diverifikasi connector lalu dinormalisasi |
-| Capture | Belum | Belum | Belum | Belum | Tidak diiklankan manifest |
-| Cancel | Belum | Disiapkan | Belum | Belum | Tetap ditutup sampai sandbox evidence |
-| Create refund | Disiapkan | Disiapkan | Belum | Belum | Tetap ditutup sampai sandbox + webhook evidence |
-| Get refund provider | Tidak | Disiapkan | Belum | Belum | Projection canonical selalu tersedia |
+| Operation | Xendit v1 | Midtrans v1 | Duitku v1 | DOKU v1 | iPaymu v1 | Catatan |
+|---|---:|---:|---:|---:|---:|---|
+| Verify/disable installation | Ya | Ya | Ya | Ya | Ya | Credential diverifikasi langsung ke provider; disable lokal |
+| Create/get payment | Ya | Ya | Ya | Ya | Ya | iPaymu lookup memakai referenceId |
+| Provider-hosted checkout | Ya | Ya | Ya | Ya | Ya | UI checkout tetap milik provider |
+| Sandbox simulation | Ya | Tidak | Tidak | Tidak | Tidak | Provider lain memakai customer action pada halaman provider |
+| Handle webhook | Ya | Ya | Ya | Ya | Ya | Signature diverifikasi connector lalu dinormalisasi |
+| Capture | Belum | Belum | Belum | Belum | Belum | Tidak diiklankan manifest |
+| Cancel | Belum | Disiapkan | Belum | Belum | Belum | Tetap ditutup sampai sandbox evidence |
+| Create refund | Disiapkan | Disiapkan | Belum | Belum | Belum | Tetap ditutup sampai sandbox + webhook evidence |
+| Get refund provider | Tidak | Disiapkan | Belum | Belum | Belum | Projection canonical selalu tersedia |
 
 Operation baru baru boleh dimasukkan ke manifest setelah implementation,
 contract test, sandbox evidence, webhook evidence, dan failure-mode test lulus.
@@ -260,5 +260,8 @@ Payment Kernel, checkout contract, atau canonical webhook delivery.
 6. **Fourth connector (local baseline selesai):** DOKU Checkout berjalan pada
    isolated shared runtime dengan hosted/direct payment link resmi, Non-SNAP
    request signing, status order, notification verification, dan source-only bundle.
-7. **Deployment hardening berikutnya:** deployment automation, per-provider
+7. **Fifth connector (local baseline selesai):** iPaymu API v2 berjalan pada
+   shared runtime dengan Redirect Payment resmi, direct method mapping, signed
+   reference lookup, callback HMAC, dan source-only release bundle.
+8. **Deployment hardening berikutnya:** deployment automation, per-provider
    resource isolation, canary, kill switch, dan production-like soak.

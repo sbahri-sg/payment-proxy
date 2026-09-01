@@ -50,7 +50,7 @@ boleh dicampur walaupun seluruhnya berada di platform yang sama.
 | Provider webhook ingress | Provider → Payment Proxy | `/webhooks/v1/providers/{provider}/{installation_id}` | Internal implementation detail |
 | Partner API Contract | Payment Proxy → isolated Connector Runner | `/partner/v1/*` | Private service contract |
 
-Detail payload Xendit, Midtrans, DOKU, atau Duitku tidak boleh bocor ke
+Detail payload Xendit, Midtrans, DOKU, Duitku, atau iPaymu tidak boleh bocor ke
 Emisell Backend atau checkout. Dashboard `/docs` dan collection Postman memakai
 pembagian audience yang sama.
 
@@ -145,13 +145,13 @@ X-Emisell-Merchant-ID: merchant_123
     "connectors": [
       {
         "code": "xendit",
-        "version": "emisell-xendit-v1.1.0",
+        "version": "emisell-xendit-v2.0.1",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "create_payment", "create_hosted_checkout", "get_payment", "simulate_payment", "handle_webhook"]
       },
       {
         "code": "midtrans",
-        "version": "emisell-midtrans-v1.2.1",
+        "version": "emisell-midtrans-v2.0.1",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"]
       }
@@ -317,7 +317,7 @@ Contoh installation Midtrans memakai endpoint yang sama:
 ```json
 {
   "provider_code": "midtrans",
-  "provider_version": "emisell-midtrans-v1.2.1",
+  "provider_version": "emisell-midtrans-v2.0.1",
   "environment": "sandbox"
 }
 ```
@@ -365,7 +365,7 @@ ini agar tidak meng-hardcode versi connector.
     "environment": "sandbox",
     "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
     "execution_engine": "emisell_native",
-    "provider_version": "emisell-xendit-v1.1.0",
+    "provider_version": "emisell-xendit-v2.0.1",
     "status": "CONFIG_REQUIRED",
     "credential_metadata": {},
     "payment_methods": [],
@@ -431,7 +431,7 @@ Contoh response:
       "verification": {
         "id": "iver_01k3...",
         "result": "PASSED",
-        "provider_version": "emisell-xendit-v1.1.0",
+        "provider_version": "emisell-xendit-v2.0.1",
         "manifest_digest": "sha256-digest-without-prefix",
         "verified_at": "2026-09-01T03:00:00Z"
       }
@@ -516,7 +516,7 @@ Mengubah `ACTIVE` menjadi `INACTIVE` tanpa menghapus credential.
 ```json
 {
   "version": 6,
-  "provider_version": "emisell-midtrans-v1.2.1"
+  "provider_version": "emisell-midtrans-v2.0.1"
 }
 ```
 
@@ -678,7 +678,7 @@ halaman checkout provider.
 
 ## Payments
 
-Semua amount adalah integer minor unit. Untuk IDR, `1000000` berarti Rp10.000.
+Semua amount IDR adalah integer Rupiah utuh. Nilai `10000` berarti tepat Rp10.000. Payment Proxy menyimpan dan meneruskan nilai yang sama ke provider; tidak ada konversi `/100`.
 
 ### `POST /payment-sessions`
 
@@ -697,7 +697,7 @@ tidak digunakan.
   "installation_id": "ins_01k3...",
   "checkout_mode": "provider_hosted",
   "merchant_reference": "order_2026_0001",
-  "amount": 1000000,
+  "amount": 10000,
   "currency": "IDR",
   "description": "Order #2026-0001",
   "customer": {"name":"Budi","email":"budi@example.com"},
@@ -709,7 +709,8 @@ tidak digunakan.
 Jika request hanya berisi `installation_id` tanpa payment method,
 `checkout_mode` otomatis menjadi `provider_hosted`. Payment Proxy meminta
 provider membuat hosted checkout dan mengembalikan URL provider. Connector
-Duitku memakai POP Create Invoice dan memerlukan `customer.email` yang valid:
+Duitku memakai POP Create Invoice dan memerlukan `customer.email` yang valid;
+iPaymu memakai Redirect Payment API v2:
 
 ```json
 {
@@ -731,8 +732,9 @@ Duitku memakai POP Create Invoice dan memerlukan `customer.email` yang valid:
 }
 ```
 
-Untuk Xendit, URL berasal dari `payment_link_url` Payment Session. Untuk
-Midtrans, URL berasal dari `redirect_url` Snap. QRIS, VA, e-wallet, card, dan
+Untuk Xendit, URL berasal dari `payment_link_url` Payment Session; Midtrans dari
+`redirect_url` Snap; DOKU dari `response.payment.url`; dan iPaymu dari
+`Data.Url` Redirect Payment. QRIS, VA, e-wallet, card, dan
 channel lain yang aktif ditampilkan oleh provider pada halaman tersebut;
 Emisell tidak membuat halaman checkout dan tidak menerima PAN, expiry,
 CVV/CVN, OTP, atau detail autentikasi pembayaran.
@@ -756,6 +758,12 @@ Query: `environment` (`sandbox` atau `live`), `status`, `provider`, `q`,
 `limit` (1–100), dan `offset` (0–10.000). Filter `environment` bersifat
 opsional; tanpa filter, kedua environment dikembalikan.
 
+Endpoint Emisell Backend ini selalu tenant-scoped oleh
+`X-Emisell-Merchant-ID`. Dashboard operator menggunakan endpoint Control Plane
+`GET /api/v1/admin/payment-sessions` agar dapat melihat seluruh merchant, dengan
+filter tambahan `merchant_id`. Pemisahan ini mencegah dashboard admin keliru
+menampilkan hanya tenant demo tanpa membuka akses lintas tenant pada API merchant.
+
 ### `GET /payment-sessions/{id}`
 
 Membaca projection lokal dan menyinkronkan resource yang sama langsung ke provider bila `provider_payment_id` tersedia.
@@ -777,7 +785,7 @@ Wajib idempotency key. Connector Xendit native v1 saat ini mengembalikan `CANCEL
 ### `POST /refunds`
 
 ```json
-{"payment_id":"pay_01k3...","amount":1000000,"reason":"REQUESTED_BY_CUSTOMER"}
+{"payment_id":"pay_01k3...","amount":5000,"reason":"REQUESTED_BY_CUSTOMER"}
 ```
 
 Kontrak sudah universal dan non-custodial. Payment Proxy selalu menggunakan

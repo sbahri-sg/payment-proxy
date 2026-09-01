@@ -2,7 +2,7 @@
 
 Status: **IMPLEMENTED · BCA/BNI/PERMATA VA SANDBOX CERTIFIED**
 
-Connector: `emisell-midtrans-v1.1.0`
+Connector: `emisell-midtrans-v2.0.1`
 Runtime: isolated Midtrans Provider App container
 
 Dokumen ini membedakan implementasi kode dari bukti bahwa account Midtrans
@@ -70,15 +70,16 @@ Midtrans membentuk `signature_key` sebagai SHA-512 dari `order_id + status_code 
 gross_amount + server_key`. Connector membandingkannya secara constant-time.
 Payload mentah provider tidak diteruskan ke Emisell Backend.
 
-## Evidence release Provider App 30 Agustus 2026
+## Evidence release Provider App 1 September 2026
 
-Artifact `emisell-midtrans-v1.1.0` dibangun sebagai ZIP immutable dan dijalankan
-sebagai container tersendiri. SHA-256 executable runtime cocok dengan entrypoint
-ZIP. BCA VA menghasilkan webhook `pending` dan `settlement` langsung melalui
+Artifact `emisell-midtrans-v2.0.1` dibangun sebagai ZIP immutable dan dijalankan
+sebagai container tersendiri. ZIP submission berisi source review, sedangkan
+digest executable runtime dicatat dan diverifikasi secara terpisah saat publish.
+BCA VA menghasilkan webhook `pending` dan `settlement` langsung melalui
 override notification URL; certification run `cert_3d38639c09440121510415f65cc93e62`
 berstatus `PASSED`, termasuk direct provider webhook dan signed delivery ke
 Emisell Backend. Provider App kemudian dipublish dan installation sandbox
-di-upgrade secara eksplisit dari v1 ke v1.1.0.
+di-upgrade secara eksplisit ke v2.0.1.
 
 ## Evidence sandbox 28 Agustus 2026
 

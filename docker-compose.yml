@@ -146,6 +146,35 @@ services:
       retries: 10
     restart: unless-stopped
 
+  ipaymu-provider-app:
+    build:
+      context: ./backend
+      target: ipaymu-provider-app
+    entrypoint: ["/usr/local/bin/ipaymu-provider-app"]
+    command: []
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      PROVIDER_APP_PORT: "18086"
+      PROVIDER_APP_TOKEN: ${IPAYMU_PROVIDER_APP_TOKEN:-local-ipaymu-provider-app-token-change-before-production}
+      IPAYMU_SANDBOX_BASE_URL: ${IPAYMU_SANDBOX_BASE_URL:-https://sandbox.ipaymu.com}
+      IPAYMU_LIVE_BASE_URL: ${IPAYMU_LIVE_BASE_URL:-https://my.ipaymu.com}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    ports:
+      - "127.0.0.1:${IPAYMU_PROVIDER_APP_PORT:-18086}:18086"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:18086/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   api:
     build:
       context: ./backend
@@ -158,8 +187,8 @@ services:
       PAYMENT_PROXY_PUBLIC_BASE_URL: ${PAYMENT_PROXY_PUBLIC_BASE_URL:-}
       CERTIFICATION_RETURN_URL: ${CERTIFICATION_RETURN_URL:-}
       CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
-      CONNECTOR_RUNNER_BASE_URLS: ${CONNECTOR_RUNNER_BASE_URLS:-http://connector-runner:18081,http://midtrans-provider-app:18083,http://duitku-provider-app:18084,http://doku-provider-app:18085}
-      CONNECTOR_RUNNER_TOKENS: "${CONNECTOR_RUNNER_TOKEN:-local-connector-runner-token-change-before-production},${MIDTRANS_PROVIDER_APP_TOKEN:-local-midtrans-provider-app-token-change-before-production},${DUITKU_PROVIDER_APP_TOKEN:-local-duitku-provider-app-token-change-before-production},${DOKU_PROVIDER_APP_TOKEN:-local-doku-provider-app-token-change-before-production}"
+      CONNECTOR_RUNNER_BASE_URLS: ${CONNECTOR_RUNNER_BASE_URLS:-http://connector-runner:18081,http://midtrans-provider-app:18083,http://duitku-provider-app:18084,http://doku-provider-app:18085,http://ipaymu-provider-app:18086}
+      CONNECTOR_RUNNER_TOKENS: "${CONNECTOR_RUNNER_TOKEN:-local-connector-runner-token-change-before-production},${MIDTRANS_PROVIDER_APP_TOKEN:-local-midtrans-provider-app-token-change-before-production},${DUITKU_PROVIDER_APP_TOKEN:-local-duitku-provider-app-token-change-before-production},${DOKU_PROVIDER_APP_TOKEN:-local-doku-provider-app-token-change-before-production},${IPAYMU_PROVIDER_APP_TOKEN:-local-ipaymu-provider-app-token-change-before-production}"
       API_REQUEST_TIMEOUT_SECONDS: ${API_REQUEST_TIMEOUT_SECONDS:-25}
       API_RATE_LIMIT_RPS: ${API_RATE_LIMIT_RPS:-0}
       API_RATE_LIMIT_BURST: ${API_RATE_LIMIT_BURST:-0}
@@ -184,6 +213,8 @@ services:
       duitku-provider-app:
         condition: service_healthy
       doku-provider-app:
+        condition: service_healthy
+      ipaymu-provider-app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health/live"]

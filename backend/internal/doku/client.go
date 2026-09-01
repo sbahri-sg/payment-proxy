@@ -456,14 +456,10 @@ func providerAmount(amount int64, currency string) (int64, error) {
 	if !strings.EqualFold(strings.TrimSpace(currency), "IDR") {
 		return 0, errors.New("DOKU Checkout connector supports IDR only")
 	}
-	if amount%100 != 0 {
-		return 0, errors.New("DOKU IDR amount must use whole rupiah expressed in minor units")
-	}
-	providerAmount := amount / 100
-	if providerAmount > 999_999_999_999 {
+	if amount > 999_999_999_999 {
 		return 0, errors.New("DOKU payment amount exceeds the 12-digit provider limit")
 	}
-	return providerAmount, nil
+	return amount, nil
 }
 
 func invoiceNumber(input connector.PaymentInput) string {
@@ -537,10 +533,10 @@ func lineItems(items []connector.Item, currency string, expected int64) []map[st
 }
 
 func providerItemAmount(amount int64, currency string) (int64, error) {
-	if amount <= 0 || amount%100 != 0 || !strings.EqualFold(strings.TrimSpace(currency), "IDR") {
+	if amount <= 0 || !strings.EqualFold(strings.TrimSpace(currency), "IDR") {
 		return 0, errors.New("invalid DOKU line item amount")
 	}
-	return amount / 100, nil
+	return amount, nil
 }
 
 func paymentDueDate(value string, now time.Time) (int64, error) {

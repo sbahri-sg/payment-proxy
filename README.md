@@ -24,9 +24,9 @@ Emisell Payment Kernel (Go)
               │
       Isolated Connector Runtimes
               │
-      ┌───────┼────────┬────────┐
-      ▼       ▼        ▼        ▼
-   Xendit  Midtrans   DOKU    Duitku
+      ┌───────┼────────┬────────┬────────┐
+      ▼       ▼        ▼        ▼        ▼
+   Xendit  Midtrans   DOKU    Duitku   iPaymu
 ```
 
 Payment baru menggunakan Emisell Payment Kernel dengan runtime connector
@@ -53,7 +53,7 @@ Danamon VA, Kredivo, Akulaku, Indodana, Jenius Pay, dan channel lain tetap
 `DOCUMENTED`. Core tidak perlu berubah ketika capability baru ditambahkan;
 connector dan capability mapping yang diperluas.
 
-Connector Midtrans `emisell-midtrans-v1.2.1` berjalan sebagai Provider App
+Connector Midtrans `emisell-midtrans-v2.0.1` berjalan sebagai Provider App
 container tersendiri, terpisah dari runner Xendit. Ini membuktikan bahwa kontrak
 engine tidak bergantung pada implementasi atau process provider tertentu:
 
@@ -76,7 +76,7 @@ engine tidak bergantung pada implementasi atau process provider tertentu:
   berstatus `CERTIFIED` untuk BCA, BNI, dan Permata Virtual Account, sedangkan
   channel lain masih menunggu evidence terminal.
 
-Connector Duitku `emisell-duitku-v1.0.0` juga berjalan sebagai shared Provider
+Connector Duitku `emisell-duitku-v2.0.1` juga berjalan sebagai shared Provider
 App terpisah. Implementasi awal memakai POP Create Invoice dan selalu
 mengembalikan `paymentUrl` resmi Duitku. Pada `provider_hosted`, pemilihan metode
 tetap berada di halaman Duitku; pada direct checkout, canonical payment method
@@ -86,7 +86,7 @@ menandatangani request dengan HMAC-SHA256 terbaru, serta memvalidasi signature
 callback sebelum event masuk ke Payment Kernel. Cancel dan refund belum
 diiklankan sampai tersedia bukti sandbox dan aturan provider yang lengkap.
 
-Connector DOKU `emisell-doku-v1.0.0` memakai DOKU Checkout. Payment Proxy
+Connector DOKU `emisell-doku-v2.0.1` memakai DOKU Checkout. Payment Proxy
 membuat order ke `POST /checkout/v1/payment` dan hanya mengembalikan URL resmi
 DOKU dari `response.payment.url`. Hosted checkout membiarkan DOKU menampilkan
 kanal yang aktif untuk merchant; direct checkout membatasi satu channel.
@@ -94,6 +94,14 @@ Installation memakai `client_id` dan `secret_key`, request serta notification
 ditandatangani dengan skema HMAC-SHA256 Non-SNAP. Dua puluh kanal checkout dasar
 tersedia pada manifest; kanal yang memerlukan alamat/customer contract tambahan
 tetap `DOCUMENTED` sampai input canonical diperluas dan diuji di sandbox.
+
+Connector iPaymu `emisell-ipaymu-v2.0.1` memakai API v2. Merchant mengisi VA
+number dan API key yang berbeda untuk Sandbox atau Live. Hosted checkout
+memakai Redirect Payment dan hanya mengembalikan `Data.Url` resmi iPaymu;
+direct checkout memetakan satu canonical method ke `paymentMethod` dan
+`paymentChannel`. Instalasi diprobe melalui Payment Channels, status dicari
+berdasarkan `referenceId`, dan callback JSON/form wajib lolos `X-Signature`
+HMAC-SHA256 dengan VA merchant sebelum masuk ke Payment Kernel.
 
 ## Menjalankan lokal
 
@@ -111,6 +119,7 @@ Alamat default:
 - Midtrans Provider App: `http://127.0.0.1:18083` (private contract; local development only)
 - Duitku Provider App: `http://127.0.0.1:18084` (private contract; local development only)
 - DOKU Provider App: `http://127.0.0.1:18085` (private contract; local development only)
+- iPaymu Provider App: `http://127.0.0.1:18086` (private contract; local development only)
 - Liveness: `http://localhost:18080/health/live`
 - Readiness: `http://localhost:18080/health/ready`
 - Runtime capabilities: `GET http://localhost:18080/api/v1/engine/capabilities`
@@ -148,10 +157,10 @@ Callback URL boleh dikosongkan dan diatur kemudian dari menu Webhooks:
 Perintah di atas otomatis:
 
 - membuat secret acak yang fail-closed dan tidak masuk Git;
-- membuat private CA serta TLS certificate terpisah untuk Xendit, Midtrans, Duitku, dan DOKU
+- membuat private CA serta TLS certificate terpisah untuk Xendit, Midtrans, Duitku, DOKU, dan iPaymu
   connector;
 - membangun image minimum yang berbeda untuk Kernel, Xendit connector,
-  Midtrans connector, Duitku connector, DOKU connector, dan dashboard;
+  Midtrans connector, Duitku connector, DOKU connector, iPaymu connector, dan dashboard;
 - menjalankan PostgreSQL migration;
 - menjalankan Kernel, worker, connector, dan dashboard sebagai non-root dengan
   read-only filesystem; gateway memakai capability minimum, sementara seluruh
@@ -188,6 +197,7 @@ CONNECTOR_RUNNER_TOKEN        token runtime Xendit
 MIDTRANS_PROVIDER_APP_TOKEN   token runtime Midtrans yang terpisah
 DUITKU_PROVIDER_APP_TOKEN     token runtime Duitku yang terpisah
 DOKU_PROVIDER_APP_TOKEN       token runtime DOKU yang terpisah
+IPAYMU_PROVIDER_APP_TOKEN     token runtime iPaymu yang terpisah
 XENDIT_BASE_URL                default https://api.xendit.co
 MIDTRANS_SANDBOX_BASE_URL      default https://api.sandbox.midtrans.com
 MIDTRANS_LIVE_BASE_URL         default https://api.midtrans.com
@@ -197,6 +207,8 @@ DUITKU_SANDBOX_API_BASE_URL    default https://sandbox.duitku.com/webapi
 DUITKU_LIVE_API_BASE_URL       default https://passport.duitku.com/webapi
 DOKU_SANDBOX_BASE_URL          default https://api-sandbox.doku.com
 DOKU_LIVE_BASE_URL             default https://api.doku.com
+IPAYMU_SANDBOX_BASE_URL        default https://sandbox.ipaymu.com
+IPAYMU_LIVE_BASE_URL           default https://my.ipaymu.com
 CONNECTOR_TIMEOUT_SECONDS      default 15
 API_REQUEST_TIMEOUT_SECONDS    default 25
 API_RATE_LIMIT_RPS             production default 300; 0 disables in development
@@ -213,6 +225,7 @@ POST /webhooks/v1/providers/xendit/{installation_id}
 POST /webhooks/v1/providers/midtrans/{installation_id}
 POST /webhooks/v1/providers/duitku/{installation_id}
 POST /webhooks/v1/providers/doku/{installation_id}
+POST /webhooks/v1/providers/ipaymu/{installation_id}
 ```
 
 Dashboard Next.js juga meneruskan kontrak publik ke Kernel melalui jaringan
@@ -275,7 +288,7 @@ Docker lokal memakai `emisell-receiver` sebagai contract-test receiver. Status `
 Assignment dan `payment_option_id` hanya dipakai untuk flow `direct` lanjutan,
 bukan sebagai prasyarat hosted checkout utama.
 
-Semua amount API menggunakan minor unit integer. Untuk IDR, `1000000` berarti Rp10.000.
+Semua amount IDR menggunakan Rupiah utuh. Nilai `10000` berarti tepat Rp10.000 dan diteruskan ke provider tanpa pembagian atau pengalian tersembunyi.
 
 ## Guardrail utama
 

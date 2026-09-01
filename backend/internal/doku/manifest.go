@@ -50,7 +50,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "DOKU",
-		Version:          "emisell-doku-v1.0.0",
+		Version:          "emisell-doku-v2.0.1",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -92,10 +92,7 @@ func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 	if !strings.EqualFold(strings.TrimSpace(input.Currency), "IDR") {
 		return errors.New("DOKU Checkout connector supports IDR only")
 	}
-	if input.Amount%100 != 0 {
-		return errors.New("DOKU IDR amount must use whole rupiah expressed in minor units")
-	}
-	if input.Amount/100 > 999_999_999_999 {
+	if input.Amount > 999_999_999_999 {
 		return errors.New("DOKU payment amount exceeds the 12-digit provider limit")
 	}
 	return nil

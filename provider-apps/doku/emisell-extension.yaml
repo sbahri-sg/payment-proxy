@@ -3,7 +3,7 @@ provider:
   code: doku
   name: DOKU
 release:
-  version: emisell-doku-v1.0.0
+  version: emisell-doku-v2.0.1
 connector:
   contract_version: v1
   runtime: isolated_container

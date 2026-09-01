@@ -100,7 +100,7 @@ Checkout hanya menerima `payment_option_id`. Kernel me-resolve assignment, insta
 | `card` | Payment Session `PAYMENT_LINK` + channel `CARDS` | `CERTIFIED` |
 | Danamon VA, paylater, Jenius Pay | sesuai capability catalog | `DOCUMENTED` |
 
-Connector membuat `POST /v3/payment_requests`, mengambil `GET /v3/payment_requests/{id}`, dan menggunakan `POST /v3/payment_requests/{id}/simulate` hanya untuk channel sandbox yang didukung simulator. E-wallet memakai customer redirect/mobile authorization; certification melanjutkan payment yang sama setelah aksi pelanggan. Card menggunakan `POST /sessions` dan `GET /sessions/{id}` dengan hosted payment link Xendit. Emisell hanya menyimpan URL redirect dan identifier sesi; PAN, expiry, serta CVV tidak pernah masuk ke API, log, database, atau dashboard Emisell. Amount IDR dikonversi dari minor unit ke rupiah tepat sebelum request provider.
+Connector membuat `POST /v3/payment_requests`, mengambil `GET /v3/payment_requests/{id}`, dan menggunakan `POST /v3/payment_requests/{id}/simulate` hanya untuk channel sandbox yang didukung simulator. E-wallet memakai customer redirect/mobile authorization; certification melanjutkan payment yang sama setelah aksi pelanggan. Card menggunakan `POST /sessions` dan `GET /sessions/{id}` dengan hosted payment link Xendit. Emisell hanya menyimpan URL redirect dan identifier sesi; PAN, expiry, serta CVV tidak pernah masuk ke API, log, database, atau dashboard Emisell. Amount IDR menggunakan Rupiah utuh dan diteruskan ke provider tanpa konversi skala.
 
 ## Webhook
 

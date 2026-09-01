@@ -1,0 +1,77 @@
+schema_version: "1"
+provider:
+  code: ipaymu
+  name: iPaymu
+release:
+  version: emisell-ipaymu-v2.0.1
+connector:
+  contract_version: v1
+  runtime: isolated_container
+  sdk_version: v1
+operations:
+  - verify_installation
+  - disable_installation
+  - create_payment
+  - create_hosted_checkout
+  - get_payment
+  - handle_webhook
+credentials:
+  fields:
+    - code: va
+      label: VA number
+      input_type: text
+      secret: false
+      required: true
+    - code: api_key
+      label: API key
+      input_type: password
+      secret: true
+      required: true
+certification_profiles:
+  qris: {code: ipaymu-v2/qris, automated: true}
+  card: {code: ipaymu-v2/card, automated: true}
+  va_arta_graha: {code: ipaymu-v2/va_arta_graha, automated: true}
+  va_bca: {code: ipaymu-v2/va_bca, automated: true}
+  va_bni: {code: ipaymu-v2/va_bni, automated: true}
+  va_cimb: {code: ipaymu-v2/va_cimb, automated: true}
+  va_mandiri: {code: ipaymu-v2/va_mandiri, automated: true}
+  va_muamalat: {code: ipaymu-v2/va_muamalat, automated: true}
+  va_bri: {code: ipaymu-v2/va_bri, automated: true}
+  va_bsi: {code: ipaymu-v2/va_bsi, automated: true}
+  va_permata: {code: ipaymu-v2/va_permata, automated: true}
+  va_danamon: {code: ipaymu-v2/va_danamon, automated: true}
+  va_btn: {code: ipaymu-v2/va_btn, automated: true}
+  retail_alfamart: {code: ipaymu-v2/retail_alfamart, automated: true}
+  retail_indomaret: {code: ipaymu-v2/retail_indomaret, automated: true}
+  ewallet_dana: {code: ipaymu-v2/ewallet_dana, automated: true}
+  ewallet_shopeepay: {code: ipaymu-v2/ewallet_shopeepay, automated: true}
+  paylater_akulaku: {code: ipaymu-v2/paylater_akulaku, automated: true}
+environments:
+  - code: live
+    label: Live
+    description: Transaksi diteruskan ke akun iPaymu production merchant.
+  - code: sandbox
+    label: Sandbox
+    description: Pengujian memakai VA dan API key dari dashboard sandbox iPaymu.
+payment_methods:
+  - qris
+  - card
+  - va_arta_graha
+  - va_bca
+  - va_bni
+  - va_cimb
+  - va_mandiri
+  - va_muamalat
+  - va_bri
+  - va_bsi
+  - va_permata
+  - va_danamon
+  - va_btn
+  - retail_alfamart
+  - retail_indomaret
+  - ewallet_dana
+  - ewallet_shopeepay
+  - paylater_akulaku
+outbound_hosts:
+  - sandbox.ipaymu.com
+  - my.ipaymu.com

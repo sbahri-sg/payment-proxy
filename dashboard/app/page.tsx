@@ -117,8 +117,7 @@ async function getObservability(): Promise<Observability | null> {
   }
 }
 
-function formatIDR(minorAmount: number, compact = false) {
-  const amount = minorAmount / 100;
+function formatIDR(amount: number, compact = false) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
@@ -280,7 +279,7 @@ export default async function Home() {
 
           <section className="roadmap-panel">
             <div><p className="panel-kicker">EMISELL ROADMAP</p><h2>What comes next</h2><p>Fokus berikutnya adalah connector gateway dan capability pembayaran yang benar-benar dibutuhkan merchant.</p></div>
-            <div className="roadmap-steps"><article className="done"><span>01</span><strong>Native foundation</strong><p>Overview, payments, Xendit connector, webhook, API docs.</p><em>Available now</em></article><article className="done"><span>02</span><strong>Gateway extensions</strong><p>Midtrans, Duitku, and DOKU use the same shared Provider App contract.</p><em>Local baseline ready</em></article><article><span>03</span><strong>Capability expansion</strong><p>Refunds and additional channels after provider conformance.</p><em>Next milestone</em></article></div>
+            <div className="roadmap-steps"><article className="done"><span>01</span><strong>Native foundation</strong><p>Overview, payments, Xendit connector, webhook, API docs.</p><em>Available now</em></article><article className="done"><span>02</span><strong>Gateway extensions</strong><p>Midtrans, Duitku, DOKU, and iPaymu use the same shared Provider App contract.</p><em>Local baseline ready</em></article><article><span>03</span><strong>Capability expansion</strong><p>Refunds and additional channels after provider conformance.</p><em>Next milestone</em></article></div>
           </section>
         </main>
       </div>
