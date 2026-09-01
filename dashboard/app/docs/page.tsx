@@ -96,7 +96,7 @@ const installationBase = `{
   "environment": "sandbox",
   "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
   "execution_engine": "emisell_native",
-  "provider_version": "emisell-xendit-v2.0.1",
+  "provider_version": "emisell-xendit-v2.0.2",
   "status": "CONFIG_REQUIRED",
   "credential_metadata": {},
   "payment_methods": [],
@@ -149,7 +149,7 @@ const paymentBase = `{
   "installation_id": "ins_01k3...",
   "checkout_mode": "provider_hosted",
   "provider_code": "xendit",
-  "provider_version": "emisell-xendit-v2.0.1",
+  "provider_version": "emisell-xendit-v2.0.2",
   "environment": "sandbox",
   "merchant_reference": "order_2026_0001",
   "amount": 1000000,
@@ -237,7 +237,7 @@ function installationStateResponse(status: string, version: number, uninstalledA
     "environment": "sandbox",
     "connector_id": "xendit:ins_01k3...",
     "execution_engine": "emisell_native",
-    "provider_version": "emisell-xendit-v2.0.1",
+    "provider_version": "emisell-xendit-v2.0.2",
     "status": "${status}",
     "credential_metadata": {
       "configured_fields": [
@@ -404,7 +404,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
       {
         "code": "xendit",
         "name": "Xendit",
-        "version": "emisell-xendit-v2.0.1",
+        "version": "emisell-xendit-v2.0.2",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "simulate_payment", "handle_webhook"],
         "credential_fields": [{ "code": "api_key", "label": "Secret API key", "input_type": "password", "secret": true, "required": true }]
@@ -615,7 +615,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
     "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
     "connector_id": "xendit:ins_01k3...",
     "execution_engine": "emisell_native",
-    "provider_version": "emisell-xendit-v2.0.1",
+    "provider_version": "emisell-xendit-v2.0.2",
     "status": "READY",
     "credential_metadata": {
       "configured_fields": [
@@ -706,7 +706,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
   {
     id: "payment-options",
     title: "Payment Method Discovery & Direct Routing",
-    summary: "GET /payment-methods adalah katalog pencarian untuk merchant. Assignment dan payment-options hanya diperlukan oleh flow direct-channel lanjutan.",
+    summary: "GET /payment-methods adalah katalog pencarian untuk merchant. Provider-options mengelompokkan assignment aktif per gateway; payment-options tetap tersedia untuk direct-channel.",
     endpoints: [
       {
         method: "GET", path: "/api/v1/payment-methods?q=qris", title: "Search payment-method catalog", description: "Mengembalikan metode canonical Emisell berdasarkan code, name, category, atau description beserta matriks provider. Query q opsional dan case-insensitive.",
@@ -757,7 +757,28 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
     "label": "QRIS"
   }]
 }`,
-        note: "Jangan gunakan endpoint ini untuk provider_hosted. Hosted checkout memakai installation_id pada Payment API dan selalu memilih channel di halaman provider. Credential tidak pernah masuk ke checkout.",
+        note: "Jangan kirim payment_option_id untuk provider_hosted. Hosted checkout memakai installation_id dan pelanggan memilih channel di halaman provider. Untuk Xendit, daftar yang boleh muncul berasal dari assignment ACTIVE installation. Credential tidak pernah masuk ke checkout.",
+      },
+      {
+        method: "GET", path: "/api/v1/provider-options?environment=sandbox", title: "List provider checkout options", description: "Mengelompokkan assignment ACTIVE berdasarkan installation provider ACTIVE. Gunakan ketika Dashboard Emisell menampilkan gateway terlebih dahulu lalu metode yang tersedia.",
+        response: `{
+  "data": [{
+    "provider_code": "xendit",
+    "provider_name": "Xendit",
+    "installation_id": "ins_01k3...",
+    "provider_version": "emisell-xendit-v2.0.2",
+    "environment": "sandbox",
+    "logo_url": "/brands/providers/xendit.svg",
+    "supported_payment_methods": [{
+      "id": "pmo_01k3...",
+      "payment_method_code": "qris",
+      "category": "QR_CODE",
+      "label": "QRIS",
+      "logo_url": "/brands/payment-methods/qris.png"
+    }]
+  }]
+}`,
+        note: "environment wajib. Provider tanpa metode ACTIVE tidak muncul. logo_url bersifat relatif terhadap origin Dashboard Payment Proxy dan dapat tidak tersedia untuk brand yang belum mempunyai aset.",
       },
     ],
   },
@@ -1153,7 +1174,7 @@ const backendGroups: Group[] = [
   }),
   scopedGroup("payment-options", {
     title: "Payment Methods",
-    summary: "GET /payment-methods adalah katalog global canonical. Assignment dan /payment-options dipakai hanya bila Emisell memilih flow direct-channel; hosted checkout tetap memilih channel di halaman provider.",
+    summary: "GET /payment-methods adalah katalog global canonical. /provider-options mengelompokkan pilihan aktif per gateway untuk Dashboard Merchant, sedangkan /payment-options adalah daftar flat untuk direct-channel.",
   }),
   scopedGroup("payments", {
     includeTitles: ["Create provider checkout", "Get payment", "Cancel payment"],
@@ -1240,7 +1261,7 @@ const partnerGroups: Group[] = [
       {
         "code": "xendit",
         "name": "Xendit",
-        "version": "emisell-xendit-v2.0.1",
+        "version": "emisell-xendit-v2.0.2",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "simulate_payment", "handle_webhook"]
       }
@@ -1316,6 +1337,10 @@ const partnerGroups: Group[] = [
   "amount": 1000000,
   "currency": "IDR",
   "checkout_mode": "provider_hosted",
+  "allowed_payment_methods": [
+    { "payment_method_code": "qris", "provider_method": "qr_code", "provider_method_type": "qris", "provider_channel_code": "QRIS" },
+    { "payment_method_code": "va_bca", "provider_method": "bank_transfer", "provider_method_type": "bca", "provider_channel_code": "BCA_VIRTUAL_ACCOUNT" }
+  ],
   "customer": { "name": "Budi Santoso", "email": "budi@example.com" },
   "return_url": "https://shop.example/payments/return",
   "metadata": { "order_id": "order_2026_0001" }
@@ -1327,7 +1352,7 @@ const partnerGroups: Group[] = [
     "next_action": { "type": "redirect", "redirect_url": "https://dev.xen.to/..." }
   }
 }`,
-        note: "provider_hosted wajib mengembalikan URL domain provider dan tidak memilih channel. payment_method_code/channel_code hanya dipakai untuk mode direct. Timeout setelah request mungkin diterima provider harus dikembalikan sebagai OUTCOME_UNKNOWN.",
+        note: "provider_hosted wajib mengembalikan URL domain provider. Merchant tidak memilih satu channel dalam request; untuk Xendit kernel mengirim assignment ACTIVE sebagai allowed_payment_methods agar runtime membatasi pilihan provider. payment_method_code/channel_code tunggal hanya dipakai untuk mode direct. Timeout setelah request mungkin diterima provider harus dikembalikan sebagai OUTCOME_UNKNOWN.",
       },
       {
         method: "POST",
@@ -1690,7 +1715,7 @@ HandleWebhook()`}</Code>
                     <strong>Xendit · reference connector</strong>
                     <span>Create/get payment, sandbox simulation, installation verification, webhook normalization, dan create-refund asynchronous aktif. Refund tetap fail-closed per channel.</span>
                   </div>
-                  <span className="version-pill">emisell-xendit-v2.0.1</span>
+                  <span className="version-pill">emisell-xendit-v2.0.2</span>
                 </div>
                 <div className="postman-card">
                   <div>

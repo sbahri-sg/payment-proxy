@@ -9,6 +9,7 @@ dianggap sebagai kewajiban integrasi Main Service.
 | Domain | Endpoint | Alasan |
 |---|---|---|
 | Provider | `GET /api/v1/providers?q=<keyword>` | Katalog dan pencarian provider untuk Dashboard Merchant. |
+| Provider option | `GET /api/v1/provider-options?environment=...` | Provider connection aktif beserta metode aktif yang dikelompokkan untuk pilihan checkout merchant. |
 | Payment method | `GET /api/v1/payment-methods?q=<keyword>` | Discovery metode pembayaran canonical beserta provider pendukung. |
 | Installation | `POST /api/v1/provider-installations` | Membuat slot Sandbox atau Live. |
 | Installation | `GET /api/v1/provider-installations` | Menampilkan kedua slot connection merchant. |

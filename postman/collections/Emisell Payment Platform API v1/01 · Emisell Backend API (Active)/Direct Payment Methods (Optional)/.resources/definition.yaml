@@ -1,3 +1,3 @@
 $kind: collection
-description: GET payment-methods adalah discovery catalog untuk Dashboard Merchant. Assignment dan payment-options hanya untuk optional direct-channel configuration; provider-hosted checkout tidak memerlukannya.
+description: GET payment-methods adalah discovery catalog untuk Dashboard Merchant. provider-options mengelompokkan assignment aktif per gateway, sedangkan payment-options tetap menjadi daftar flat untuk optional direct-channel configuration.
 order: 3000

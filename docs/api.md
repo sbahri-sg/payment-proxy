@@ -145,7 +145,7 @@ X-Emisell-Merchant-ID: merchant_123
     "connectors": [
       {
         "code": "xendit",
-        "version": "emisell-xendit-v2.0.1",
+        "version": "emisell-xendit-v2.0.2",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "create_payment", "create_hosted_checkout", "get_payment", "simulate_payment", "handle_webhook"]
       },
@@ -365,7 +365,7 @@ ini agar tidak meng-hardcode versi connector.
     "environment": "sandbox",
     "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
     "execution_engine": "emisell_native",
-    "provider_version": "emisell-xendit-v2.0.1",
+    "provider_version": "emisell-xendit-v2.0.2",
     "status": "CONFIG_REQUIRED",
     "credential_metadata": {},
     "payment_methods": [],
@@ -431,7 +431,7 @@ Contoh response:
       "verification": {
         "id": "iver_01k3...",
         "result": "PASSED",
-        "provider_version": "emisell-xendit-v2.0.1",
+        "provider_version": "emisell-xendit-v2.0.2",
         "manifest_digest": "sha256-digest-without-prefix",
         "verified_at": "2026-09-01T03:00:00Z"
       }
@@ -601,8 +601,8 @@ Emisell agar request tidak dikirim pada setiap keypress.
 
 List semua assignment, termasuk status `ACTIVE` dan `INACTIVE`. Gunakan query
 `?environment=sandbox` atau `?environment=live` sebagai filter opsional. Tanpa
-query, kedua environment dikembalikan. Hanya `/payment-options` yang membatasi
-hasil pada assignment aktif untuk checkout.
+query, kedua environment dikembalikan. `/payment-options` dan
+`/provider-options` membatasi hasil pada assignment aktif untuk checkout.
 
 ### `PUT /payment-method-assignments`
 
@@ -661,8 +661,9 @@ kompatibilitas, tetapi integrasi baru wajib memakai `assignments` array.
 
 Wajib query `?environment=sandbox` atau `?environment=live`. Endpoint ini hanya dipakai oleh flow `direct` lanjutan
 yang memilih channel sebelum memanggil provider. Flow utama
-`provider_hosted` tidak memerlukannya karena channel dipilih pelanggan di
-halaman checkout provider.
+`provider_hosted` tidak mengirim `payment_option_id`; pelanggan tetap memilih
+channel di halaman checkout provider dari daftar assignment `ACTIVE` milik
+installation.
 
 ```json
 {
@@ -675,6 +676,40 @@ halaman checkout provider.
   }]
 }
 ```
+
+### `GET /provider-options`
+
+Wajib query `?environment=sandbox` atau `?environment=live`. Endpoint ini
+mengembalikan data checkout yang sama, tetapi dikelompokkan berdasarkan
+installation provider aktif. Gunakan endpoint ini ketika Dashboard Emisell
+ingin menampilkan pilihan gateway lebih dahulu, lalu metode yang tersedia pada
+gateway tersebut. `installation_id` dapat langsung dipakai untuk membuat
+`provider_hosted` payment session.
+
+```json
+{
+  "data": [{
+    "provider_code": "xendit",
+    "provider_name": "Xendit",
+    "installation_id": "ins_01k3...",
+    "provider_version": "emisell-xendit-v2.0.2",
+    "environment": "sandbox",
+    "logo_url": "/brands/providers/xendit.svg",
+    "supported_payment_methods": [{
+      "id": "pmo_01k3...",
+      "payment_method_code": "qris",
+      "category": "QR_CODE",
+      "label": "QRIS",
+      "logo_url": "/brands/payment-methods/qris.png"
+    }]
+  }]
+}
+```
+
+`logo_url` adalah path relatif terhadap origin Dashboard Payment Proxy. Field
+tersebut tidak dikirim jika provider atau payment method belum mempunyai aset
+logo. Provider tanpa assignment aktif tidak muncul dan data selalu dibatasi
+oleh `X-Emisell-Merchant-ID`.
 
 ## Payments
 
@@ -708,7 +743,11 @@ tidak digunakan.
 
 Jika request hanya berisi `installation_id` tanpa payment method,
 `checkout_mode` otomatis menjadi `provider_hosted`. Payment Proxy meminta
-provider membuat hosted checkout dan mengembalikan URL provider. Connector
+provider membuat hosted checkout dan mengembalikan URL provider. Untuk Xendit,
+Payment Proxy mengambil assignment `ACTIVE` installation dan menyaring metode
+yang tidak memenuhi currency/amount transaksi sebelum memanggil runtime.
+Request Xendit ditolak dengan `409 NO_ELIGIBLE_PAYMENT_METHOD` jika tidak ada
+metode yang layak. Connector
 Duitku memakai POP Create Invoice dan memerlukan `customer.email` yang valid;
 iPaymu memakai Redirect Payment API v2:
 
@@ -734,8 +773,10 @@ iPaymu memakai Redirect Payment API v2:
 
 Untuk Xendit, URL berasal dari `payment_link_url` Payment Session; Midtrans dari
 `redirect_url` Snap; DOKU dari `response.payment.url`; dan iPaymu dari
-`Data.Url` Redirect Payment. QRIS, VA, e-wallet, card, dan
-channel lain yang aktif ditampilkan oleh provider pada halaman tersebut;
+`Data.Url` Redirect Payment. Xendit menerima `allowed_payment_channels` yang
+dibentuk hanya dari assignment `ACTIVE`, sehingga metode `INACTIVE` tidak muncul
+di Payment Link. QRIS, VA, e-wallet, card, dan channel lain yang diizinkan tetap
+ditampilkan dan diproses pada halaman milik provider;
 Emisell tidak membuat halaman checkout dan tidak menerima PAN, expiry,
 CVV/CVN, OTP, atau detail autentikasi pembayaran.
 

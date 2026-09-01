@@ -1,0 +1,17 @@
+$kind: http-request
+description: Mengelompokkan payment method ACTIVE berdasarkan installation provider ACTIVE untuk Dashboard Emisell yang memilih gateway lebih dahulu.
+url: "{{base_url}}/api/v1/provider-options?environment={{execution_mode}}"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Provider options returned', () => pm.expect(pm.response.code).to.eql(200));
+      if (pm.response.code === 200) {
+        const providers = pm.response.json().data || [];
+        const xendit = providers.find((provider) => provider.provider_code === 'xendit');
+        if (xendit) pm.collectionVariables.set('installation_id', xendit.installation_id);
+      }
+    language: text/javascript
+order: 5000

@@ -16,11 +16,12 @@ import (
 )
 
 var allowedPaths = map[string]bool{
-	"/health/live":            true,
-	"/health/ready":           true,
-	"/api/v1/payment-options": true,
-	"/api/v1/payment-methods": true,
-	"/api/v1/providers":       true,
+	"/health/live":             true,
+	"/health/ready":            true,
+	"/api/v1/payment-options":  true,
+	"/api/v1/provider-options": true,
+	"/api/v1/payment-methods":  true,
+	"/api/v1/providers":        true,
 }
 
 type result struct {
@@ -88,7 +89,7 @@ func run(baseURL, path string, total, concurrency int, timeout, p95Target time.D
 	results := make(chan result, total)
 	var workers sync.WaitGroup
 	workers.Add(concurrency)
-	if requested.Path == "/api/v1/payment-options" {
+	if requested.Path == "/api/v1/payment-options" || requested.Path == "/api/v1/provider-options" {
 		query := requested.Query()
 		query.Set("environment", mode)
 		requested.RawQuery = query.Encode()

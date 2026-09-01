@@ -84,6 +84,37 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 	if statuses["qris"] != model.PaymentMethodAssignmentInactive || statuses["va_bca"] != model.PaymentMethodAssignmentActive {
 		t.Fatalf("list omitted an assignment status: %#v", statuses)
 	}
+	activeMappings, err := repository.ListActivePaymentMethodMappings(ctx, tenantID, installationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activeMappings) != 1 || activeMappings[0].PaymentMethodCode != "va_bca" || activeMappings[0].ProviderChannelCode != "BCA_VIRTUAL_ACCOUNT" {
+		t.Fatalf("active hosted-checkout mappings were not isolated: %#v", activeMappings)
+	}
+	otherTenantMappings, err := repository.ListActivePaymentMethodMappings(ctx, "other."+tenantID, installationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(otherTenantMappings) != 0 {
+		t.Fatalf("another tenant could read hosted-checkout mappings: %#v", otherTenantMappings)
+	}
+	providerOptions, err := repository.ListProviderOptions(ctx, tenantID, model.EnvironmentSandbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(providerOptions) != 1 || providerOptions[0].ProviderCode != "xendit" || providerOptions[0].InstallationID != installationID {
+		t.Fatalf("provider options were not grouped by active installation: %#v", providerOptions)
+	}
+	if len(providerOptions[0].SupportedPaymentMethods) != 1 || providerOptions[0].SupportedPaymentMethods[0].PaymentMethodCode != "va_bca" {
+		t.Fatalf("inactive method leaked into provider options: %#v", providerOptions[0].SupportedPaymentMethods)
+	}
+	otherTenantOptions, err := repository.ListProviderOptions(ctx, "other."+tenantID, model.EnvironmentSandbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(otherTenantOptions) != 0 {
+		t.Fatalf("another tenant could read provider options: %#v", otherTenantOptions)
+	}
 
 	_, _, err = repository.UpsertPaymentMethodAssignments(ctx, []UpsertPaymentMethodAssignmentInput{
 		{ID: "unused_qris_" + suffix, TenantID: tenantID, Environment: model.EnvironmentSandbox, PaymentMethodCode: "qris", PaymentMethod: "real_time_payment", PaymentMethodType: "qris", InstallationID: installationID, ExpectedVersion: qris.Version, Actor: "integration", RequestID: "req-rollback"},

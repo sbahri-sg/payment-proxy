@@ -1289,6 +1289,84 @@ func (s *Postgres) ListPaymentOptions(ctx context.Context, tenantID, environment
 	return result, rows.Err()
 }
 
+func (s *Postgres) ListProviderOptions(ctx context.Context, tenantID, environment string) ([]model.ProviderOption, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT i.id,i.provider_code,p.name,i.provider_version,i.environment,
+		       COALESCE(r.logo_content_type<>'',false),
+		       a.id,a.payment_method_code,m.category,a.label
+		FROM provider_installations i
+		JOIN providers p ON p.code=i.provider_code AND p.available=true
+		LEFT JOIN provider_app_providers r ON r.provider_code=i.provider_code
+		JOIN payment_method_assignments a
+		  ON a.tenant_id=i.tenant_id AND a.installation_id=i.id AND a.status='ACTIVE'
+		JOIN payment_methods m ON m.code=a.payment_method_code AND m.active=true
+		JOIN provider_payment_method_capabilities c
+		  ON c.provider_code=i.provider_code AND c.payment_method_code=a.payment_method_code
+		 AND c.support_status IN ('DOCUMENTED','CERTIFIED')
+		WHERE i.tenant_id=$1 AND i.environment=$2 AND i.status='ACTIVE'
+		ORDER BY p.name,i.id,m.sort_order,m.name
+	`, tenantID, environment)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]model.ProviderOption, 0)
+	providerIndex := make(map[string]int)
+	for rows.Next() {
+		var provider model.ProviderOption
+		var method model.ProviderPaymentOption
+		if err = rows.Scan(
+			&provider.InstallationID, &provider.ProviderCode, &provider.ProviderName,
+			&provider.ProviderVersion, &provider.Environment, &provider.HasCustomLogo,
+			&method.ID, &method.PaymentMethodCode, &method.Category, &method.Label,
+		); err != nil {
+			return nil, err
+		}
+		index, exists := providerIndex[provider.InstallationID]
+		if !exists {
+			provider.SupportedPaymentMethods = make([]model.ProviderPaymentOption, 0, 1)
+			result = append(result, provider)
+			index = len(result) - 1
+			providerIndex[provider.InstallationID] = index
+		}
+		result[index].SupportedPaymentMethods = append(result[index].SupportedPaymentMethods, method)
+	}
+	return result, rows.Err()
+}
+
+// ListActivePaymentMethodMappings returns the provider-specific mappings that
+// an installation is allowed to expose in a provider-hosted checkout. Keeping
+// this lookup in the control plane prevents a shared runtime from guessing a
+// merchant's payment-method configuration.
+func (s *Postgres) ListActivePaymentMethodMappings(ctx context.Context, tenantID, installationID string) ([]connector.PaymentMethodMapping, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT c.payment_method_code,c.provider_method,c.provider_method_type,c.provider_channel_code
+		FROM payment_method_assignments a
+		JOIN provider_installations i
+		  ON i.tenant_id=a.tenant_id AND i.id=a.installation_id
+		JOIN provider_payment_method_capabilities c
+		  ON c.provider_code=i.provider_code AND c.payment_method_code=a.payment_method_code
+		JOIN payment_methods m ON m.code=a.payment_method_code AND m.active=true
+		WHERE a.tenant_id=$1 AND a.installation_id=$2
+		  AND a.status='ACTIVE' AND i.status='ACTIVE'
+		  AND c.support_status IN ('DOCUMENTED','CERTIFIED')
+		ORDER BY m.sort_order,c.payment_method_code
+	`, tenantID, installationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]connector.PaymentMethodMapping, 0)
+	for rows.Next() {
+		var item connector.PaymentMethodMapping
+		if err = rows.Scan(&item.PaymentMethodCode, &item.ProviderMethod, &item.ProviderMethodType, &item.ProviderChannelCode); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
 func (s *Postgres) GetActivePaymentOption(ctx context.Context, tenantID, environment, id string) (model.PaymentMethodAssignment, error) {
 	item, err := scanPaymentMethodAssignment(s.pool.QueryRow(ctx, paymentMethodAssignmentSelect+`
 		WHERE a.tenant_id=$1 AND a.environment=$2 AND a.id=$3

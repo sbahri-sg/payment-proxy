@@ -732,7 +732,7 @@
                   "name": "200 OK",
                   "status": "OK",
                   "code": 200,
-                  "body": "{\n  \"data\": {\n    \"engine\": \"emisell_payment_engine\",\n    \"contract_version\": \"2026-08-28\",\n    \"connector_contract\": \"v1\",\n    \"selection_mode\": \"merchant_installation\",\n    \"unknown_policy\": \"reconcile_same_provider\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v2.0.1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v2.0.1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"engine\": \"emisell_payment_engine\",\n    \"contract_version\": \"2026-08-28\",\n    \"connector_contract\": \"v1\",\n    \"selection_mode\": \"merchant_installation\",\n    \"unknown_policy\": \"reconcile_same_provider\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v2.0.2\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v2.0.1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
                 }
               ]
             }
@@ -1783,7 +1783,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"provider_code\": \"xendit\",\n  \"provider_version\": \"emisell-xendit-v2.0.1\",\n  \"environment\": \"{{execution_mode}}\"\n}",
+                  "raw": "{\n  \"provider_code\": \"xendit\",\n  \"provider_version\": \"emisell-xendit-v2.0.2\",\n  \"environment\": \"{{execution_mode}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1815,7 +1815,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"merchant_id\": \"merchant_123\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"public_webhook_url\": \"https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...\",\n    \"provider_version\": \"emisell-xendit-v2.0.1\",\n    \"status\": \"CONFIG_REQUIRED\",\n    \"credential_metadata\": {},\n    \"payment_methods\": [],\n    \"version\": 1\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"merchant_id\": \"merchant_123\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"public_webhook_url\": \"https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...\",\n    \"provider_version\": \"emisell-xendit-v2.0.2\",\n    \"status\": \"CONFIG_REQUIRED\",\n    \"credential_metadata\": {},\n    \"payment_methods\": [],\n    \"version\": 1\n  }\n}"
                 }
               ]
             },
@@ -2458,7 +2458,70 @@
               ]
             },
             {
-              "name": "5. Deactivate method assignment",
+              "name": "5. List provider checkout options",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Provider options returned', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code === 200) {",
+                      "  const providers = pm.response.json().data || [];",
+                      "  const xendit = providers.find((provider) => provider.provider_code === 'xendit');",
+                      "  if (xendit) pm.collectionVariables.set('installation_id', xendit.installation_id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Emisell-Merchant-ID",
+                    "value": "{{merchant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/provider-options?environment={{execution_mode}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "provider-options"
+                  ],
+                  "query": [
+                    {
+                      "key": "environment",
+                      "value": "{{execution_mode}}"
+                    }
+                  ]
+                },
+                "description": "Mengelompokkan payment method ACTIVE berdasarkan installation provider ACTIVE untuk Dashboard Emisell yang memilih gateway lebih dahulu."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"data\": [{\n    \"provider_code\": \"xendit\",\n    \"provider_name\": \"Xendit\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_version\": \"emisell-xendit-v2.0.2\",\n    \"environment\": \"sandbox\",\n    \"logo_url\": \"/brands/providers/xendit.svg\",\n    \"supported_payment_methods\": [{\n      \"id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"category\": \"QR_CODE\",\n      \"label\": \"QRIS\",\n      \"logo_url\": \"/brands/payment-methods/qris.png\"\n    }]\n  }]\n}"
+                }
+              ]
+            },
+            {
+              "name": "6. Deactivate method assignment",
               "event": [
                 {
                   "listen": "test",
@@ -2940,7 +3003,7 @@
                   "name": "200 OK",
                   "status": "OK",
                   "code": 200,
-                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v2.0.1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v2.0.1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v2.0.2\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v2.0.1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
                 }
               ]
             },

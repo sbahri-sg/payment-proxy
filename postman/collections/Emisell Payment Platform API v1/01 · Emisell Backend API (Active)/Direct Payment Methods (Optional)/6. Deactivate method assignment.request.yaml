@@ -21,4 +21,4 @@ scripts:
       }
     language: text/javascript
 examples: ./.resources/5. Deactivate method assignment.resources/examples
-order: 5000
+order: 6000

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Xendit Emisell Payment Connector
-  version: emisell-xendit-v2.0.1
+  version: emisell-xendit-v2.0.2
   description: Normalized Payment Connector contract used by the shared Xendit runtime.
 servers:
   - url: https://connector-runtime.emisell.com/partner/v1
@@ -145,14 +145,14 @@ components:
       required: [provider_code, provider_version, input]
       properties:
         provider_code: {type: string, example: xendit}
-        provider_version: {type: string, example: emisell-xendit-v2.0.1}
+        provider_version: {type: string, example: emisell-xendit-v2.0.2}
         input: {type: object, additionalProperties: true}
     InstallationInput:
       type: object
       required: [provider_code, provider_version, environment, credentials]
       properties:
         provider_code: {type: string, example: xendit}
-        provider_version: {type: string, example: emisell-xendit-v2.0.1}
+        provider_version: {type: string, example: emisell-xendit-v2.0.2}
         environment: {type: string, enum: [live, sandbox]}
         credentials: {type: object, additionalProperties: {type: string}, writeOnly: true}
         public_webhook_url: {type: string, format: uri}
@@ -172,6 +172,17 @@ components:
             local_payment_id: {type: string}
             checkout_mode: {type: string, enum: [direct, provider_hosted]}
             payment_method_code: {type: string}
+            allowed_payment_methods:
+              type: array
+              description: Active installation mappings used to restrict provider-hosted checkout channels.
+              items:
+                type: object
+                required: [payment_method_code, provider_method, provider_method_type, provider_channel_code]
+                properties:
+                  payment_method_code: {type: string, example: qris}
+                  provider_method: {type: string, example: qr_code}
+                  provider_method_type: {type: string, example: qris}
+                  provider_channel_code: {type: string, example: QRIS}
             amount: {type: integer, format: int64, minimum: 1, description: Whole IDR rupiah; 10000 means Rp10.000}
             currency: {type: string, example: IDR}
             idempotency_key: {type: string}
@@ -194,7 +205,7 @@ components:
       required: [provider_code, provider_version, headers, body]
       properties:
         provider_code: {type: string, example: xendit}
-        provider_version: {type: string, example: emisell-xendit-v2.0.1}
+        provider_version: {type: string, example: emisell-xendit-v2.0.2}
         headers: {type: object, additionalProperties: {type: string}}
         body: {type: string, format: byte}
   responses:

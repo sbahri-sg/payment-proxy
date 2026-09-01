@@ -111,7 +111,11 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 		return connector.PaymentResult{}, err
 	}
 	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
-		return c.createHostedPaymentSession(ctx, input, key, amount, nil)
+		allowedChannels, channelErr := c.hostedPaymentChannels(input.AllowedPaymentMethods)
+		if channelErr != nil {
+			return connector.PaymentResult{}, channelErr
+		}
+		return c.createHostedPaymentSession(ctx, input, key, amount, allowedChannels)
 	}
 	if input.PaymentMethodCode == "card" {
 		return c.createHostedPaymentSession(ctx, input, key, amount, []string{"CARDS"})
@@ -206,6 +210,29 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 		return connector.PaymentResult{}, &connector.UnknownOutcomeError{Cause: err}
 	}
 	return result, nil
+}
+
+func (c *Client) hostedPaymentChannels(methods []connector.PaymentMethodMapping) ([]string, error) {
+	if len(methods) == 0 {
+		return nil, errors.New("at least one active payment method is required for Xendit hosted checkout")
+	}
+	channels := make([]string, 0, len(methods))
+	seen := make(map[string]struct{}, len(methods))
+	for _, method := range methods {
+		if err := c.ValidatePaymentMethod(method); err != nil {
+			return nil, err
+		}
+		channelCode := strings.ToUpper(strings.TrimSpace(method.ProviderChannelCode))
+		if channelCode == "" {
+			return nil, fmt.Errorf("payment method %q has no Xendit channel mapping", method.PaymentMethodCode)
+		}
+		if _, exists := seen[channelCode]; exists {
+			continue
+		}
+		seen[channelCode] = struct{}{}
+		channels = append(channels, channelCode)
+	}
+	return channels, nil
 }
 
 func (c *Client) GetPayment(ctx context.Context, input connector.PaymentLookup) (connector.PaymentResult, error) {

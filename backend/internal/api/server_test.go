@@ -245,6 +245,24 @@ func TestPaymentOptionContract(t *testing.T) {
 	}
 }
 
+func TestProviderOptionLogoPaths(t *testing.T) {
+	if got := providerOptionLogoPath("xendit", false); got != "/brands/providers/xendit.svg" {
+		t.Fatalf("built-in provider logo = %q", got)
+	}
+	if got := providerOptionLogoPath("ipaymu", true); got != "/api/provider-assets/ipaymu/logo" {
+		t.Fatalf("custom provider logo = %q", got)
+	}
+	if got := providerOptionLogoPath("ipaymu", false); got != "" {
+		t.Fatalf("missing provider logo returned %q", got)
+	}
+	if got := paymentMethodOptionLogoPath("va_bca"); got != "/brands/payment-methods/bca.png" {
+		t.Fatalf("payment method logo = %q", got)
+	}
+	if got := paymentMethodOptionLogoPath("unknown"); got != "" {
+		t.Fatalf("unknown payment method logo returned %q", got)
+	}
+}
+
 func TestPaymentMethodEnvironmentQuery(t *testing.T) {
 	optional := httptest.NewRequest(http.MethodGet, "/api/v1/payment-method-assignments", nil)
 	if value, ok := optionalEnvironmentQuery(httptest.NewRecorder(), optional); !ok || value != "" {
@@ -256,12 +274,14 @@ func TestPaymentMethodEnvironmentQuery(t *testing.T) {
 		t.Fatalf("filtered environment = %q, %v; want live, true", value, ok)
 	}
 
-	missingRecorder := httptest.NewRecorder()
-	if value, ok := requireEnvironmentQuery(missingRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/payment-options", nil)); ok || value != "" || missingRecorder.Code != http.StatusBadRequest {
-		t.Fatalf("missing required environment = %q, %v, status %d", value, ok, missingRecorder.Code)
-	}
-	if !strings.Contains(missingRecorder.Body.String(), "INVALID_ENVIRONMENT") {
-		t.Fatalf("missing environment returned unexpected problem: %s", missingRecorder.Body.String())
+	for _, path := range []string{"/api/v1/payment-options", "/api/v1/provider-options"} {
+		missingRecorder := httptest.NewRecorder()
+		if value, ok := requireEnvironmentQuery(missingRecorder, httptest.NewRequest(http.MethodGet, path, nil)); ok || value != "" || missingRecorder.Code != http.StatusBadRequest {
+			t.Fatalf("%s missing required environment = %q, %v, status %d", path, value, ok, missingRecorder.Code)
+		}
+		if !strings.Contains(missingRecorder.Body.String(), "INVALID_ENVIRONMENT") {
+			t.Fatalf("%s missing environment returned unexpected problem: %s", path, missingRecorder.Body.String())
+		}
 	}
 
 	invalidRecorder := httptest.NewRecorder()

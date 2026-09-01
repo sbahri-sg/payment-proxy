@@ -211,15 +211,22 @@ func TestCardUsesHostedPaymentSessionWithoutPAN(t *testing.T) {
 	}
 }
 
-func TestProviderHostedCheckoutLeavesChannelSelectionToXendit(t *testing.T) {
+func TestProviderHostedCheckoutUsesConfiguredPaymentChannels(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/sessions" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		if body["mode"] != "PAYMENT_LINK" || body["allowed_payment_channels"] != nil {
-			t.Fatalf("hosted checkout must leave channel selection to Xendit: %#v", body)
+		channels, _ := body["allowed_payment_channels"].([]any)
+		expected := []string{"CARDS", "QRIS", "BCA_VIRTUAL_ACCOUNT"}
+		if body["mode"] != "PAYMENT_LINK" || len(channels) != len(expected) {
+			t.Fatalf("hosted checkout did not restrict Xendit channels: %#v", body)
+		}
+		for index, channel := range channels {
+			if channel != expected[index] {
+				t.Fatalf("unexpected hosted checkout channels: %#v", channels)
+			}
 		}
 		w.WriteHeader(http.StatusCreated)
 		_, _ = io.WriteString(w, `{"payment_session_id":"ps-hosted-1","status":"ACTIVE","payment_link_url":"https://dev.xen.to/all-methods"}`)
@@ -230,9 +237,26 @@ func TestProviderHostedCheckoutLeavesChannelSelectionToXendit(t *testing.T) {
 		Credentials: map[string]string{"api_key": "secret"}, CheckoutMode: connector.CheckoutModeProviderHosted,
 		MerchantReference: "order-hosted", LocalPaymentID: "pay_hosted", IdempotencyKey: "idem-hosted-1",
 		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
+		AllowedPaymentMethods: []connector.PaymentMethodMapping{
+			{PaymentMethodCode: "card", ProviderMethod: "card", ProviderMethodType: "card", ProviderChannelCode: "CARDS"},
+			{PaymentMethodCode: "qris", ProviderMethod: "qr_code", ProviderMethodType: "qris", ProviderChannelCode: "QRIS"},
+			{PaymentMethodCode: "va_bca", ProviderMethod: "bank_transfer", ProviderMethodType: "bca", ProviderChannelCode: "BCA_VIRTUAL_ACCOUNT"},
+		},
 	})
 	if err != nil || result.ID != "ps-hosted-1" || !strings.Contains(string(result.NextAction), "https://dev.xen.to/all-methods") {
 		t.Fatalf("unexpected hosted checkout: %#v, %v", result, err)
+	}
+}
+
+func TestProviderHostedCheckoutRequiresConfiguredPaymentChannels(t *testing.T) {
+	client, _ := New("https://api.xendit.test", time.Second)
+	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
+		Credentials: map[string]string{"api_key": "secret"}, CheckoutMode: connector.CheckoutModeProviderHosted,
+		MerchantReference: "order-hosted", LocalPaymentID: "pay_hosted", IdempotencyKey: "idem-hosted-1",
+		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
+	})
+	if err == nil || !strings.Contains(err.Error(), "at least one active payment method") {
+		t.Fatalf("hosted checkout without active methods returned %v", err)
 	}
 }
 
@@ -433,6 +457,9 @@ func TestConnectorPaymentMethodMapping(t *testing.T) {
 	}
 	if err := client.ValidatePaymentMethod(connector.PaymentMethodMapping{PaymentMethodCode: "unknown", ProviderMethod: "wallet", ProviderMethodType: "test"}); err == nil {
 		t.Fatal("unknown canonical method was accepted")
+	}
+	if err := client.ValidatePaymentMethod(connector.PaymentMethodMapping{PaymentMethodCode: "qris", ProviderMethod: "qr_code", ProviderMethodType: "qris", ProviderChannelCode: "CARDS"}); err == nil {
+		t.Fatal("invalid provider channel mapping was accepted")
 	}
 }
 

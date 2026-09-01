@@ -70,26 +70,27 @@ type Item struct {
 }
 
 type PaymentInput struct {
-	ProviderCode      string            `json:"provider_code"`
-	ProviderVersion   string            `json:"provider_version,omitempty"`
-	Environment       string            `json:"environment"`
-	Credentials       map[string]string `json:"credentials"`
-	InstallationID    string            `json:"installation_id"`
-	LocalPaymentID    string            `json:"local_payment_id"`
-	MerchantReference string            `json:"merchant_reference"`
-	IdempotencyKey    string            `json:"idempotency_key"`
-	Amount            int64             `json:"amount"`
-	Currency          string            `json:"currency"`
-	CheckoutMode      string            `json:"checkout_mode,omitempty"`
-	PaymentMethodCode string            `json:"payment_method_code"`
-	ChannelCode       string            `json:"channel_code,omitempty"`
-	PublicWebhookURL  string            `json:"public_webhook_url,omitempty"`
-	Customer          Customer          `json:"customer"`
-	Items             []Item            `json:"items,omitempty"`
-	ReturnURL         string            `json:"return_url,omitempty"`
-	Description       string            `json:"description,omitempty"`
-	ExpiresAt         string            `json:"expires_at,omitempty"`
-	Metadata          map[string]any    `json:"metadata,omitempty"`
+	ProviderCode          string                 `json:"provider_code"`
+	ProviderVersion       string                 `json:"provider_version,omitempty"`
+	Environment           string                 `json:"environment"`
+	Credentials           map[string]string      `json:"credentials"`
+	InstallationID        string                 `json:"installation_id"`
+	LocalPaymentID        string                 `json:"local_payment_id"`
+	MerchantReference     string                 `json:"merchant_reference"`
+	IdempotencyKey        string                 `json:"idempotency_key"`
+	Amount                int64                  `json:"amount"`
+	Currency              string                 `json:"currency"`
+	CheckoutMode          string                 `json:"checkout_mode,omitempty"`
+	PaymentMethodCode     string                 `json:"payment_method_code"`
+	ChannelCode           string                 `json:"channel_code,omitempty"`
+	AllowedPaymentMethods []PaymentMethodMapping `json:"allowed_payment_methods,omitempty"`
+	PublicWebhookURL      string                 `json:"public_webhook_url,omitempty"`
+	Customer              Customer               `json:"customer"`
+	Items                 []Item                 `json:"items,omitempty"`
+	ReturnURL             string                 `json:"return_url,omitempty"`
+	Description           string                 `json:"description,omitempty"`
+	ExpiresAt             string                 `json:"expires_at,omitempty"`
+	Metadata              map[string]any         `json:"metadata,omitempty"`
 }
 
 type PaymentLookup struct {

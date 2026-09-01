@@ -183,6 +183,22 @@ export type PaymentOption = {
   label: string;
 };
 
+export type ProviderOption = {
+  provider_code: string;
+  provider_name: string;
+  installation_id: string;
+  provider_version: string;
+  environment: "sandbox" | "live";
+  logo_url?: string;
+  supported_payment_methods: Array<{
+    id: string;
+    payment_method_code: string;
+    category: PaymentMethodCategory;
+    label: string;
+    logo_url?: string;
+  }>;
+};
+
 export type PaymentMethodCategory = "QR_CODE" | "CARD" | "VIRTUAL_ACCOUNT" | "E_WALLET" | "RETAIL" | "PAYLATER" | "DIRECT_DEBIT" | "DIGITAL_BANKING";
 
 export type PaymentMethodProviderCapability = {
@@ -569,6 +585,10 @@ export function listPaymentMethods(actor: string, search?: string) {
 
 export function listPaymentOptions(actor: string, environment: "sandbox" | "live") {
   return proxyRequest<PaymentOption[]>(`/api/v1/payment-options?environment=${encodeURIComponent(environment)}`, actor);
+}
+
+export function listProviderOptions(actor: string, environment: "sandbox" | "live") {
+  return proxyRequest<ProviderOption[]>(`/api/v1/provider-options?environment=${encodeURIComponent(environment)}`, actor);
 }
 
 export function upsertPaymentMethodAssignments(actor: string, assignments: Array<{ installation_id: string; payment_method_code: string; version: number }>) {

@@ -196,7 +196,7 @@ Contoh response `201 Created`:
     "id": "papp_9d3a...",
     "provider_code": "midtrans",
     "provider_name": "Midtrans",
-    "version": "emisell-xendit-v2.0.1",
+    "version": "emisell-xendit-v2.0.2",
     "status": "UPLOADED",
     "runtime": "isolated_container",
     "sdk_version": "v1",
@@ -207,7 +207,7 @@ Contoh response `201 Created`:
       "package_format": "provider_submission_v1",
       "contract_version": "v1",
       "code": "xendit",
-      "version": "emisell-xendit-v2.0.1",
+      "version": "emisell-xendit-v2.0.2",
       "environments": ["sandbox", "live"],
       "payment_methods": ["qris", "card", "va_bca", "va_mandiri", "ewallet_ovo", "ewallet_dana"],
       "outbound_hosts": ["api.xendit.co"]

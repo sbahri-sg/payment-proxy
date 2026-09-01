@@ -129,6 +129,7 @@ func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *sec
 			r.Put("/payment-method-assignments", s.upsertPaymentMethodAssignment)
 			r.Post("/payment-method-assignments/{id}/deactivate", s.deactivatePaymentMethodAssignment)
 			r.Get("/payment-options", s.listPaymentOptions)
+			r.Get("/provider-options", s.listProviderOptions)
 			r.Get("/payment-sessions", s.listPayments)
 			r.Post("/payment-sessions", s.createPayment)
 			r.Get("/payment-sessions/{id}", s.getPayment)
@@ -1106,6 +1107,64 @@ func (s *Server) listPaymentOptions(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, items)
 }
 
+func (s *Server) listProviderOptions(w http.ResponseWriter, r *http.Request) {
+	environment, ok := requireEnvironmentQuery(w, r)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListProviderOptions(r.Context(), tenant(r), environment)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	for providerIndex := range items {
+		items[providerIndex].LogoURL = providerOptionLogoPath(items[providerIndex].ProviderCode, items[providerIndex].HasCustomLogo)
+		for methodIndex := range items[providerIndex].SupportedPaymentMethods {
+			method := &items[providerIndex].SupportedPaymentMethods[methodIndex]
+			method.LogoURL = paymentMethodOptionLogoPath(method.PaymentMethodCode)
+		}
+	}
+	writeData(w, http.StatusOK, items)
+}
+
+func providerOptionLogoPath(providerCode string, hasCustomLogo bool) string {
+	providerCode = strings.ToLower(strings.TrimSpace(providerCode))
+	if hasCustomLogo {
+		return "/api/provider-assets/" + url.PathEscape(providerCode) + "/logo"
+	}
+	switch providerCode {
+	case "xendit", "midtrans", "doku":
+		return "/brands/providers/" + providerCode + ".svg"
+	case "duitku":
+		return "/brands/providers/duitku.png"
+	default:
+		return ""
+	}
+}
+
+func paymentMethodOptionLogoPath(paymentMethodCode string) string {
+	paths := map[string]string{
+		"qris":   "/brands/payment-methods/qris.png",
+		"va_bca": "/brands/payment-methods/bca.png", "va_mandiri": "/brands/payment-methods/mandiri.png",
+		"va_bni": "/brands/payment-methods/bni.png", "va_bri": "/brands/payment-methods/bri.png",
+		"va_permata": "/brands/payment-methods/permata.png", "va_cimb": "/brands/payment-methods/cimb-niaga.png",
+		"va_danamon": "/brands/payment-methods/danamon.png", "va_bsi": "/brands/payment-methods/bsi.webp",
+		"va_maybank": "/brands/payment-methods/maybank.png", "va_bnc": "/brands/payment-methods/bnc.png",
+		"va_btn": "/brands/payment-methods/btn.webp", "va_atm_bersama": "/brands/payment-methods/atm-bersama.png",
+		"va_arta_graha": "/brands/payment-methods/artha-graha.png", "va_sahabat_sampoerna": "/brands/payment-methods/bank-sampoerna.png",
+		"va_muamalat": "/brands/payment-methods/muamalat.webp", "va_doku": "/brands/payment-methods/doku.svg",
+		"ewallet_gopay": "/brands/payment-methods/gopay.svg", "ewallet_ovo": "/brands/payment-methods/ovo.png",
+		"ewallet_dana": "/brands/payment-methods/dana.png", "ewallet_shopeepay": "/brands/payment-methods/shopeepay.png",
+		"ewallet_linkaja": "/brands/payment-methods/linkaja.jpg", "ewallet_astrapay": "/brands/payment-methods/astrapay.png",
+		"ewallet_doku": "/brands/payment-methods/doku.svg", "retail_alfamart": "/brands/payment-methods/alfamart.png",
+		"retail_indomaret": "/brands/payment-methods/indomaret.png", "paylater_kredivo": "/brands/payment-methods/kredivo.png",
+		"paylater_akulaku": "/brands/payment-methods/akulaku.svg", "paylater_indodana": "/brands/payment-methods/indodana.png",
+		"paylater_atome": "/brands/payment-methods/atome.png", "direct_debit_bri": "/brands/payment-methods/bri.png",
+		"digital_banking_jenius": "/brands/payment-methods/jenius.svg",
+	}
+	return paths[strings.ToLower(strings.TrimSpace(paymentMethodCode))]
+}
+
 type paymentMethodAssignmentRequest struct {
 	PaymentMethodCode string `json:"payment_method_code"`
 	InstallationID    string `json:"installation_id"`
@@ -1783,6 +1842,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var capability model.ProviderPaymentMethodCapability
+	var allowedPaymentMethods []connector.PaymentMethodMapping
 	if request.CheckoutMode == connector.CheckoutModeDirect {
 		if request.PaymentMethodCode == "" {
 			request.PaymentMethodCode = paymentMethodCodeFromLegacy(request.PaymentMethod, request.PaymentMethodType)
@@ -1801,9 +1861,10 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentMethodMapping{
-			PaymentMethodCode:  capability.PaymentMethodCode,
-			ProviderMethod:     capability.ProviderMethod,
-			ProviderMethodType: capability.ProviderMethodType,
+			PaymentMethodCode:   capability.PaymentMethodCode,
+			ProviderMethod:      capability.ProviderMethod,
+			ProviderMethodType:  capability.ProviderMethodType,
+			ProviderChannelCode: capability.ProviderChannelCode,
 		}); err != nil {
 			problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", err.Error())
 			return
@@ -1814,6 +1875,32 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 			Amount:            request.Amount,
 		}); err != nil {
 			problem(w, http.StatusUnprocessableEntity, "INVALID_AMOUNT", err.Error())
+			return
+		}
+	} else if installation.ProviderCode == "xendit" {
+		// Xendit v2.0.2 is the first hosted runtime that accepts the normalized
+		// allowlist. Keep older strict-decoding provider runtimes unchanged until
+		// their provider-specific channel restrictions are implemented.
+		configuredMethods, listErr := s.store.ListActivePaymentMethodMappings(r.Context(), tenant(r), installation.ID)
+		if listErr != nil {
+			s.internal(w, r, listErr)
+			return
+		}
+		for _, method := range configuredMethods {
+			if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, method); err != nil {
+				problem(w, http.StatusConflict, "PAYMENT_METHOD_CONFIGURATION_INVALID", err.Error())
+				return
+			}
+			if validationErr := s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
+				PaymentMethodCode: method.PaymentMethodCode,
+				Currency:          request.Currency,
+				Amount:            request.Amount,
+			}); validationErr == nil {
+				allowedPaymentMethods = append(allowedPaymentMethods, method)
+			}
+		}
+		if len(allowedPaymentMethods) == 0 {
+			problem(w, http.StatusConflict, "NO_ELIGIBLE_PAYMENT_METHOD", "the installation has no active payment method eligible for this payment")
 			return
 		}
 	}
@@ -1842,8 +1929,9 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		InstallationID: installation.ID, LocalPaymentID: session.ID, MerchantReference: request.MerchantReference,
 		IdempotencyKey: key, Amount: request.Amount, Currency: request.Currency,
 		CheckoutMode: request.CheckoutMode, PaymentMethodCode: request.PaymentMethodCode, ChannelCode: capability.ProviderChannelCode,
-		PublicWebhookURL: s.providerWebhookURL(installation.ProviderCode, installation.ID),
-		Customer:         request.Customer, Items: request.Items, ReturnURL: request.ReturnURL, Description: request.Description, ExpiresAt: request.ExpiresAt,
+		AllowedPaymentMethods: allowedPaymentMethods,
+		PublicWebhookURL:      s.providerWebhookURL(installation.ProviderCode, installation.ID),
+		Customer:              request.Customer, Items: request.Items, ReturnURL: request.ReturnURL, Description: request.Description, ExpiresAt: request.ExpiresAt,
 		Metadata: mergeMetadata(request.Metadata, map[string]any{"emisell_tenant_id": tenant(r), "emisell_payment_id": session.ID, "emisell_checkout_mode": request.CheckoutMode}),
 	})
 	if err != nil {

@@ -5,8 +5,10 @@ connector. It describes provider identity, credentials, payment methods,
 operations, and the Partner Connector API contract.
 
 The primary checkout flow creates a Xendit Payment Session in `PAYMENT_LINK`
-mode and returns `payment_link_url`. Xendit owns the payment-method selection
-page; Emisell only redirects the customer and tracks canonical status.
+mode and returns `payment_link_url`. The control plane supplies the installation's
+eligible `ACTIVE` mappings and the connector sends their exact channel codes as
+`allowed_payment_channels`. Xendit owns the payment-method selection page;
+Emisell only redirects the customer and tracks canonical status.
 
 The connector contains a fail-closed implementation of asynchronous Unified
 Refund for payment methods whose catalog capability declares a return-to-source

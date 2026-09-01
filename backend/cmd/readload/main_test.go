@@ -18,8 +18,10 @@ func TestReadOnlyLoadRunner(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-	if err := run(server.URL, "/api/v1/payment-options", 50, 5, time.Second, time.Second, 0); err != nil {
-		t.Fatal(err)
+	for _, path := range []string{"/api/v1/payment-options", "/api/v1/provider-options"} {
+		if err := run(server.URL, path, 50, 5, time.Second, time.Second, 0); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
 	}
 	if err := run(server.URL, "/api/v1/payment-sessions", 1, 1, time.Second, time.Second, 0); err == nil {
 		t.Fatal("mutation endpoint was accepted by the load runner")

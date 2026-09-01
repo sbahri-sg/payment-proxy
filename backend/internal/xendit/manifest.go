@@ -11,30 +11,31 @@ import (
 type methodMapping struct {
 	providerMethod string
 	providerType   string
+	channelCode    string
 	profile        string
 }
 
 var supportedMethods = map[string]methodMapping{
-	"qris":                   {providerMethod: "qr_code", providerType: "qris", profile: "xendit-payments-v3/qris"},
-	"card":                   {providerMethod: "card", providerType: "card", profile: "xendit-payment-session/card"},
-	"va_bca":                 {providerMethod: "bank_transfer", providerType: "bca", profile: "xendit-payments-v3/va_bca"},
-	"va_mandiri":             {providerMethod: "bank_transfer", providerType: "mandiri", profile: "xendit-payments-v3/va_mandiri"},
-	"va_bni":                 {providerMethod: "bank_transfer", providerType: "bni", profile: "xendit-payments-v3/va_bni"},
-	"va_bri":                 {providerMethod: "bank_transfer", providerType: "bri", profile: "xendit-payments-v3/va_bri"},
-	"va_permata":             {providerMethod: "bank_transfer", providerType: "permata", profile: "xendit-payments-v3/va_permata"},
-	"va_cimb":                {providerMethod: "bank_transfer", providerType: "cimb", profile: "xendit-payments-v3/va_cimb"},
-	"va_danamon":             {providerMethod: "bank_transfer", providerType: "danamon", profile: "xendit-payments-v3/va_danamon"},
-	"va_bsi":                 {providerMethod: "bank_transfer", providerType: "bsi", profile: "xendit-payments-v3/va_bsi"},
-	"va_muamalat":            {providerMethod: "bank_transfer", providerType: "muamalat", profile: "xendit-payments-v3/va_muamalat"},
-	"ewallet_ovo":            {providerMethod: "wallet", providerType: "ovo", profile: "xendit-payments-v3/ewallet_ovo"},
-	"ewallet_dana":           {providerMethod: "wallet", providerType: "dana", profile: "xendit-payments-v3/ewallet_dana"},
-	"ewallet_shopeepay":      {providerMethod: "wallet", providerType: "shopeepay", profile: "xendit-payments-v3/ewallet_shopeepay"},
-	"ewallet_linkaja":        {providerMethod: "wallet", providerType: "linkaja", profile: "xendit-payments-v3/ewallet_linkaja"},
-	"ewallet_astrapay":       {providerMethod: "wallet", providerType: "astrapay", profile: "xendit-payments-v3/ewallet_astrapay"},
-	"digital_banking_jenius": {providerMethod: "digital_banking", providerType: "jenius", profile: "xendit-payments-v3/digital_banking_jenius"},
-	"paylater_kredivo":       {providerMethod: "paylater", providerType: "kredivo", profile: "xendit-payments-v3/paylater_kredivo"},
-	"paylater_akulaku":       {providerMethod: "paylater", providerType: "akulaku", profile: "xendit-payments-v3/paylater_akulaku"},
-	"paylater_indodana":      {providerMethod: "paylater", providerType: "indodana", profile: "xendit-payments-v3/paylater_indodana"},
+	"qris":                   {providerMethod: "qr_code", providerType: "qris", channelCode: "QRIS", profile: "xendit-payments-v3/qris"},
+	"card":                   {providerMethod: "card", providerType: "card", channelCode: "CARDS", profile: "xendit-payment-session/card"},
+	"va_bca":                 {providerMethod: "bank_transfer", providerType: "bca", channelCode: "BCA_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_bca"},
+	"va_mandiri":             {providerMethod: "bank_transfer", providerType: "mandiri", channelCode: "MANDIRI_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_mandiri"},
+	"va_bni":                 {providerMethod: "bank_transfer", providerType: "bni", channelCode: "BNI_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_bni"},
+	"va_bri":                 {providerMethod: "bank_transfer", providerType: "bri", channelCode: "BRI_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_bri"},
+	"va_permata":             {providerMethod: "bank_transfer", providerType: "permata", channelCode: "PERMATA_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_permata"},
+	"va_cimb":                {providerMethod: "bank_transfer", providerType: "cimb", channelCode: "CIMB_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_cimb"},
+	"va_danamon":             {providerMethod: "bank_transfer", providerType: "danamon", channelCode: "DANAMON_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_danamon"},
+	"va_bsi":                 {providerMethod: "bank_transfer", providerType: "bsi", channelCode: "BSI_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_bsi"},
+	"va_muamalat":            {providerMethod: "bank_transfer", providerType: "muamalat", channelCode: "MUAMALAT_VIRTUAL_ACCOUNT", profile: "xendit-payments-v3/va_muamalat"},
+	"ewallet_ovo":            {providerMethod: "wallet", providerType: "ovo", channelCode: "OVO", profile: "xendit-payments-v3/ewallet_ovo"},
+	"ewallet_dana":           {providerMethod: "wallet", providerType: "dana", channelCode: "DANA", profile: "xendit-payments-v3/ewallet_dana"},
+	"ewallet_shopeepay":      {providerMethod: "wallet", providerType: "shopeepay", channelCode: "SHOPEEPAY", profile: "xendit-payments-v3/ewallet_shopeepay"},
+	"ewallet_linkaja":        {providerMethod: "wallet", providerType: "linkaja", channelCode: "LINKAJA", profile: "xendit-payments-v3/ewallet_linkaja"},
+	"ewallet_astrapay":       {providerMethod: "wallet", providerType: "astrapay", channelCode: "ASTRAPAY", profile: "xendit-payments-v3/ewallet_astrapay"},
+	"digital_banking_jenius": {providerMethod: "digital_banking", providerType: "jenius", channelCode: "JENIUS_PAY", profile: "xendit-payments-v3/digital_banking_jenius"},
+	"paylater_kredivo":       {providerMethod: "paylater", providerType: "kredivo", channelCode: "KREDIVO", profile: "xendit-payments-v3/paylater_kredivo"},
+	"paylater_akulaku":       {providerMethod: "paylater", providerType: "akulaku", channelCode: "AKULAKU", profile: "xendit-payments-v3/paylater_akulaku"},
+	"paylater_indodana":      {providerMethod: "paylater", providerType: "indodana", channelCode: "INDODANA", profile: "xendit-payments-v3/paylater_indodana"},
 }
 
 func (c *Client) Manifest() connector.Manifest {
@@ -49,7 +50,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Xendit",
-		Version:          "emisell-xendit-v2.0.1",
+		Version:          "emisell-xendit-v2.0.2",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -82,6 +83,9 @@ func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) err
 	methodMatches := providerMethod == mapping.providerMethod || (code == "qris" && providerMethod == "real_time_payment")
 	if !methodMatches || providerType != mapping.providerType {
 		return fmt.Errorf("payment method %q has an invalid %s mapping", code, c.Code())
+	}
+	if channelCode := strings.ToUpper(strings.TrimSpace(input.ProviderChannelCode)); channelCode != "" && channelCode != mapping.channelCode {
+		return fmt.Errorf("payment method %q has an invalid %s channel mapping", code, c.Code())
 	}
 	return nil
 }

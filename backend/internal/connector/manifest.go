@@ -141,9 +141,10 @@ func (m Manifest) Clone() Manifest {
 }
 
 type PaymentMethodMapping struct {
-	PaymentMethodCode  string `json:"payment_method_code"`
-	ProviderMethod     string `json:"provider_method"`
-	ProviderMethodType string `json:"provider_method_type"`
+	PaymentMethodCode   string `json:"payment_method_code"`
+	ProviderMethod      string `json:"provider_method"`
+	ProviderMethodType  string `json:"provider_method_type"`
+	ProviderChannelCode string `json:"provider_channel_code,omitempty"`
 }
 
 type PaymentValidation struct {

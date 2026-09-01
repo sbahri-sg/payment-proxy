@@ -5,7 +5,7 @@ Status: **ACTIVE FOUNDATION**
 Owner: **Emisell**
 
 Runtime: **Go Payment Kernel + isolated Connector Runner**
-Reference connectors: **Xendit `emisell-xendit-v2.0.1` + Midtrans `emisell-midtrans-v2.0.1` + Duitku `emisell-duitku-v2.0.1` + DOKU `emisell-doku-v2.0.1` + iPaymu `emisell-ipaymu-v2.0.1`**
+Reference connectors: **Xendit `emisell-xendit-v2.0.2` + Midtrans `emisell-midtrans-v2.0.1` + Duitku `emisell-duitku-v2.0.1` + DOKU `emisell-doku-v2.0.1` + iPaymu `emisell-ipaymu-v2.0.1`**
 
 Dokumen ini mengunci batas arsitektur Payment Proxy. Implementasi, endpoint,
 dashboard, dan connector baru tidak boleh menyimpang dari kontrak di bawah tanpa
@@ -126,8 +126,10 @@ canonical code dan mapping memang dapat dieksekusi. Assignment direct-channel
 dapat dibuat untuk capability `DOCUMENTED` atau `CERTIFIED` dan installation
 `ACTIVE`; capability `DISABLED` tetap ditolak.
 
-Checkout mengambil `GET /api/v1/payment-options`, menampilkan HTML milik Emisell,
-dan mengirim kembali `payment_option_id` ke `POST /api/v1/payment-sessions`.
+Dashboard yang memilih gateway lebih dahulu mengambil
+`GET /api/v1/provider-options`; flow direct-channel mengambil
+`GET /api/v1/payment-options` dan mengirim kembali `payment_option_id` ke
+`POST /api/v1/payment-sessions`.
 Browser tidak menerima service key dan tidak memanggil provider connector.
 
 ## 6. Operation matrix reference connector

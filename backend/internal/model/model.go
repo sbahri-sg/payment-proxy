@@ -153,6 +153,25 @@ type PaymentOption struct {
 	Label             string `json:"label"`
 }
 
+type ProviderPaymentOption struct {
+	ID                string `json:"id"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	Category          string `json:"category"`
+	Label             string `json:"label"`
+	LogoURL           string `json:"logo_url,omitempty"`
+}
+
+type ProviderOption struct {
+	ProviderCode            string                  `json:"provider_code"`
+	ProviderName            string                  `json:"provider_name"`
+	InstallationID          string                  `json:"installation_id"`
+	ProviderVersion         string                  `json:"provider_version"`
+	Environment             string                  `json:"environment"`
+	LogoURL                 string                  `json:"logo_url,omitempty"`
+	SupportedPaymentMethods []ProviderPaymentOption `json:"supported_payment_methods"`
+	HasCustomLogo           bool                    `json:"-"`
+}
+
 type PaymentMethodCatalogItem struct {
 	Code        string          `json:"code"`
 	Category    string          `json:"category"`

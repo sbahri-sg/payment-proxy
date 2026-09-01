@@ -3,7 +3,7 @@ provider:
   code: xendit
   name: Xendit
 release:
-  version: emisell-xendit-v2.0.1
+  version: emisell-xendit-v2.0.2
 connector:
   contract_version: v1
   runtime: isolated_container
