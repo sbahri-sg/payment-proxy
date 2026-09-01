@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emisell/api-payment-proxy/internal/connector"
 	"github.com/emisell/api-payment-proxy/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -140,6 +141,98 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 	}
 	if len(otherTenantOptions) != 0 {
 		t.Fatalf("another tenant could read provider options: %#v", otherTenantOptions)
+	}
+
+	checkedAt := time.Now().UTC()
+	if err = repository.ReplaceInstallationAvailability(ctx, tenantID, installationID, InstallationAvailabilitySnapshot{
+		ProviderStatus: connector.PaymentMethodAvailabilityAvailable,
+		Methods: []connector.PaymentMethodAvailability{
+			{PaymentMethodCode: "va_bca", Status: connector.PaymentMethodAvailabilityUnavailable, Reason: "PROVIDER_MAINTENANCE"},
+		},
+		CheckedAt: checkedAt,
+		ExpiresAt: checkedAt.Add(2 * time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if available, availabilityErr := repository.IsPaymentMethodAvailable(ctx, tenantID, installationID, "va_bca", time.Now()); availabilityErr != nil || available {
+		t.Fatalf("maintenance method remained available: available=%v err=%v", available, availabilityErr)
+	}
+	availabilityOverview, err := repository.ListProviderAvailabilityAdmin(ctx, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var operationalItem *model.ProviderAvailabilityItem
+	for index := range availabilityOverview.Items {
+		if availabilityOverview.Items[index].MerchantID == tenantID && availabilityOverview.Items[index].InstallationID == installationID {
+			operationalItem = &availabilityOverview.Items[index]
+			break
+		}
+	}
+	if operationalItem == nil || operationalItem.Status != "DEGRADED" || len(operationalItem.UnavailablePaymentMethods) != 1 || !operationalItem.UnavailablePaymentMethods[0].Fresh {
+		t.Fatalf("admin availability did not expose the affected merchant connection: %#v", operationalItem)
+	}
+	assignmentsDuringMaintenance, err := repository.ListPaymentMethodAssignments(ctx, tenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignmentStatuses := make(map[string]string, len(assignmentsDuringMaintenance))
+	for _, item := range assignmentsDuringMaintenance {
+		assignmentStatuses[item.PaymentMethodCode] = item.Status
+	}
+	if assignmentStatuses["va_bca"] != model.PaymentMethodAssignmentActive {
+		t.Fatalf("runtime outage changed merchant assignment: %#v", assignmentStatuses)
+	}
+	optionsDuringMaintenance, err := repository.ListPaymentOptions(ctx, tenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(optionsDuringMaintenance) != 1 || optionsDuringMaintenance[0].PaymentMethodCode != "card" {
+		t.Fatalf("maintenance method leaked into checkout options: %#v", optionsDuringMaintenance)
+	}
+	providerOptionsDuringMaintenance, err := repository.ListProviderOptions(ctx, tenantID, model.EnvironmentSandbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(providerOptionsDuringMaintenance) != 0 {
+		t.Fatalf("provider with no available assigned method leaked into checkout: %#v", providerOptionsDuringMaintenance)
+	}
+	mappingsDuringMaintenance, err := repository.ListActivePaymentMethodMappings(ctx, tenantID, installationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mappingsDuringMaintenance) != 0 {
+		t.Fatalf("maintenance method leaked into hosted allowlist: %#v", mappingsDuringMaintenance)
+	}
+	if _, err = repository.GetActivePaymentOption(ctx, tenantID, model.EnvironmentSandbox, inputs[0].ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("maintenance payment option remained selectable: %v", err)
+	}
+	if _, err = pool.Exec(ctx, `
+		UPDATE installation_payment_method_availability
+		SET checked_at=now()-interval '2 minutes', expires_at=now()-interval '1 minute'
+		WHERE tenant_id=$1 AND installation_id=$2
+	`, tenantID, installationID); err != nil {
+		t.Fatal(err)
+	}
+	optionsAfterExpiry, err := repository.ListPaymentOptions(ctx, tenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(optionsAfterExpiry) != 2 {
+		t.Fatalf("expired outage cache still hid checkout option: %#v", optionsAfterExpiry)
+	}
+	availabilityOverview, err = repository.ListProviderAvailabilityAdmin(ctx, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	operationalItem = nil
+	for index := range availabilityOverview.Items {
+		if availabilityOverview.Items[index].MerchantID == tenantID && availabilityOverview.Items[index].InstallationID == installationID {
+			operationalItem = &availabilityOverview.Items[index]
+			break
+		}
+	}
+	if operationalItem == nil || operationalItem.Status != "UNKNOWN" || len(operationalItem.UnavailablePaymentMethods) != 1 || operationalItem.UnavailablePaymentMethods[0].Fresh {
+		t.Fatalf("expired evidence was presented as a current incident: %#v", operationalItem)
 	}
 
 	_, _, err = repository.UpsertPaymentMethodAssignments(ctx, []UpsertPaymentMethodAssignmentInput{

@@ -9,14 +9,18 @@ import (
 )
 
 var (
-	ErrOutcomeUnknown    = errors.New("connector outcome is unknown")
-	ErrNotSupported      = errors.New("connector operation is not supported")
-	ErrInvalidCredential = errors.New("provider credential is invalid")
+	ErrOutcomeUnknown                      = errors.New("connector outcome is unknown")
+	ErrNotSupported                        = errors.New("connector operation is not supported")
+	ErrInvalidCredential                   = errors.New("provider credential is invalid")
+	ErrHostedPaymentRestrictionUnsupported = errors.New("connector cannot safely restrict hosted checkout payment methods")
 )
 
 const (
 	CheckoutModeDirect         = "direct"
 	CheckoutModeProviderHosted = "provider_hosted"
+
+	PaymentMethodAvailabilityAvailable   = "AVAILABLE"
+	PaymentMethodAvailabilityUnavailable = "UNAVAILABLE"
 )
 
 type APIError struct {
@@ -48,10 +52,21 @@ type InstallationInput struct {
 }
 
 type InstallationResult struct {
-	ConnectorID       string            `json:"connector_id"`
-	Environment       string            `json:"environment"`
-	StoredCredentials map[string]string `json:"stored_credentials,omitempty"`
-	WebhookReady      bool              `json:"webhook_ready"`
+	ConnectorID               string                      `json:"connector_id"`
+	Environment               string                      `json:"environment"`
+	StoredCredentials         map[string]string           `json:"stored_credentials,omitempty"`
+	WebhookReady              bool                        `json:"webhook_ready"`
+	PaymentMethodAvailability []PaymentMethodAvailability `json:"payment_method_availability,omitempty"`
+}
+
+// PaymentMethodAvailability is optional runtime evidence returned by a
+// connector during installation verification. It is deliberately separate
+// from the merchant's ACTIVE/INACTIVE assignment: an outage must hide a method
+// from checkout without silently changing the merchant's configuration.
+type PaymentMethodAvailability struct {
+	PaymentMethodCode string `json:"payment_method_code"`
+	Status            string `json:"status"`
+	Reason            string `json:"reason,omitempty"`
 }
 
 type Customer struct {
@@ -166,6 +181,7 @@ type Connector interface {
 	Code() string
 	Manifest() Manifest
 	ValidatePaymentMethod(PaymentMethodMapping) error
+	ValidateHostedPaymentMethods([]PaymentMethodMapping) error
 	ValidatePayment(PaymentValidation) error
 	VerifyInstallation(context.Context, InstallationInput) (InstallationResult, error)
 	DisableInstallation(context.Context, InstallationInput) error

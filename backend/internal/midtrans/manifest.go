@@ -11,19 +11,20 @@ import (
 type methodMapping struct {
 	providerMethod string
 	providerType   string
+	channelCode    string
 	profile        string
 }
 
 var supportedMethods = map[string]methodMapping{
-	"qris":              {providerMethod: "real_time_payment", providerType: "qris", profile: "midtrans-core-v2/qris"},
-	"va_bca":            {providerMethod: "bank_transfer", providerType: "bca", profile: "midtrans-core-v2/va_bca"},
-	"va_mandiri":        {providerMethod: "bank_transfer", providerType: "mandiri", profile: "midtrans-core-v2/va_mandiri"},
-	"va_bni":            {providerMethod: "bank_transfer", providerType: "bni", profile: "midtrans-core-v2/va_bni"},
-	"va_bri":            {providerMethod: "bank_transfer", providerType: "bri", profile: "midtrans-core-v2/va_bri"},
-	"va_permata":        {providerMethod: "bank_transfer", providerType: "permata", profile: "midtrans-core-v2/va_permata"},
-	"va_cimb":           {providerMethod: "bank_transfer", providerType: "cimb", profile: "midtrans-core-v2/va_cimb"},
-	"ewallet_gopay":     {providerMethod: "wallet", providerType: "gopay", profile: "midtrans-core-v2/ewallet_gopay"},
-	"ewallet_shopeepay": {providerMethod: "wallet", providerType: "shopeepay", profile: "midtrans-core-v2/ewallet_shopeepay"},
+	"qris":              {providerMethod: "real_time_payment", providerType: "qris", channelCode: "other_qris", profile: "midtrans-core-v2/qris"},
+	"va_bca":            {providerMethod: "bank_transfer", providerType: "bca", channelCode: "bca_va", profile: "midtrans-core-v2/va_bca"},
+	"va_mandiri":        {providerMethod: "bank_transfer", providerType: "mandiri", channelCode: "echannel", profile: "midtrans-core-v2/va_mandiri"},
+	"va_bni":            {providerMethod: "bank_transfer", providerType: "bni", channelCode: "bni_va", profile: "midtrans-core-v2/va_bni"},
+	"va_bri":            {providerMethod: "bank_transfer", providerType: "bri", channelCode: "bri_va", profile: "midtrans-core-v2/va_bri"},
+	"va_permata":        {providerMethod: "bank_transfer", providerType: "permata", channelCode: "permata_va", profile: "midtrans-core-v2/va_permata"},
+	"va_cimb":           {providerMethod: "bank_transfer", providerType: "cimb", channelCode: "cimb_va", profile: "midtrans-core-v2/va_cimb"},
+	"ewallet_gopay":     {providerMethod: "wallet", providerType: "gopay", channelCode: "gopay", profile: "midtrans-core-v2/ewallet_gopay"},
+	"ewallet_shopeepay": {providerMethod: "wallet", providerType: "shopeepay", channelCode: "shopeepay", profile: "midtrans-core-v2/ewallet_shopeepay"},
 }
 
 func (c *Client) Manifest() connector.Manifest {
@@ -38,7 +39,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Midtrans",
-		Version:          "emisell-midtrans-v2.0.1",
+		Version:          "emisell-midtrans-v2.0.2",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -69,7 +70,15 @@ func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) err
 	if !methodMatches || methodType != mapping.providerType {
 		return fmt.Errorf("payment method %q has an invalid %s mapping", code, c.Code())
 	}
+	if channelCode := strings.ToLower(strings.TrimSpace(input.ProviderChannelCode)); channelCode != "" && channelCode != mapping.channelCode {
+		return fmt.Errorf("payment method %q has an invalid %s channel mapping", code, c.Code())
+	}
 	return nil
+}
+
+func (c *Client) ValidateHostedPaymentMethods(methods []connector.PaymentMethodMapping) error {
+	_, err := c.hostedPaymentTypes(methods)
+	return err
 }
 
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {

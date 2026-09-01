@@ -14,6 +14,7 @@ import (
 	"net/mail"
 	"net/url"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -102,14 +103,94 @@ func (c *Client) VerifyInstallation(ctx context.Context, input connector.Install
 		return connector.InstallationResult{}, fmt.Errorf("%w: iPaymu returned status %d", connector.ErrInvalidCredential, status)
 	}
 	return connector.InstallationResult{
-		ConnectorID:  "ipaymu:" + input.InstallationID,
-		Environment:  environment,
-		WebhookReady: isHTTPSURL(input.PublicWebhookURL),
+		ConnectorID:               "ipaymu:" + input.InstallationID,
+		Environment:               environment,
+		WebhookReady:              isHTTPSURL(input.PublicWebhookURL),
+		PaymentMethodAvailability: paymentMethodAvailability(response),
 		StoredCredentials: map[string]string{
 			"va":      credentials.va,
 			"api_key": credentials.apiKey,
 		},
 	}, nil
+}
+
+func paymentMethodAvailability(response map[string]any) []connector.PaymentMethodAvailability {
+	groups := objectList(response["Data"])
+	if len(groups) == 0 {
+		groups = objectList(response["data"])
+	}
+	availability := make(map[string]connector.PaymentMethodAvailability)
+	for _, group := range groups {
+		providerMethod := strings.ToLower(firstString(group, "PaymentMethod", "paymentMethod", "payment_method", "Code", "code"))
+		channels := objectList(group["Channels"])
+		if len(channels) == 0 {
+			channels = objectList(group["channels"])
+		}
+		for _, channel := range channels {
+			channelCode := strings.ToLower(firstString(channel, "Code", "code", "PaymentChannel", "paymentChannel", "payment_channel"))
+			methodCode := canonicalPaymentMethodCode(providerMethod, channelCode)
+			if methodCode == "" {
+				continue
+			}
+			featureStatus := strings.ToLower(firstString(channel, "FeatureStatus", "featureStatus", "feature_status", "Status", "status"))
+			healthStatus := strings.ToLower(firstString(channel, "HealthStatus", "healthStatus", "health_status", "FeatureOnline", "featureOnline", "feature_online", "Online", "online"))
+			item := connector.PaymentMethodAvailability{PaymentMethodCode: methodCode}
+			switch {
+			case featureStatus != "" && featureStatus != "active" && featureStatus != "1" && featureStatus != "true":
+				item.Status = connector.PaymentMethodAvailabilityUnavailable
+				item.Reason = "CHANNEL_INACTIVE"
+			case healthStatus == "maintenance":
+				item.Status = connector.PaymentMethodAvailabilityUnavailable
+				item.Reason = "PROVIDER_MAINTENANCE"
+			case healthStatus == "offline" || healthStatus == "0" || healthStatus == "false":
+				item.Status = connector.PaymentMethodAvailabilityUnavailable
+				item.Reason = "PROVIDER_OFFLINE"
+			case healthStatus == "online" || healthStatus == "1" || healthStatus == "true":
+				item.Status = connector.PaymentMethodAvailabilityAvailable
+			default:
+				continue
+			}
+			availability[methodCode] = item
+		}
+	}
+	codes := make([]string, 0, len(availability))
+	for code := range availability {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+	result := make([]connector.PaymentMethodAvailability, 0, len(codes))
+	for _, code := range codes {
+		result = append(result, availability[code])
+	}
+	return result
+}
+
+func canonicalPaymentMethodCode(providerMethod, channelCode string) string {
+	providerMethod = strings.ToLower(strings.TrimSpace(providerMethod))
+	channelCode = strings.ToLower(strings.TrimSpace(channelCode))
+	for code, mapping := range supportedMethods {
+		if strings.EqualFold(mapping.channelCode, channelCode) && (providerMethod == "" || strings.EqualFold(mapping.paymentMethod, providerMethod)) {
+			return code
+		}
+	}
+	return ""
+}
+
+func objectList(value any) []map[string]any {
+	switch typed := value.(type) {
+	case []any:
+		result := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			if object, ok := item.(map[string]any); ok {
+				result = append(result, object)
+			}
+		}
+		return result
+	case map[string]any:
+		return []map[string]any{typed}
+	default:
+		return nil
+	}
 }
 
 func (c *Client) DisableInstallation(context.Context, connector.InstallationInput) error { return nil }
@@ -134,6 +215,9 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 }
 
 func (c *Client) createHostedPayment(ctx context.Context, input connector.PaymentInput, credentials apiCredentials, amount int64, referenceID string) (connector.PaymentResult, error) {
+	if err := c.ValidateHostedPaymentMethods(input.AllowedPaymentMethods); err != nil {
+		return connector.PaymentResult{}, err
+	}
 	if !isHTTPSURL(input.ReturnURL) {
 		return connector.PaymentResult{}, errors.New("return_url must be a public HTTPS URL for iPaymu hosted checkout")
 	}
@@ -722,6 +806,8 @@ func firstString(input map[string]any, keys ...string) string {
 			return strconv.FormatInt(value, 10)
 		case int:
 			return strconv.Itoa(value)
+		case bool:
+			return strconv.FormatBool(value)
 		}
 	}
 	return ""

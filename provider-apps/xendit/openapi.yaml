@@ -163,6 +163,17 @@ components:
         connector_id: {type: string, example: "xendit:ins_01k3..."}
         environment: {type: string, enum: [sandbox, live]}
         webhook_ready: {type: boolean}
+        payment_method_availability:
+          type: array
+          description: Optional short-lived runtime evidence; omitted when Xendit does not expose per-channel health.
+          items: {$ref: "#/components/schemas/PaymentMethodAvailability"}
+    PaymentMethodAvailability:
+      type: object
+      required: [payment_method_code, status]
+      properties:
+        payment_method_code: {type: string, example: qris}
+        status: {type: string, enum: [AVAILABLE, UNAVAILABLE]}
+        reason: {type: string, example: PROVIDER_MAINTENANCE}
     PaymentInput:
       allOf:
         - {$ref: "#/components/schemas/InstallationInput"}

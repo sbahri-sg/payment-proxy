@@ -23,16 +23,35 @@ func (stubConnector) Code() string { return "stub" }
 func (stubConnector) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code: "stub", Name: "Stub", Version: "1.0.0", Runtime: "isolated_container",
-		Operations: []connector.Operation{connector.OperationCreatePayment},
+		Operations: []connector.Operation{connector.OperationVerifyInstallation, connector.OperationCreatePayment, connector.OperationCreateHostedCheckout},
 		CertificationProfiles: map[string]connector.CertificationProfile{
 			"qris": {Code: "stub/qris", Automated: true},
 		},
 	}
 }
 
+func (stubConnector) VerifyInstallation(_ context.Context, input connector.InstallationInput) (connector.InstallationResult, error) {
+	return connector.InstallationResult{
+		ConnectorID:       "stub:" + input.InstallationID,
+		Environment:       input.Environment,
+		StoredCredentials: input.Credentials,
+		WebhookReady:      true,
+		PaymentMethodAvailability: []connector.PaymentMethodAvailability{
+			{PaymentMethodCode: "qris", Status: connector.PaymentMethodAvailabilityUnavailable, Reason: "PROVIDER_MAINTENANCE"},
+		},
+	}, nil
+}
+
 func (stubConnector) ValidatePaymentMethod(input connector.PaymentMethodMapping) error {
 	if input.PaymentMethodCode != "qris" {
 		return connector.ErrNotSupported
+	}
+	return nil
+}
+
+func (stubConnector) ValidateHostedPaymentMethods(input []connector.PaymentMethodMapping) error {
+	if len(input) != 1 || input[0].PaymentMethodCode != "qris" {
+		return connector.ErrHostedPaymentRestrictionUnsupported
 	}
 	return nil
 }
@@ -84,6 +103,19 @@ func TestDiscoverAndExecuteThroughAuthenticatedRunner(t *testing.T) {
 	}
 	if err = connectors[0].ValidatePaymentMethod(connector.PaymentMethodMapping{PaymentMethodCode: "qris"}); err != nil {
 		t.Fatalf("remote validation failed: %v", err)
+	}
+	if err = connectors[0].ValidateHostedPaymentMethods([]connector.PaymentMethodMapping{{PaymentMethodCode: "qris"}}); err != nil {
+		t.Fatalf("remote hosted allowlist validation failed: %v", err)
+	}
+	if err = connectors[0].ValidateHostedPaymentMethods([]connector.PaymentMethodMapping{{PaymentMethodCode: "qris"}, {PaymentMethodCode: "va_bca"}}); !errors.Is(err, connector.ErrHostedPaymentRestrictionUnsupported) {
+		t.Fatalf("remote hosted allowlist error was not preserved: %v", err)
+	}
+	installationResult, err := connectors[0].VerifyInstallation(context.Background(), connector.InstallationInput{
+		InstallationID: "ins_remote", ProviderCode: "stub", ProviderVersion: "1.0.0",
+		Environment: "sandbox", Credentials: map[string]string{"api_key": "secret"},
+	})
+	if err != nil || installationResult.StoredCredentials["api_key"] != "secret" || len(installationResult.PaymentMethodAvailability) != 1 || installationResult.PaymentMethodAvailability[0].Reason != "PROVIDER_MAINTENANCE" {
+		t.Fatalf("remote availability evidence was not preserved: %#v, %v", installationResult, err)
 	}
 	result, err := connectors[0].CreatePayment(context.Background(), connector.PaymentInput{
 		ProviderCode: "stub", PaymentMethodCode: "qris", Currency: "IDR", Amount: 1000,

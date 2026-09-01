@@ -49,14 +49,13 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "iPaymu",
-		Version:          "emisell-ipaymu-v2.0.1",
+		Version:          "emisell-ipaymu-v2.0.2",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
 			connector.OperationVerifyInstallation,
 			connector.OperationDisableInstallation,
 			connector.OperationCreatePayment,
-			connector.OperationCreateHostedCheckout,
 			connector.OperationGetPayment,
 			connector.OperationHandleWebhook,
 		},
@@ -79,6 +78,15 @@ func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) err
 		return fmt.Errorf("payment method %q has an invalid %s mapping", code, c.Code())
 	}
 	return nil
+}
+
+func (c *Client) ValidateHostedPaymentMethods(methods []connector.PaymentMethodMapping) error {
+	for _, method := range methods {
+		if err := c.ValidatePaymentMethod(method); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: iPaymu redirect checkout has no per-transaction allowlist; use direct checkout with payment_option_id", connector.ErrHostedPaymentRestrictionUnsupported)
 }
 
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {

@@ -81,7 +81,7 @@ func TestMidtransCredentialEnvironment(t *testing.T) {
 	}
 }
 
-func TestProviderHostedCheckoutUsesMidtransSnapRedirect(t *testing.T) {
+func TestProviderHostedCheckoutRestrictsMidtransSnapToActiveMethods(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/snap/v1/transactions" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
@@ -92,8 +92,9 @@ func TestProviderHostedCheckoutUsesMidtransSnapRedirect(t *testing.T) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		callbacks, _ := body["callbacks"].(map[string]any)
-		if body["payment_type"] != nil || body["enabled_payments"] != nil || body["gopay"] != nil || body["shopeepay"] != nil || callbacks["finish"] != "https://shop.example/payments/return" {
-			t.Fatalf("Snap checkout must own payment-method selection: %#v", body)
+		enabled, _ := body["enabled_payments"].([]any)
+		if body["payment_type"] != nil || len(enabled) != 2 || enabled[0] != "other_qris" || enabled[1] != "bca_va" || body["gopay"] != nil || body["shopeepay"] != nil || callbacks["finish"] != "https://shop.example/payments/return" {
+			t.Fatalf("Snap checkout must receive the exact active method allowlist: %#v", body)
 		}
 		w.WriteHeader(http.StatusCreated)
 		_, _ = io.WriteString(w, `{"token":"snap-token-1","redirect_url":"https://app.sandbox.midtrans.com/snap/v3/redirection/test"}`)
@@ -105,6 +106,10 @@ func TestProviderHostedCheckoutUsesMidtransSnapRedirect(t *testing.T) {
 		CheckoutMode: connector.CheckoutModeProviderHosted, LocalPaymentID: "pay_hosted_1", MerchantReference: "order-hosted",
 		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
 		PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/midtrans/ins_1",
+		AllowedPaymentMethods: []connector.PaymentMethodMapping{
+			{PaymentMethodCode: "qris", ProviderMethod: "real_time_payment", ProviderMethodType: "qris", ProviderChannelCode: "other_qris"},
+			{PaymentMethodCode: "va_bca", ProviderMethod: "bank_transfer", ProviderMethodType: "bca", ProviderChannelCode: "bca_va"},
+		},
 	})
 	if err != nil || result.ID != "pay_hosted_1" || result.Status != "REQUIRES_ACTION" || !strings.Contains(string(result.NextAction), "app.sandbox.midtrans.com") {
 		t.Fatalf("unexpected Snap checkout: %#v, %v", result, err)

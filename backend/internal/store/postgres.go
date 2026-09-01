@@ -924,6 +924,12 @@ func (s *Postgres) BeginCredentialConfig(ctx context.Context, tenantID, id, acto
 		}
 		return model.Installation{}, ErrInvalidState
 	}
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM installation_payment_method_availability
+		WHERE tenant_id=$1 AND installation_id=$2
+	`, tenantID, id); err != nil {
+		return model.Installation{}, err
+	}
 	if err := audit(ctx, tx, tenantID, actor, "provider.credentials.configure", "provider_installation", id, requestID, nil); err != nil {
 		return model.Installation{}, err
 	}
@@ -1196,6 +1202,12 @@ func (s *Postgres) UpgradeInstallation(ctx context.Context, tenantID, id, provid
 	`, tenantID, id, providerVersion, actor, currentVersion); err != nil {
 		return model.Installation{}, err
 	}
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM installation_payment_method_availability
+		WHERE tenant_id=$1 AND installation_id=$2
+	`, tenantID, id); err != nil {
+		return model.Installation{}, err
+	}
 	if err := audit(ctx, tx, tenantID, actor, "provider.upgrade", "provider_installation", id, requestID, map[string]any{
 		"from_version":          currentVersion,
 		"to_version":            providerVersion,
@@ -1225,6 +1237,12 @@ func (s *Postgres) MarkUninstalled(ctx context.Context, tenantID, id, actor, req
 	if tag.RowsAffected() == 0 {
 		return model.Installation{}, ErrInvalidState
 	}
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM installation_payment_method_availability
+		WHERE tenant_id=$1 AND installation_id=$2
+	`, tenantID, id); err != nil {
+		return model.Installation{}, err
+	}
 	if err := audit(ctx, tx, tenantID, actor, "provider.uninstall", "provider_installation", id, requestID, nil); err != nil {
 		return model.Installation{}, err
 	}
@@ -1237,6 +1255,210 @@ func (s *Postgres) MarkUninstalled(ctx context.Context, tenantID, id, actor, req
 type UpsertPaymentMethodAssignmentInput struct {
 	ID, TenantID, Environment, PaymentMethodCode, PaymentMethod, PaymentMethodType, InstallationID, Actor, RequestID string
 	ExpectedVersion                                                                                                  int64
+}
+
+const providerAvailabilityPaymentMethod = "*"
+
+type InstallationAvailabilitySnapshot struct {
+	ProviderStatus string
+	ProviderReason string
+	Methods        []connector.PaymentMethodAvailability
+	Source         string
+	CheckedAt      time.Time
+	ExpiresAt      time.Time
+}
+
+func (s *Postgres) InstallationAvailabilityFresh(ctx context.Context, tenantID, installationID string, at time.Time) (bool, error) {
+	var fresh bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM installation_payment_method_availability
+			WHERE tenant_id=$1 AND installation_id=$2 AND payment_method_code=$3 AND expires_at>$4
+		)
+	`, tenantID, installationID, providerAvailabilityPaymentMethod, at).Scan(&fresh)
+	return fresh, err
+}
+
+func (s *Postgres) IsPaymentMethodAvailable(ctx context.Context, tenantID, installationID, paymentMethodCode string, at time.Time) (bool, error) {
+	var available bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT NOT EXISTS (
+			SELECT 1 FROM installation_payment_method_availability
+			WHERE tenant_id=$1 AND installation_id=$2 AND expires_at>$4
+			  AND status='UNAVAILABLE' AND payment_method_code IN ($3,$5)
+		)
+	`, tenantID, installationID, strings.ToLower(strings.TrimSpace(paymentMethodCode)), at, providerAvailabilityPaymentMethod).Scan(&available)
+	return available, err
+}
+
+func (s *Postgres) ReplaceInstallationAvailability(ctx context.Context, tenantID, installationID string, snapshot InstallationAvailabilitySnapshot) error {
+	if snapshot.ProviderStatus != connector.PaymentMethodAvailabilityAvailable && snapshot.ProviderStatus != connector.PaymentMethodAvailabilityUnavailable {
+		return ErrInvalidState
+	}
+	if snapshot.CheckedAt.IsZero() || !snapshot.ExpiresAt.After(snapshot.CheckedAt) {
+		return ErrInvalidState
+	}
+	if strings.TrimSpace(snapshot.Source) == "" {
+		snapshot.Source = "installation_verification"
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM installation_payment_method_availability
+		WHERE tenant_id=$1 AND installation_id=$2
+	`, tenantID, installationID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO installation_payment_method_availability(
+			tenant_id,installation_id,payment_method_code,status,reason,source,checked_at,expires_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+	`, tenantID, installationID, providerAvailabilityPaymentMethod, snapshot.ProviderStatus,
+		truncate(snapshot.ProviderReason, 128), truncate(snapshot.Source, 64), snapshot.CheckedAt, snapshot.ExpiresAt); err != nil {
+		return translateConstraint(err)
+	}
+	seen := make(map[string]struct{}, len(snapshot.Methods))
+	for _, item := range snapshot.Methods {
+		code := strings.ToLower(strings.TrimSpace(item.PaymentMethodCode))
+		if code == "" || code == providerAvailabilityPaymentMethod {
+			continue
+		}
+		if item.Status != connector.PaymentMethodAvailabilityAvailable && item.Status != connector.PaymentMethodAvailabilityUnavailable {
+			continue
+		}
+		if _, exists := seen[code]; exists {
+			continue
+		}
+		seen[code] = struct{}{}
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO installation_payment_method_availability(
+				tenant_id,installation_id,payment_method_code,status,reason,source,checked_at,expires_at
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+		`, tenantID, installationID, code, item.Status, truncate(item.Reason, 128),
+			truncate(snapshot.Source, 64), snapshot.CheckedAt, snapshot.ExpiresAt); err != nil {
+			return translateConstraint(err)
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *Postgres) ListProviderAvailabilityAdmin(ctx context.Context, at time.Time) (model.ProviderAvailabilityOverview, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT i.tenant_id,i.id,i.provider_code,p.name,i.provider_version,i.environment,
+		       (provider_state.installation_id IS NOT NULL),
+		       COALESCE(provider_state.status,''),COALESCE(provider_state.reason,''),
+		       COALESCE(provider_state.source,''),
+		       COALESCE(provider_state.checked_at,to_timestamp(0)),
+		       COALESCE(provider_state.expires_at,to_timestamp(0)),
+		       COALESCE(method_state.payment_method_code,''),COALESCE(pm.name,''),
+		       COALESCE(method_state.status,''),COALESCE(method_state.reason,''),
+		       COALESCE(method_state.source,''),
+		       COALESCE(method_state.checked_at,to_timestamp(0)),
+		       COALESCE(method_state.expires_at,to_timestamp(0))
+		FROM provider_installations i
+		JOIN providers p ON p.code=i.provider_code
+		LEFT JOIN installation_payment_method_availability provider_state
+		  ON provider_state.tenant_id=i.tenant_id
+		 AND provider_state.installation_id=i.id
+		 AND provider_state.payment_method_code=$1
+		LEFT JOIN installation_payment_method_availability method_state
+		  ON method_state.tenant_id=i.tenant_id
+		 AND method_state.installation_id=i.id
+		 AND method_state.payment_method_code<>$1
+		 AND method_state.status='UNAVAILABLE'
+		LEFT JOIN payment_methods pm ON pm.code=method_state.payment_method_code
+		WHERE i.status='ACTIVE'
+		ORDER BY p.name,i.environment,i.tenant_id,i.id,method_state.payment_method_code
+	`, providerAvailabilityPaymentMethod)
+	if err != nil {
+		return model.ProviderAvailabilityOverview{}, err
+	}
+	defer rows.Close()
+
+	result := model.ProviderAvailabilityOverview{GeneratedAt: at.UTC(), Items: make([]model.ProviderAvailabilityItem, 0)}
+	indexes := make(map[string]int)
+	for rows.Next() {
+		var (
+			item                                   model.ProviderAvailabilityItem
+			providerStateExists                    bool
+			providerStatus, providerReason, source string
+			providerCheckedAt, providerExpiresAt   time.Time
+			methodCode, methodName, methodStatus   string
+			methodReason, methodSource             string
+			methodCheckedAt, methodExpiresAt       time.Time
+		)
+		if err = rows.Scan(
+			&item.MerchantID, &item.InstallationID, &item.ProviderCode, &item.ProviderName,
+			&item.ProviderVersion, &item.Environment, &providerStateExists,
+			&providerStatus, &providerReason, &source, &providerCheckedAt, &providerExpiresAt,
+			&methodCode, &methodName, &methodStatus, &methodReason, &methodSource,
+			&methodCheckedAt, &methodExpiresAt,
+		); err != nil {
+			return model.ProviderAvailabilityOverview{}, err
+		}
+		itemKey := item.MerchantID + "\x00" + item.InstallationID
+		index, exists := indexes[itemKey]
+		if !exists {
+			item.Status = "UNKNOWN"
+			item.UnavailablePaymentMethods = make([]model.ProviderAvailabilityMethod, 0)
+			if providerStateExists {
+				item.LastStatus = providerStatus
+				item.LastReason = providerReason
+				item.Source = source
+				checkedAt, expiresAt := providerCheckedAt, providerExpiresAt
+				item.CheckedAt, item.ExpiresAt = &checkedAt, &expiresAt
+				if providerExpiresAt.After(at) {
+					item.Status = providerStatus
+					item.Reason = providerReason
+				}
+			}
+			result.Items = append(result.Items, item)
+			index = len(result.Items) - 1
+			indexes[itemKey] = index
+		}
+		if methodCode != "" {
+			fresh := methodExpiresAt.After(at)
+			result.Items[index].UnavailablePaymentMethods = append(result.Items[index].UnavailablePaymentMethods, model.ProviderAvailabilityMethod{
+				PaymentMethodCode: methodCode,
+				PaymentMethodName: methodName,
+				Status:            methodStatus,
+				Reason:            methodReason,
+				Source:            methodSource,
+				Fresh:             fresh,
+				CheckedAt:         methodCheckedAt,
+				ExpiresAt:         methodExpiresAt,
+			})
+			if fresh && result.Items[index].Status == connector.PaymentMethodAvailabilityAvailable {
+				result.Items[index].Status = "DEGRADED"
+				result.Items[index].Reason = "PAYMENT_METHOD_UNAVAILABLE"
+			}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return model.ProviderAvailabilityOverview{}, err
+	}
+	result.Summary.Connections = len(result.Items)
+	for _, item := range result.Items {
+		switch item.Status {
+		case connector.PaymentMethodAvailabilityAvailable:
+			result.Summary.Available++
+		case "DEGRADED":
+			result.Summary.Degraded++
+		case connector.PaymentMethodAvailabilityUnavailable:
+			result.Summary.Unavailable++
+		default:
+			result.Summary.Unknown++
+		}
+		for _, method := range item.UnavailablePaymentMethods {
+			if method.Fresh {
+				result.Summary.AffectedMethods++
+			}
+		}
+	}
+	return result, nil
 }
 
 func (s *Postgres) ListPaymentMethodAssignments(ctx context.Context, tenantID string) ([]model.PaymentMethodAssignment, error) {
@@ -1268,6 +1490,12 @@ func (s *Postgres) ListPaymentOptions(ctx context.Context, tenantID string) ([]m
 		JOIN provider_payment_method_capabilities c ON c.provider_code=i.provider_code
 			AND c.payment_method_code=a.payment_method_code AND c.support_status IN ('DOCUMENTED','CERTIFIED')
 		WHERE a.tenant_id=$1 AND a.status='ACTIVE' AND i.status='ACTIVE'
+		  AND NOT EXISTS (
+			SELECT 1 FROM installation_payment_method_availability av
+			WHERE av.tenant_id=a.tenant_id AND av.installation_id=a.installation_id
+			  AND av.expires_at>now() AND av.status='UNAVAILABLE'
+			  AND av.payment_method_code IN ('*',a.payment_method_code)
+		  )
 		ORDER BY a.environment,m.sort_order,m.name
 	`, tenantID)
 	if err != nil {
@@ -1300,6 +1528,12 @@ func (s *Postgres) ListProviderOptions(ctx context.Context, tenantID, environmen
 		  ON c.provider_code=i.provider_code AND c.payment_method_code=a.payment_method_code
 		 AND c.support_status IN ('DOCUMENTED','CERTIFIED')
 		WHERE i.tenant_id=$1 AND i.environment=$2 AND i.status='ACTIVE'
+		  AND NOT EXISTS (
+			SELECT 1 FROM installation_payment_method_availability av
+			WHERE av.tenant_id=i.tenant_id AND av.installation_id=i.id
+			  AND av.expires_at>now() AND av.status='UNAVAILABLE'
+			  AND av.payment_method_code IN ('*',a.payment_method_code)
+		  )
 		ORDER BY p.name,i.id,m.sort_order,m.name
 	`, tenantID, environment)
 	if err != nil {
@@ -1346,6 +1580,12 @@ func (s *Postgres) ListActivePaymentMethodMappings(ctx context.Context, tenantID
 		WHERE a.tenant_id=$1 AND a.installation_id=$2
 		  AND a.status='ACTIVE' AND i.status='ACTIVE'
 		  AND c.support_status IN ('DOCUMENTED','CERTIFIED')
+		  AND NOT EXISTS (
+			SELECT 1 FROM installation_payment_method_availability av
+			WHERE av.tenant_id=a.tenant_id AND av.installation_id=a.installation_id
+			  AND av.expires_at>now() AND av.status='UNAVAILABLE'
+			  AND av.payment_method_code IN ('*',a.payment_method_code)
+		  )
 		ORDER BY m.sort_order,c.payment_method_code
 	`, tenantID, installationID)
 	if err != nil {
@@ -1371,6 +1611,12 @@ func (s *Postgres) GetActivePaymentOption(ctx context.Context, tenantID, environ
 			SELECT 1 FROM provider_payment_method_capabilities c
 			WHERE c.provider_code=i.provider_code AND c.payment_method_code=a.payment_method_code
 			  AND c.support_status IN ('DOCUMENTED','CERTIFIED')
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM installation_payment_method_availability av
+			WHERE av.tenant_id=a.tenant_id AND av.installation_id=a.installation_id
+			  AND av.expires_at>now() AND av.status='UNAVAILABLE'
+			  AND av.payment_method_code IN ('*',a.payment_method_code)
 		  )
 	`, tenantID, environment, id))
 	return item, translateNotFound(err)

@@ -33,6 +33,8 @@ type Config struct {
 	ConnectorTimeout       time.Duration
 	ConnectorRunners       []ConnectorRuntime
 	ConnectorTLSCAPEM      []byte
+	ProviderStatusPoll     time.Duration
+	ProviderStatusTimeout  time.Duration
 	CredentialKey          string
 	EmisellWebhookURL      string
 	EmisellWebhookSecret   string
@@ -97,6 +99,8 @@ func Load() (Config, error) {
 		ConnectorTimeout:       seconds("CONNECTOR_TIMEOUT_SECONDS", 15),
 		ConnectorRunners:       connectorRunners,
 		ConnectorTLSCAPEM:      connectorTLSCAPEM,
+		ProviderStatusPoll:     seconds("PROVIDER_STATUS_POLL_INTERVAL_SECONDS", 60),
+		ProviderStatusTimeout:  seconds("PROVIDER_STATUS_FETCH_TIMEOUT_SECONDS", 8),
 		CredentialKey:          strings.TrimSpace(os.Getenv("CREDENTIAL_ENCRYPTION_KEY")),
 		EmisellWebhookURL:      firstNonEmptyEnv("EMISELL_BACKEND_WEBHOOK_URL", "EMISELL_WEBHOOK_URL"),
 		EmisellWebhookSecret:   firstNonEmptyEnv("EMISELL_BACKEND_WEBHOOK_SECRET", "EMISELL_WEBHOOK_SECRET"),

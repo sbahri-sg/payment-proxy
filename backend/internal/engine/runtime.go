@@ -83,6 +83,14 @@ func (r *Runtime) ValidatePaymentMethodVersion(code, version string, input conne
 	return item.ValidatePaymentMethod(input)
 }
 
+func (r *Runtime) ValidateHostedPaymentMethodsVersion(code, version string, methods []connector.PaymentMethodMapping) error {
+	item, err := r.connectorForOperation(code, version, connector.OperationCreateHostedCheckout)
+	if err != nil {
+		return err
+	}
+	return item.ValidateHostedPaymentMethods(methods)
+}
+
 func (r *Runtime) ValidatePayment(code string, input connector.PaymentValidation) error {
 	return r.ValidatePaymentVersion(code, "", input)
 }
@@ -121,6 +129,9 @@ func (r *Runtime) CreatePayment(ctx context.Context, input connector.PaymentInpu
 		return connector.PaymentResult{}, err
 	}
 	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
+		if err = item.ValidateHostedPaymentMethods(input.AllowedPaymentMethods); err != nil {
+			return connector.PaymentResult{}, err
+		}
 		return item.CreatePayment(ctx, input)
 	}
 	if err = item.ValidatePayment(connector.PaymentValidation{

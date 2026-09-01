@@ -9,7 +9,8 @@ whether the installation is sandbox or live. The optional PoP ID is sent only
 when the merchant's Core API account requires it. Client Key and Merchant ID are
 not requested because both Core API and Snap transaction creation use the
 Server Key. The provider-hosted flow returns the Midtrans Snap `redirect_url`;
-Emisell does not embed or reproduce the Snap checkout UI.
+Emisell sends the installation's eligible `ACTIVE` assignments as the exact
+Snap `enabled_payments` list and does not embed or reproduce the checkout UI.
 
 The ZIP built from this directory is a source-only review package. It contains a
 reviewable Go implementation snapshot under `src/midtrans`, but no executable.

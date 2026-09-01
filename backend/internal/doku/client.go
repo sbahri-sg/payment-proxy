@@ -146,7 +146,13 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 		order["line_items"] = items
 	}
 	payment := map[string]any{"type": "SALE"}
-	if input.CheckoutMode != connector.CheckoutModeProviderHosted {
+	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
+		channels, channelErr := c.hostedPaymentTypes(input.AllowedPaymentMethods)
+		if channelErr != nil {
+			return connector.PaymentResult{}, channelErr
+		}
+		payment["payment_method_types"] = channels
+	} else {
 		channel, channelErr := dokuChannel(input.PaymentMethodCode, input.ChannelCode)
 		if channelErr != nil {
 			return connector.PaymentResult{}, channelErr

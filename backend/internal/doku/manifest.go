@@ -50,7 +50,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "DOKU",
-		Version:          "emisell-doku-v2.0.1",
+		Version:          "emisell-doku-v2.0.2",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -79,7 +79,15 @@ func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) err
 		strings.ToLower(strings.TrimSpace(input.ProviderMethodType)) != mapping.providerType {
 		return fmt.Errorf("payment method %q has an invalid %s mapping", code, c.Code())
 	}
+	if channelCode := strings.ToUpper(strings.TrimSpace(input.ProviderChannelCode)); channelCode != "" && channelCode != mapping.channelCode {
+		return fmt.Errorf("payment method %q has an invalid %s channel mapping", code, c.Code())
+	}
 	return nil
+}
+
+func (c *Client) ValidateHostedPaymentMethods(methods []connector.PaymentMethodMapping) error {
+	_, err := c.hostedPaymentTypes(methods)
+	return err
 }
 
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
@@ -108,4 +116,27 @@ func dokuChannel(methodCode, override string) (string, error) {
 		return "", fmt.Errorf("DOKU channel %q is not valid for payment method %q", override, methodCode)
 	}
 	return mapping.channelCode, nil
+}
+
+func (c *Client) hostedPaymentTypes(methods []connector.PaymentMethodMapping) ([]string, error) {
+	if len(methods) == 0 {
+		return nil, errors.New("at least one active payment method is required for DOKU hosted checkout")
+	}
+	types := make([]string, 0, len(methods))
+	seen := make(map[string]struct{}, len(methods))
+	for _, method := range methods {
+		if err := c.ValidatePaymentMethod(method); err != nil {
+			return nil, err
+		}
+		channelCode, err := dokuChannel(method.PaymentMethodCode, method.ProviderChannelCode)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[channelCode]; exists {
+			continue
+		}
+		seen[channelCode] = struct{}{}
+		types = append(types, channelCode)
+	}
+	return types, nil
 }

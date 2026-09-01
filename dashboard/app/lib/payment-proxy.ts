@@ -199,6 +199,85 @@ export type ProviderOption = {
   }>;
 };
 
+export type ProviderAvailabilityMethod = {
+  payment_method_code: string;
+  payment_method_name: string;
+  status: "UNAVAILABLE";
+  reason?: string;
+  source: string;
+  fresh: boolean;
+  checked_at: string;
+  expires_at: string;
+};
+
+export type ProviderAvailabilityItem = {
+  merchant_id: string;
+  installation_id: string;
+  provider_code: string;
+  provider_name: string;
+  provider_version: string;
+  environment: "sandbox" | "live";
+  status: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+  reason?: string;
+  last_status?: "AVAILABLE" | "UNAVAILABLE";
+  last_reason?: string;
+  source?: string;
+  checked_at?: string;
+  expires_at?: string;
+  unavailable_payment_methods: ProviderAvailabilityMethod[];
+};
+
+export type ProviderAvailabilityOverview = {
+  generated_at: string;
+  summary: {
+    connections: number;
+    available: number;
+    degraded: number;
+    unavailable: number;
+    unknown: number;
+    affected_methods: number;
+  };
+  items: ProviderAvailabilityItem[];
+  official_providers: OfficialProviderStatus[];
+};
+
+export type OfficialProviderComponent = {
+  name: string;
+  group?: string;
+  status: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+};
+
+export type OfficialProviderEvent = {
+  id: string;
+  type: "INCIDENT" | "MAINTENANCE";
+  name: string;
+  status: string;
+  impact?: string;
+  summary?: string;
+  schedule?: string;
+  url?: string;
+  components: string[];
+  started_at?: string;
+  scheduled_for?: string;
+  scheduled_until?: string;
+  updated_at?: string;
+};
+
+export type OfficialProviderStatus = {
+  provider_code: string;
+  provider_name: string;
+  status_page_url: string;
+  status: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "UNKNOWN";
+  description: string;
+  source: "statuspage_v2" | "midtrans_html" | "pagerduty_status_dashboard" | "ipaymu_healthcheck";
+  source_available: boolean;
+  updated_at?: string;
+  components: OfficialProviderComponent[];
+  active_incidents: OfficialProviderEvent[];
+  scheduled_maintenance: OfficialProviderEvent[];
+  recent_incidents: OfficialProviderEvent[];
+};
+
 export type PaymentMethodCategory = "QR_CODE" | "CARD" | "VIRTUAL_ACCOUNT" | "E_WALLET" | "RETAIL" | "PAYLATER" | "DIRECT_DEBIT" | "DIGITAL_BANKING";
 
 export type PaymentMethodProviderCapability = {
@@ -588,6 +667,10 @@ export function listPaymentOptions(actor: string) {
 
 export function listProviderOptions(actor: string, environment: "sandbox" | "live") {
   return proxyRequest<ProviderOption[]>(`/api/v1/provider-options?environment=${encodeURIComponent(environment)}`, actor);
+}
+
+export function getProviderAvailability(actor: string) {
+  return adminRequest<ProviderAvailabilityOverview>("/api/v1/admin/provider-availability", actor);
 }
 
 export function upsertPaymentMethodAssignments(actor: string, assignments: Array<{ installation_id: string; payment_method_code: string; version: number }>) {

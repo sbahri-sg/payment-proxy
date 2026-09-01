@@ -292,6 +292,46 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
         note: "Konfigurasikan X-Admin-API-Key pada scraper melalui secret manager. Jangan menaruh admin key pada query string.",
       },
       {
+        method: "GET", path: "/api/v1/admin/provider-availability", title: "Payment status center", description: "Menggabungkan sumber status resmi Xendit, Midtrans, Duitku, DOKU, dan iPaymu dengan availability probe setiap koneksi provider ACTIVE. Cache resmi diperbarui oleh API di background setiap 60 detik tanpa probe credential massal. Outage global memblokir provider; channel offline/maintenance yang dapat dipetakan disaring dari checkout tanpa mengubah assignment merchant. Sumber resmi yang gagal dibaca bersifat fail-open.",
+        response: `{
+  "data": {
+    "generated_at": "2026-09-01T13:00:00Z",
+    "summary": {
+      "connections": 4,
+      "available": 2,
+      "degraded": 1,
+      "unavailable": 0,
+      "unknown": 1,
+      "affected_methods": 1
+    },
+    "official_providers": [{
+      "provider_code": "midtrans",
+      "status_page_url": "https://midtrans.com/id/status",
+      "status": "AVAILABLE",
+      "source": "midtrans_html",
+      "source_available": true,
+      "components": [{ "name": "Payment Link", "status": "AVAILABLE" }],
+      "active_incidents": [],
+      "scheduled_maintenance": []
+    }],
+    "items": [{
+      "merchant_id": "merchant_123",
+      "installation_id": "ins_01k3...",
+      "provider_code": "ipaymu",
+      "environment": "live",
+      "status": "DEGRADED",
+      "unavailable_payment_methods": [{
+        "payment_method_code": "va_bsi",
+        "status": "UNAVAILABLE",
+        "reason": "PROVIDER_MAINTENANCE",
+        "fresh": true
+      }]
+    }]
+  }
+}`,
+        note: "Endpoint ini control-plane only. Konten provider diperlakukan sebagai data tidak tepercaya dan URL sumber di-allowlist. Status resmi memberi konteks global; probe internal tetap menjadi keputusan tenant-scoped dan tidak mengubah assignment ACTIVE/INACTIVE merchant.",
+      },
+      {
         method: "GET", path: "/api/v1/admin/engine/readiness", title: "Production readiness report", description: "Memeriksa database, connector registry, runtime configuration, dan menampilkan request guard efektif tanpa membocorkan secret.",
         response: `{
   "data": {
@@ -346,12 +386,12 @@ logo               File    midtrans.png`,
       },
       {
         method: "GET", path: "/api/v1/admin/provider-app-providers", title: "List registered providers", description: "Menampilkan satu record per provider beserta active version, latest version/status, dan jumlah immutable version. Riwayat versi tidak lagi terlihat sebagai provider duplikat.",
-        response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 3, "active_version": "emisell-midtrans-v2.0.1", "latest_version": "emisell-midtrans-v2.0.1", "latest_status": "PUBLISHED" }] }`,
+        response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 3, "active_version": "emisell-midtrans-v2.0.2", "latest_version": "emisell-midtrans-v2.0.2", "latest_status": "PUBLISHED" }] }`,
       },
       {
         method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/transition", title: "Disable or enable provider", description: "Menonaktifkan provider dari catalog installation baru tanpa menghapus release immutable, installation merchant, transaksi, webhook, atau audit lama. Provider dapat di-enable kembali.",
         body: `{ "expected_status": "ACTIVE", "status": "DISABLED" }`,
-        response: `{ "data": { "provider_code": "midtrans", "provider_name": "Midtrans", "status": "DISABLED", "active_version": "emisell-midtrans-v2.0.1" } }`,
+        response: `{ "data": { "provider_code": "midtrans", "provider_name": "Midtrans", "status": "DISABLED", "active_version": "emisell-midtrans-v2.0.2" } }`,
         note: "Untuk enable, gunakan ACTIVE bila release published tersedia atau DRAFT bila provider belum pernah dipublish. Existing active installations tetap tersimpan dan dapat terus memproses payment.",
       },
       {
@@ -359,7 +399,7 @@ logo               File    midtrans.png`,
         headers: ["Content-Type: multipart/form-data"],
         body: `Postman → Body → form-data
 KEY       TYPE    VALUE
-bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
+bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
         response: `{ "data": ${providerAppBase} }`,
         note: "Submission hanya membawa kontrak dan bahan review. API key merchant tidak boleh berada di manifest, source, dokumentasi, atau nama file. Bundle binary lama masih dibaca sementara untuk kompatibilitas.",
       },
@@ -412,7 +452,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
       {
         "code": "midtrans",
         "name": "Midtrans",
-        "version": "emisell-midtrans-v2.0.1",
+        "version": "emisell-midtrans-v2.0.2",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
         "credential_fields": [
@@ -423,7 +463,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
       {
         "code": "duitku",
         "name": "Duitku",
-        "version": "emisell-duitku-v2.0.1",
+        "version": "emisell-duitku-v2.0.2",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
         "credential_fields": [
@@ -434,7 +474,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
       {
         "code": "doku",
         "name": "DOKU",
-        "version": "emisell-doku-v2.0.1",
+        "version": "emisell-doku-v2.0.2",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
         "credential_fields": [
@@ -445,9 +485,9 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
       {
         "code": "ipaymu",
         "name": "iPaymu",
-        "version": "emisell-ipaymu-v2.0.1",
+        "version": "emisell-ipaymu-v2.0.2",
         "runtime": "isolated_container",
-        "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
+        "operations": ["verify_installation", "disable_installation", "create_payment", "get_payment", "handle_webhook"],
         "credential_fields": [
           { "code": "va", "label": "VA number", "input_type": "text", "secret": false, "required": true },
           { "code": "api_key", "label": "API key", "input_type": "password", "secret": true, "required": true }
@@ -670,8 +710,8 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
       },
       {
         method: "POST", path: "/api/v1/provider-installations/{id}/upgrade", title: "Upgrade Provider App", description: "Memindahkan installation INACTIVE ke release Provider App yang sudah dimuat oleh runtime.",
-        body: `{ "version": 6, "provider_version": "emisell-midtrans-v2.0.1" }`,
-        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v2.0.1", "status": "CONFIG_REQUIRED", "credential_metadata": { "verification_required": true, "verification_reason": "provider_version_upgrade" }, "version": 7 } }`,
+        body: `{ "version": 6, "provider_version": "emisell-midtrans-v2.0.2" }`,
+        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v2.0.2", "status": "CONFIG_REQUIRED", "credential_metadata": { "verification_required": true, "verification_reason": "provider_version_upgrade" }, "version": 7 } }`,
         note: "Target harus RELEASED dan tersedia pada shared runtime. Credential tetap terenkripsi, tetapi versi baru wajib melewati Save & verify hingga READY sebelum dapat diaktifkan kembali.",
       },
       {
@@ -727,7 +767,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
         note: "DOCUMENTED dapat di-assign tetapi belum mempunyai sandbox evidence lengkap. CERTIFIED/VERIFIED menandai conformance telah lulus; DISABLED tidak dapat di-assign. Dashboard Emisell memakai debounce 300–500 ms; hilangkan q untuk seluruh katalog, dengan panjang maksimum q 128 karakter.",
       },
       {
-        method: "GET", path: "/api/v1/payment-method-assignments", title: "List method assignments", description: "Mengembalikan semua assignment merchant berdasarkan X-Emisell-Merchant-ID, termasuk ACTIVE, INACTIVE, sandbox, dan live. Environment dibaca dari field setiap item; endpoint ini tidak memerlukan query environment.",
+        method: "GET", path: "/api/v1/payment-method-assignments", title: "List method assignments", description: "Mengembalikan konfigurasi assignment merchant berdasarkan X-Emisell-Merchant-ID, termasuk ACTIVE, INACTIVE, sandbox, dan live. Gangguan provider tidak mengubah status assignment; availability checkout ditangani internal oleh Payment Proxy.",
         response: `{ "data": [${assignmentBase}, ${assignmentBase.replace('"id": "pmo_01k3..."', '"id": "pmo_01k4..."').replace('"payment_method_code": "qris"', '"payment_method_code": "va_bca"').replace('"payment_method": "real_time_payment"', '"payment_method": "bank_transfer"').replace('"payment_method_type": "qris"', '"payment_method_type": "bca"').replace('"label": "QRIS"', '"label": "BCA Virtual Account"').replace('"status": "ACTIVE"', '"status": "INACTIVE"').replace('"version": 1', '"version": 2')}] }`,
       },
       {
@@ -747,7 +787,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
         response: `{ "data": ${assignmentBase.replace('"status": "ACTIVE"', '"status": "INACTIVE"').replace('"version": 1', '"version": 2')} }`,
       },
       {
-        method: "GET", path: "/api/v1/payment-options", title: "List direct-channel options", description: "Mengembalikan semua opaque option ID ACTIVE milik merchant dari sandbox dan live. Endpoint tidak memerlukan query environment karena setiap option membawa field environment dan payment session menurunkannya dari payment_option_id.",
+        method: "GET", path: "/api/v1/payment-options", title: "List direct-channel options", description: "Mengembalikan opaque option ID ACTIVE yang saat ini tersedia dari sandbox dan live. Payment Proxy menyaring channel offline/maintenance memakai cache health internal; response merchant tidak memuat status gangguan.",
         response: `{
   "data": [{
     "id": "pmo_01k3...",
@@ -757,10 +797,10 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
     "label": "QRIS"
   }]
 }`,
-        note: "Jangan kirim payment_option_id untuk provider_hosted. Hosted checkout memakai installation_id dan pelanggan memilih channel di halaman provider. Untuk Xendit, daftar yang boleh muncul berasal dari assignment ACTIVE installation. Credential tidak pernah masuk ke checkout.",
+        note: "Jangan kirim payment_option_id untuk provider_hosted. Hosted checkout memakai installation_id dan daftar yang boleh muncul berasal dari assignment ACTIVE yang lolos availability check. Xendit, Midtrans, dan DOKU menerima daftar exact; Duitku menerima tepat satu metode. Credential tidak pernah masuk ke checkout.",
       },
       {
-        method: "GET", path: "/api/v1/provider-options?environment=sandbox", title: "List provider checkout options", description: "Mengelompokkan assignment ACTIVE berdasarkan installation provider ACTIVE. Gunakan ketika Dashboard Emisell menampilkan gateway terlebih dahulu lalu metode yang tersedia.",
+        method: "GET", path: "/api/v1/provider-options?environment=sandbox", title: "List provider checkout options", description: "Mengelompokkan assignment ACTIVE yang tersedia berdasarkan installation provider ACTIVE. Provider atau channel offline/maintenance otomatis tidak muncul di checkout.",
         response: `{
   "data": [{
     "provider_code": "xendit",
@@ -778,7 +818,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
     }]
   }]
 }`,
-        note: "environment wajib. Provider tanpa metode ACTIVE tidak muncul. logo_url bersifat relatif terhadap origin Dashboard Payment Proxy dan dapat tidak tersedia untuk brand yang belum mempunyai aset.",
+        note: "environment wajib. Provider tanpa metode ACTIVE atau tanpa metode yang sedang tersedia tidak muncul. Gangguan tidak mengubah setting merchant. logo_url bersifat relatif terhadap origin Dashboard Payment Proxy dan dapat tidak tersedia untuk brand yang belum mempunyai aset.",
       },
     ],
   },
@@ -801,11 +841,11 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
         note: "`next_action` dan checkout_url tidak disertakan pada item list agar payload tetap ringkas. Ambil detail payment untuk membuka kembali URL provider.",
       },
       {
-        method: "POST", path: "/api/v1/payment-sessions", title: "Create provider checkout", description: "Membuat sesi canonical lalu meminta provider membuat halaman checkout. Customer selalu diarahkan ke URL resmi Xendit, Midtrans, Duitku, DOKU, atau iPaymu; Emisell tidak merender daftar metode pembayaran.",
+        method: "POST", path: "/api/v1/payment-sessions", title: "Create provider checkout", description: "Membuat sesi canonical lalu meminta provider membuat halaman checkout. Customer diarahkan ke URL resmi Xendit, Midtrans, Duitku, atau DOKU; iPaymu saat ini memakai direct checkout karena Redirect Payment tidak mempunyai allowlist exact. Emisell tidak merender daftar metode pembayaran.",
         examples: [
           {
             title: "Hosted checkout milik provider",
-            description: "Gunakan installation_id provider aktif milik merchant. Provider menampilkan sendiri QRIS, VA, e-wallet, card, dan channel lain yang tersedia untuk akun tersebut.",
+            description: "Gunakan installation_id provider aktif milik merchant. Provider hanya menampilkan QRIS, VA, e-wallet, card, dan channel lain dari assignment ACTIVE yang eligible untuk transaksi tersebut.",
             headers: ["Idempotency-Key: checkout-order-123-attempt-1"],
             body: `{
   "installation_id": "ins_...",
@@ -1229,7 +1269,7 @@ const omittedEndpointDecisions = [
   ["Tidak ada /xendit atau /midtrans API", "Semua provider memakai normalized provider, installation, payment option, dan payment API."],
   ["Tidak ada merchant runtime/container API", "Runtime Dispatcher memilih shared runtime berdasarkan provider + version secara internal."],
   ["Tidak ada endpoint membaca secret", "API hanya mengembalikan configured_fields dan metadata verifikasi."],
-  ["Tidak ada create endpoint per metode", "POST /payment-sessions memakai installation_id; Xendit, Midtrans, Duitku, DOKU, atau iPaymu menampilkan channel pada hosted checkout mereka."],
+  ["Tidak ada create endpoint per metode", "POST /payment-sessions memakai installation_id untuk hosted checkout yang mendukung allowlist exact; iPaymu memakai direct payment_option_id sampai Redirect Payment mendukung pembatasan tersebut."],
   ["Refund merupakan kontrak inti bersyarat", "Backend hanya memanggilnya untuk channel dengan return-to-source policy dan connector release yang mendukung create_refund."],
 ] as const;
 
@@ -1352,7 +1392,7 @@ const partnerGroups: Group[] = [
     "next_action": { "type": "redirect", "redirect_url": "https://dev.xen.to/..." }
   }
 }`,
-        note: "provider_hosted wajib mengembalikan URL domain provider. Merchant tidak memilih satu channel dalam request; untuk Xendit kernel mengirim assignment ACTIVE sebagai allowed_payment_methods agar runtime membatasi pilihan provider. payment_method_code/channel_code tunggal hanya dipakai untuk mode direct. Timeout setelah request mungkin diterima provider harus dikembalikan sebagai OUTCOME_UNKNOWN.",
+        note: "provider_hosted wajib mengembalikan URL domain provider. Merchant tidak memilih satu channel dalam request; kernel selalu mengirim assignment ACTIVE sebagai allowed_payment_methods dan runtime wajib menerapkan pembatasan provider secara exact. payment_method_code/channel_code tunggal hanya dipakai untuk mode direct. Timeout setelah request mungkin diterima provider harus dikembalikan sebagai OUTCOME_UNKNOWN.",
       },
       {
         method: "POST",
@@ -1722,28 +1762,28 @@ HandleWebhook()`}</Code>
                     <strong>Midtrans · second connector</strong>
                     <span>QRIS, enam VA/Mandiri Bill, GoPay, ShopeePay, credential verification, dan webhook normalization tersedia. BCA, BNI, dan Permata VA sudah lulus sandbox end-to-end; channel lain tetap fail-closed sampai diaktifkan untuk merchant oleh Midtrans.</span>
                   </div>
-                  <span className="version-pill">emisell-midtrans-v2.0.1</span>
+                  <span className="version-pill">emisell-midtrans-v2.0.2</span>
                 </div>
                 <div className="postman-card">
                   <div>
                     <strong>Duitku · POP connector</strong>
-                    <span>Hosted dan direct POP invoice, credential verification, transaction status, serta callback HMAC-SHA256 tersedia. Checkout tetap memakai paymentUrl resmi Duitku; activation per channel menunggu evidence sandbox merchant.</span>
+                    <span>Hosted POP tersedia untuk tepat satu assignment eligible; direct POP invoice, credential verification, transaction status, serta callback HMAC-SHA256 tersedia. Checkout tetap memakai paymentUrl resmi Duitku.</span>
                   </div>
-                  <span className="version-pill">emisell-duitku-v2.0.1</span>
+                  <span className="version-pill">emisell-duitku-v2.0.2</span>
                 </div>
                 <div className="postman-card">
                   <div>
                     <strong>DOKU · Checkout connector</strong>
-                    <span>Hosted dan direct DOKU Checkout, Client ID/Secret Key verification, order status, serta Non-SNAP notification HMAC tersedia. Checkout selalu memakai response.payment.url resmi DOKU.</span>
+                    <span>Hosted DOKU Checkout memakai daftar payment_method_types dari assignment ACTIVE; direct checkout, Client ID/Secret Key verification, order status, serta Non-SNAP notification HMAC tersedia.</span>
                   </div>
-                  <span className="version-pill">emisell-doku-v2.0.1</span>
+                  <span className="version-pill">emisell-doku-v2.0.2</span>
                 </div>
                 <div className="postman-card">
                   <div>
                     <strong>iPaymu · API v2 connector</strong>
-                    <span>Redirect Payment resmi, direct payment per channel, VA/API key verification, reference-based transaction status, serta callback X-Signature tersedia. Sandbox dan Live memakai credential iPaymu yang berbeda.</span>
+                    <span>Direct payment per channel, VA/API key verification, reference-based transaction status, serta callback X-Signature tersedia. Redirect Payment tidak diiklankan sampai iPaymu menyediakan allowlist exact per transaksi.</span>
                   </div>
-                  <span className="version-pill">emisell-ipaymu-v2.0.1</span>
+                  <span className="version-pill">emisell-ipaymu-v2.0.2</span>
                 </div>
               </section>
 
@@ -1880,10 +1920,11 @@ X-Admin-API-Key: {{admin_api_key}}
                   <span>400</span><p>Invalid tenant, execution mode, JSON, atau idempotency key.</p>
                   <span>401</span><p>Service credential atau webhook signature tidak valid.</p>
                   <span>404</span><p>Resource tidak ditemukan untuk tenant tersebut.</p>
-                  <span>409</span><p>Conflict, invalid lifecycle state, stale version, atau idempotency conflict.</p>
+                  <span>409</span><p>Conflict, invalid lifecycle state, stale version, idempotency conflict, atau provider hosted checkout tidak dapat menerapkan allowlist metode secara exact.</p>
                   <span>422</span><p>Business input tidak valid.</p>
                   <span>202</span><p>Mutation mempunyai hasil ambigu; resource menjadi UNKNOWN dan wajib disinkronkan menggunakan ID yang sama.</p>
                   <span>502</span><p>Payment engine menolak atau tidak dapat melayani request.</p>
+                  <span>503</span><p>Provider atau payment method sedang tidak tersedia; checkout harus meminta pelanggan memilih opsi lain atau mencoba kembali.</p>
                 </div>
               </section>
             </div>

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: iPaymu Emisell Payment Connector
-  version: emisell-ipaymu-v2.0.1
+  version: emisell-ipaymu-v2.0.2
   description: Normalized Payment Connector contract used by the shared iPaymu runtime.
 servers:
   - url: https://connector-runtime.emisell.com/partner/v1
@@ -36,6 +36,18 @@ paths:
       responses:
         "200": {description: Payment method mapping is valid}
         "422": {$ref: "#/components/responses/ErrorResponse"}
+  /hosted-payment-methods/validate:
+    post:
+      operationId: validateHostedPaymentMethods
+      tags: [Payment]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionedValidation"}
+      responses:
+        "200": {description: Hosted payment method allowlist can be enforced exactly}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
   /payments/validate:
     post:
       operationId: validatePayment
@@ -58,7 +70,14 @@ paths:
           application/json:
             schema: {$ref: "#/components/schemas/InstallationInput"}
       responses:
-        "200": {description: VA, API key, environment, and iPaymu access are verified}
+        "200":
+          description: VA, API key, environment, iPaymu access, and current channel availability are verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: "#/components/schemas/InstallationResult"}
         "401": {$ref: "#/components/responses/ErrorResponse"}
         "422": {$ref: "#/components/responses/ErrorResponse"}
   /installations/disable:
@@ -125,17 +144,35 @@ components:
       required: [provider_code, provider_version, input]
       properties:
         provider_code: {type: string, example: ipaymu}
-        provider_version: {type: string, example: emisell-ipaymu-v2.0.1}
+        provider_version: {type: string, example: emisell-ipaymu-v2.0.2}
         input: {type: object, additionalProperties: true}
     InstallationInput:
       type: object
       required: [provider_code, provider_version, environment, credentials]
       properties:
         provider_code: {type: string, example: ipaymu}
-        provider_version: {type: string, example: emisell-ipaymu-v2.0.1}
+        provider_version: {type: string, example: emisell-ipaymu-v2.0.2}
         environment: {type: string, enum: [live, sandbox]}
         credentials: {type: object, additionalProperties: {type: string}, writeOnly: true}
         public_webhook_url: {type: string, format: uri}
+    InstallationResult:
+      type: object
+      required: [connector_id, environment, webhook_ready]
+      properties:
+        connector_id: {type: string, example: "ipaymu:ins_01k3..."}
+        environment: {type: string, enum: [sandbox, live]}
+        webhook_ready: {type: boolean}
+        payment_method_availability:
+          type: array
+          description: Current iPaymu payment-channel status normalized for Payment Proxy internal checkout filtering.
+          items: {$ref: "#/components/schemas/PaymentMethodAvailability"}
+    PaymentMethodAvailability:
+      type: object
+      required: [payment_method_code, status]
+      properties:
+        payment_method_code: {type: string, example: va_bsi}
+        status: {type: string, enum: [AVAILABLE, UNAVAILABLE]}
+        reason: {type: string, enum: [CHANNEL_INACTIVE, PROVIDER_MAINTENANCE, PROVIDER_OFFLINE]}
     PaymentInput:
       allOf:
         - {$ref: "#/components/schemas/InstallationInput"}
@@ -143,8 +180,19 @@ components:
           required: [local_payment_id, amount, currency, idempotency_key]
           properties:
             local_payment_id: {type: string}
-            checkout_mode: {type: string, enum: [direct, provider_hosted]}
+            checkout_mode: {type: string, enum: [direct], description: Hosted redirect is not advertised until iPaymu supports an exact per-transaction allowlist.}
             payment_method_code: {type: string}
+            allowed_payment_methods:
+              type: array
+              description: Active installation mappings supplied by the Kernel. iPaymu redirect checkout is rejected because it cannot enforce this exact list.
+              items:
+                type: object
+                required: [payment_method_code, provider_method, provider_method_type, provider_channel_code]
+                properties:
+                  payment_method_code: {type: string, example: qris}
+                  provider_method: {type: string, example: real_time_payment}
+                  provider_method_type: {type: string, example: qris}
+                  provider_channel_code: {type: string, example: mpm}
             amount: {type: integer, format: int64, minimum: 1, description: Whole IDR rupiah; 10000 means Rp10.000}
             currency: {type: string, enum: [IDR]}
             idempotency_key: {type: string}
@@ -167,7 +215,7 @@ components:
       required: [provider_code, provider_version, headers, body]
       properties:
         provider_code: {type: string, example: ipaymu}
-        provider_version: {type: string, example: emisell-ipaymu-v2.0.1}
+        provider_version: {type: string, example: emisell-ipaymu-v2.0.2}
         headers: {type: object, additionalProperties: {type: string}}
         body: {type: string, format: byte, description: Original JSON or x-www-form-urlencoded callback body}
   responses:

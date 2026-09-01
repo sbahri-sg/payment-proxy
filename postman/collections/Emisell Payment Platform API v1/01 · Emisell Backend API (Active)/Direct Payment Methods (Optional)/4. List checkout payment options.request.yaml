@@ -1,5 +1,5 @@
 $kind: http-request
-description: Endpoint checkout. Mengembalikan opsi aktif sandbox dan live milik merchant yang terhubung ke installation aktif. Checkout menyimpan id yang opaque, bukan provider_code.
+description: Endpoint checkout. Mengembalikan opsi ACTIVE yang saat ini tersedia dari sandbox dan live. Channel offline/maintenance disaring internal tanpa mengubah assignment merchant. Checkout menyimpan id yang opaque, bukan provider_code.
 url: "{{base_url}}/api/v1/payment-options"
 method: GET
 headers:

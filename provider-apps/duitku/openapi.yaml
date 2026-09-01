@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Duitku Emisell Payment Connector
-  version: emisell-duitku-v2.0.1
+  version: emisell-duitku-v2.0.2
   description: Normalized Payment Connector contract used by the shared Duitku runtime.
 servers:
   - url: https://connector-runtime.emisell.com/partner/v1
@@ -35,6 +35,18 @@ paths:
             schema: {$ref: "#/components/schemas/VersionedValidation"}
       responses:
         "200": {description: Payment method mapping is valid}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
+  /hosted-payment-methods/validate:
+    post:
+      operationId: validateHostedPaymentMethods
+      tags: [Payment]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionedValidation"}
+      responses:
+        "200": {description: Hosted payment method allowlist can be enforced exactly}
         "422": {$ref: "#/components/responses/ErrorResponse"}
   /payments/validate:
     post:
@@ -133,14 +145,14 @@ components:
       required: [provider_code, provider_version, input]
       properties:
         provider_code: {type: string, example: duitku}
-        provider_version: {type: string, example: emisell-duitku-v2.0.1}
+        provider_version: {type: string, example: emisell-duitku-v2.0.2}
         input: {type: object, additionalProperties: true}
     InstallationInput:
       type: object
       required: [provider_code, provider_version, environment, credentials]
       properties:
         provider_code: {type: string, example: duitku}
-        provider_version: {type: string, example: emisell-duitku-v2.0.1}
+        provider_version: {type: string, example: emisell-duitku-v2.0.2}
         environment: {type: string, enum: [live, sandbox]}
         credentials: {type: object, additionalProperties: {type: string}, writeOnly: true}
         public_webhook_url: {type: string, format: uri}
@@ -151,6 +163,17 @@ components:
         connector_id: {type: string, example: "duitku:ins_01k3..."}
         environment: {type: string, enum: [sandbox, live]}
         webhook_ready: {type: boolean}
+        payment_method_availability:
+          type: array
+          description: Optional short-lived runtime evidence; omitted when Duitku does not expose per-channel health.
+          items: {$ref: "#/components/schemas/PaymentMethodAvailability"}
+    PaymentMethodAvailability:
+      type: object
+      required: [payment_method_code, status]
+      properties:
+        payment_method_code: {type: string, example: qris}
+        status: {type: string, enum: [AVAILABLE, UNAVAILABLE]}
+        reason: {type: string, example: PROVIDER_MAINTENANCE}
     PaymentInput:
       allOf:
         - {$ref: "#/components/schemas/InstallationInput"}
@@ -160,6 +183,17 @@ components:
             local_payment_id: {type: string}
             checkout_mode: {type: string, enum: [direct, provider_hosted]}
             payment_method_code: {type: string}
+            allowed_payment_methods:
+              type: array
+              description: Active installation mappings. Duitku POP hosted checkout accepts exactly one mapped method and fails closed for larger sets.
+              items:
+                type: object
+                required: [payment_method_code, provider_method, provider_method_type, provider_channel_code]
+                properties:
+                  payment_method_code: {type: string, example: va_bca}
+                  provider_method: {type: string, example: bank_transfer}
+                  provider_method_type: {type: string, example: bca}
+                  provider_channel_code: {type: string, example: BC}
             amount: {type: integer, format: int64, minimum: 10000, description: Whole IDR rupiah; 10000 means Rp10.000}
             currency: {type: string, enum: [IDR]}
             idempotency_key: {type: string}
@@ -183,7 +217,7 @@ components:
       required: [provider_code, provider_version, headers, body]
       properties:
         provider_code: {type: string, example: duitku}
-        provider_version: {type: string, example: emisell-duitku-v2.0.1}
+        provider_version: {type: string, example: emisell-duitku-v2.0.2}
         headers: {type: object, additionalProperties: {type: string}}
         body: {type: string, format: byte, description: Original x-www-form-urlencoded callback body}
   responses:

@@ -3,7 +3,7 @@ provider:
   code: ipaymu
   name: iPaymu
 release:
-  version: emisell-ipaymu-v2.0.1
+  version: emisell-ipaymu-v2.0.2
 connector:
   contract_version: v1
   runtime: isolated_container
@@ -12,7 +12,6 @@ operations:
   - verify_installation
   - disable_installation
   - create_payment
-  - create_hosted_checkout
   - get_payment
   - handle_webhook
 credentials:

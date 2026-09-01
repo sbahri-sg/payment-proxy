@@ -22,6 +22,7 @@ type Engine interface {
 	Ping(context.Context) error
 	Manifests() []connector.Manifest
 	ValidatePaymentMethodVersion(string, string, connector.PaymentMethodMapping) error
+	ValidateHostedPaymentMethodsVersion(string, string, []connector.PaymentMethodMapping) error
 	ValidatePaymentVersion(string, string, connector.PaymentValidation) error
 	VerifyInstallation(context.Context, connector.InstallationInput) (connector.InstallationResult, error)
 	DisableInstallation(context.Context, connector.InstallationInput) error
@@ -63,6 +64,7 @@ func New(engine Engine, token string, logger *slog.Logger) (http.Handler, error)
 		r.Get("/health", s.ready)
 		r.Get("/capabilities", s.capabilities)
 		r.Post("/payment-methods/validate", s.validatePaymentMethod)
+		r.Post("/hosted-payment-methods/validate", s.validateHostedPaymentMethods)
 		r.Post("/payments/validate", s.validatePayment)
 		r.Post("/installations/verify", s.verifyInstallation)
 		r.Post("/installations/disable", s.disableInstallation)
@@ -114,6 +116,22 @@ func (s *Server) validatePaymentMethod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.engine.ValidatePaymentMethodVersion(input.ProviderCode, input.ProviderVersion, input.Input); err != nil {
+		s.connectorError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, partnercontract.DataResponse[map[string]bool]{Data: map[string]bool{"valid": true}})
+}
+
+func (s *Server) validateHostedPaymentMethods(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		ProviderCode    string                           `json:"provider_code"`
+		ProviderVersion string                           `json:"provider_version,omitempty"`
+		Input           []connector.PaymentMethodMapping `json:"input"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if err := s.engine.ValidateHostedPaymentMethodsVersion(input.ProviderCode, input.ProviderVersion, input.Input); err != nil {
 		s.connectorError(w, err)
 		return
 	}
@@ -278,6 +296,9 @@ func (s *Server) connectorError(w http.ResponseWriter, err error) {
 	case errors.Is(err, connector.ErrNotSupported):
 		problem.Code = "OPERATION_NOT_SUPPORTED"
 		problem.Message = "connector operation is not supported"
+	case errors.Is(err, connector.ErrHostedPaymentRestrictionUnsupported):
+		problem.Code = "HOSTED_PAYMENT_METHOD_RESTRICTION_UNSUPPORTED"
+		problem.Message = err.Error()
 	case errors.Is(err, connector.ErrInvalidCredential):
 		problem.Code = "INVALID_PROVIDER_CREDENTIAL"
 		problem.Message = "provider credential is invalid or its mode cannot be detected"

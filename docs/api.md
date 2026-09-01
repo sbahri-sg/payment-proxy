@@ -90,6 +90,11 @@ Error selalu stabil:
 {"error":{"code":"INVALID_STATE","message":"resource state does not allow this operation"}}
 ```
 
+Hosted checkout memakai `409 HOSTED_PAYMENT_METHOD_RESTRICTION_UNSUPPORTED`
+bila API provider tidak dapat membatasi halaman pembayaran ke assignment
+`ACTIVE` secara exact. Client dapat menawarkan direct checkout provider yang
+bersangkutan; jangan mengulang hosted request tanpa mengubah konfigurasi.
+
 Semua response membawa `X-Request-ID` dan `Cache-Control: no-store`. Jika
 traffic guard aktif, response juga membawa
 `X-RateLimit-Limit` dan `X-RateLimit-Remaining`. Ikuti `Retry-After` pada
@@ -151,7 +156,7 @@ X-Emisell-Merchant-ID: merchant_123
       },
       {
         "code": "midtrans",
-        "version": "emisell-midtrans-v2.0.1",
+        "version": "emisell-midtrans-v2.0.2",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"]
       }
@@ -240,6 +245,42 @@ X-Admin-API-Key: <admin-key>
 snapshot process sejak startup dan harus di-scrape ke storage terpusat untuk
 agregasi lintas replica dan histori jangka panjang.
 
+`GET /api/v1/admin/provider-availability` menjadi sumber menu **Payment
+status** pada dashboard admin. Endpoint menggabungkan sumber resmi
+`status.xendit.co`, `midtrans.com/id/status`, `duitku.statuspage.io`,
+`status.doku.com`, dan `status.ipaymu.com` dengan
+status per koneksi merchant/provider/environment. Response resmi dinormalisasi
+menjadi `AVAILABLE`, `DEGRADED`, `UNAVAILABLE`, atau `UNKNOWN`, serta memuat
+component, incident aktif, scheduled maintenance, dan riwayat incident yang
+relevan dengan payment Indonesia. URL sumber bersifat hardcoded/allowlisted;
+konten remote tidak pernah dijalankan sebagai HTML.
+
+DOKU dibaca dari API publik PagerDuty Status Dashboard dan difilter ke service
+payment/checkout. iPaymu dibaca dari health-check publik dan hanya memasukkan
+record bertipe `Payment Channel`; service `Withdraw` tidak memengaruhi status
+checkout. Maintenance terjadwal ditampilkan sejak diumumkan, tetapi baru
+memengaruhi checkout ketika jendela maintenance dimulai. Outage provider-wide
+menahan provider; outage atau maintenance aktif yang dapat dipetakan menahan
+hanya payment method terkait. Restriction resmi digabungkan ke cache
+availability installation tanpa mengubah assignment merchant. Jika sumber
+resmi tidak dapat diakses, status menjadi `UNKNOWN` dan bersifat fail-open;
+availability probe bercredential tetap melindungi setiap koneksi merchant.
+
+API menjalankan refresh sumber status resmi di background segera setelah
+startup lalu setiap 60 detik secara default. Interval dan batas waktu dapat
+diatur dengan `PROVIDER_STATUS_POLL_INTERVAL_SECONDS` dan
+`PROVIDER_STATUS_FETCH_TIMEOUT_SECONDS`. Worker hanya membaca lima endpoint
+publik tersebut—tidak melakukan probe kredensial massal per merchant. Setiap
+replica memakai cache lokalnya sendiri, jitter kecil untuk menghindari burst
+bersamaan, timeout, dan backoff ketika seluruh sumber gagal. Cache gagal dibaca
+tetap fail-open sehingga gangguan monitoring tidak mematikan checkout.
+
+Probe internal tetap memuat reason code tenant-scoped seperti
+`PROVIDER_MAINTENANCE`, `PROVIDER_TIMEOUT`, `CHANNEL_INACTIVE`, dan
+`CREDENTIAL_INVALID`. Bukti yang melewati TTL ditampilkan sebagai `UNKNOWN`,
+bukan outage aktif. Status resmi dan probe internal tidak mengubah assignment
+merchant; keduanya merupakan control-plane evidence untuk checkout protection.
+
 `GET /api/v1/admin/engine/readiness` menggabungkan pemeriksaan database,
 connector registry, runtime configuration, serta nilai request timeout, body
 limit, rate limit, dan max in-flight efektif. Endpoint ini aman untuk automation
@@ -254,7 +295,7 @@ runner saat startup dan hanya berbicara melalui interface canonical.
 | Operation kernel | HTTP contract aktif |
 |---|---|
 | Health/capability discovery | `GET /partner/v1/health`, `GET /partner/v1/capabilities` |
-| Validate payment mapping/input | `POST /partner/v1/payment-methods/validate`, `POST /partner/v1/payments/validate` |
+| Validate payment mapping/input | `POST /partner/v1/payment-methods/validate`, `POST /partner/v1/hosted-payment-methods/validate`, `POST /partner/v1/payments/validate` |
 | Verify/disable installation | `POST /partner/v1/installations/verify`, `POST /partner/v1/installations/disable` |
 | Create/get/capture/cancel payment | `POST /partner/v1/payments/{create|get|capture|cancel}` |
 | Sandbox simulation | `POST /partner/v1/payments/simulate` |
@@ -317,7 +358,7 @@ Contoh installation Midtrans memakai endpoint yang sama:
 ```json
 {
   "provider_code": "midtrans",
-  "provider_version": "emisell-midtrans-v2.0.1",
+  "provider_version": "emisell-midtrans-v2.0.2",
   "environment": "sandbox"
 }
 ```
@@ -516,7 +557,7 @@ Mengubah `ACTIVE` menjadi `INACTIVE` tanpa menghapus credential.
 ```json
 {
   "version": 6,
-  "provider_version": "emisell-midtrans-v2.0.1"
+  "provider_version": "emisell-midtrans-v2.0.2"
 }
 ```
 
@@ -606,6 +647,11 @@ untuk membedakan konfigurasinya. `/payment-options` juga mengembalikan kedua
 environment, sedangkan `/provider-options` tetap memerlukan environment karena
 dipakai untuk memilih installation hosted checkout.
 
+Assignment adalah konfigurasi pilihan merchant, bukan status operasional
+provider. Ketika provider atau channel sedang offline/maintenance, record
+assignment tetap `ACTIVE`; Payment Proxy menyembunyikannya hanya dari endpoint
+checkout sampai pemeriksaan provider berikutnya menyatakan tersedia kembali.
+
 ### `PUT /payment-method-assignments`
 
 Installation harus `ACTIVE` pada environment yang sama. Capability berstatus
@@ -670,6 +716,12 @@ memilih channel sebelum memanggil provider. Flow utama
 channel di halaman checkout provider dari daftar assignment `ACTIVE` milik
 installation.
 
+Sebelum mengembalikan daftar, Payment Proxy memperbarui cache availability
+internal berumur pendek. Method yang dinyatakan `offline`, `maintenance`, atau
+inactive oleh provider tidak dikembalikan. Status dan alasan availability tidak
+ditambahkan ke response merchant karena checkout cukup menerima pilihan yang
+aman digunakan.
+
 ```json
 {
   "data": [{
@@ -714,7 +766,9 @@ gateway tersebut. `installation_id` dapat langsung dipakai untuk membuat
 `logo_url` adalah path relatif terhadap origin Dashboard Payment Proxy. Field
 tersebut tidak dikirim jika provider atau payment method belum mempunyai aset
 logo. Provider tanpa assignment aktif tidak muncul dan data selalu dibatasi
-oleh `X-Emisell-Merchant-ID`.
+oleh `X-Emisell-Merchant-ID`. Provider yang gagal health probe atau tidak lagi
+mempunyai method tersedia juga tidak muncul selama cache outage masih berlaku.
+Pemeriksaan ini tidak mengubah installation maupun assignment merchant.
 
 ## Payments
 
@@ -727,6 +781,13 @@ Headers tambahan:
 ```text
 Idempotency-Key: order-2026-0001-attempt-1
 ```
+
+Payment Proxy melakukan preflight availability yang sama sebelum membuat
+payment. Provider yang sedang tidak tersedia menghasilkan
+`503 PAYMENT_PROVIDER_TEMPORARILY_UNAVAILABLE`; direct method yang sedang
+maintenance menghasilkan `503 PAYMENT_METHOD_TEMPORARILY_UNAVAILABLE`. Tidak
+ada automatic failover ke provider lain karena hal tersebut dapat menciptakan
+transaksi ganda.
 
 Environment diambil dari `installation_id` untuk hosted checkout atau dari
 `payment_option_id` untuk direct-channel. Header `X-Emisell-Execution-Mode`
@@ -748,13 +809,18 @@ tidak digunakan.
 
 Jika request hanya berisi `installation_id` tanpa payment method,
 `checkout_mode` otomatis menjadi `provider_hosted`. Payment Proxy meminta
-provider membuat hosted checkout dan mengembalikan URL provider. Untuk Xendit,
-Payment Proxy mengambil assignment `ACTIVE` installation dan menyaring metode
-yang tidak memenuhi currency/amount transaksi sebelum memanggil runtime.
-Request Xendit ditolak dengan `409 NO_ELIGIBLE_PAYMENT_METHOD` jika tidak ada
-metode yang layak. Connector
-Duitku memakai POP Create Invoice dan memerlukan `customer.email` yang valid;
-iPaymu memakai Redirect Payment API v2:
+provider membuat hosted checkout dan mengembalikan URL provider. Payment Proxy
+mengambil assignment `ACTIVE` installation untuk setiap provider, menyaring
+metode yang tidak memenuhi currency/amount transaksi, lalu mengirim daftar
+eligible tersebut ke runtime. Request ditolak dengan
+`409 NO_ELIGIBLE_PAYMENT_METHOD` jika tidak ada metode yang layak.
+
+Xendit, Midtrans, dan DOKU dapat membatasi halaman hosted ke banyak metode
+eligible secara exact. Duitku POP hanya dapat menerima satu `paymentMethod`,
+sehingga hosted checkout Duitku ditolak dengan
+`409 HOSTED_PAYMENT_METHOD_RESTRICTION_UNSUPPORTED` jika lebih dari satu metode
+eligible aktif. iPaymu Redirect Payment belum menyediakan allowlist exact per
+transaksi, sehingga release saat ini hanya mengiklankan direct checkout iPaymu:
 
 ```json
 {
@@ -777,11 +843,12 @@ iPaymu memakai Redirect Payment API v2:
 ```
 
 Untuk Xendit, URL berasal dari `payment_link_url` Payment Session; Midtrans dari
-`redirect_url` Snap; DOKU dari `response.payment.url`; dan iPaymu dari
-`Data.Url` Redirect Payment. Xendit menerima `allowed_payment_channels` yang
-dibentuk hanya dari assignment `ACTIVE`, sehingga metode `INACTIVE` tidak muncul
-di Payment Link. QRIS, VA, e-wallet, card, dan channel lain yang diizinkan tetap
-ditampilkan dan diproses pada halaman milik provider;
+`redirect_url` Snap; DOKU dari `response.payment.url`; dan Duitku dari
+`paymentUrl`. Xendit menerima `allowed_payment_channels`, Midtrans menerima
+`enabled_payments`, DOKU menerima `payment.payment_method_types`, dan Duitku
+menerima satu `paymentMethod`. Seluruh nilai dibentuk hanya dari assignment
+`ACTIVE`, sehingga metode `INACTIVE` tidak muncul di Payment Link. QRIS, VA,
+e-wallet, card, dan channel lain yang diizinkan tetap ditampilkan dan diproses pada halaman milik provider;
 Emisell tidak membuat halaman checkout dan tidak menerima PAN, expiry,
 CVV/CVN, OTP, atau detail autentikasi pembayaran.
 

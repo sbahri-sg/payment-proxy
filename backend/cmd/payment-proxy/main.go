@@ -17,6 +17,7 @@ import (
 	"github.com/emisell/api-payment-proxy/internal/emisellreceiver"
 	"github.com/emisell/api-payment-proxy/internal/engine"
 	"github.com/emisell/api-payment-proxy/internal/outbox"
+	"github.com/emisell/api-payment-proxy/internal/providerstatus"
 	"github.com/emisell/api-payment-proxy/internal/registry"
 	"github.com/emisell/api-payment-proxy/internal/remoteconnector"
 	"github.com/emisell/api-payment-proxy/internal/secrets"
@@ -133,7 +134,9 @@ func run(logger *slog.Logger) error {
 			CallbackURL: cfg.EmisellWebhookURL, Secret: cfg.EmisellWebhookSecret,
 		},
 	)
-	handler := api.New(cfg, database, paymentEngine, cipher, serviceKeyService, webhookSettings, logger)
+	providerStatus := providerstatus.New()
+	go providerStatus.Run(ctx, cfg.ProviderStatusPoll, cfg.ProviderStatusTimeout, logger)
+	handler := api.NewWithProviderStatus(cfg, database, paymentEngine, cipher, serviceKeyService, webhookSettings, providerStatus, logger)
 	server := &http.Server{
 		Addr: cfg.HTTPAddr, Handler: handler,
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,

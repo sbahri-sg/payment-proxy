@@ -65,7 +65,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Duitku",
-		Version:          "emisell-duitku-v2.0.1",
+		Version:          "emisell-duitku-v2.0.2",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -94,7 +94,17 @@ func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) err
 		strings.ToLower(strings.TrimSpace(input.ProviderMethodType)) != mapping.providerType {
 		return fmt.Errorf("payment method %q has an invalid %s mapping", code, c.Code())
 	}
+	if channelCode := strings.ToUpper(strings.TrimSpace(input.ProviderChannelCode)); channelCode != "" {
+		if _, allowed := mapping.alternatives[channelCode]; !allowed {
+			return fmt.Errorf("payment method %q has an invalid %s channel mapping", code, c.Code())
+		}
+	}
 	return nil
+}
+
+func (c *Client) ValidateHostedPaymentMethods(methods []connector.PaymentMethodMapping) error {
+	_, err := c.hostedPaymentMethod(methods)
+	return err
 }
 
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
@@ -111,6 +121,16 @@ func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 		return errors.New("Duitku payment amount must be at least IDR 10,000")
 	}
 	return nil
+}
+
+func (c *Client) hostedPaymentMethod(methods []connector.PaymentMethodMapping) (string, error) {
+	if len(methods) != 1 {
+		return "", fmt.Errorf("%w: Duitku POP can enforce exactly one active payment method, received %d", connector.ErrHostedPaymentRestrictionUnsupported, len(methods))
+	}
+	if err := c.ValidatePaymentMethod(methods[0]); err != nil {
+		return "", err
+	}
+	return duitkuChannel(methods[0].PaymentMethodCode, methods[0].ProviderChannelCode)
 }
 
 func duitkuChannel(methodCode, override string) (string, error) {

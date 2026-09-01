@@ -90,6 +90,11 @@ func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) err
 	return nil
 }
 
+func (c *Client) ValidateHostedPaymentMethods(methods []connector.PaymentMethodMapping) error {
+	_, err := c.hostedPaymentChannels(methods)
+	return err
+}
+
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 	code := strings.ToLower(strings.TrimSpace(input.PaymentMethodCode))
 	if _, supported := supportedMethods[code]; !supported {

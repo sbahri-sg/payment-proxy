@@ -22,12 +22,29 @@ func (c versionedConnector) Code() string { return "shared" }
 func (c versionedConnector) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code: "shared", Name: "Shared", Version: c.version, Runtime: "isolated_container",
-		Operations: []connector.Operation{connector.OperationCreatePayment},
+		Operations: []connector.Operation{connector.OperationCreatePayment, connector.OperationCreateHostedCheckout},
 	}
 }
 func (c versionedConnector) ValidatePayment(connector.PaymentValidation) error { return nil }
+func (c versionedConnector) ValidateHostedPaymentMethods(methods []connector.PaymentMethodMapping) error {
+	if len(methods) == 0 {
+		return connector.ErrHostedPaymentRestrictionUnsupported
+	}
+	return nil
+}
 func (c versionedConnector) CreatePayment(context.Context, connector.PaymentInput) (connector.PaymentResult, error) {
 	return connector.PaymentResult{ID: c.resultID, Status: "pending"}, nil
+}
+
+func TestRuntimeValidatesHostedAllowlistBeforeProviderIO(t *testing.T) {
+	items, _ := registry.New(versionedConnector{version: "v1", resultID: "payment-from-v1"})
+	runtime, _ := engine.New(items)
+	_, err := runtime.CreatePayment(context.Background(), connector.PaymentInput{
+		ProviderCode: "shared", ProviderVersion: "v1", CheckoutMode: connector.CheckoutModeProviderHosted,
+	})
+	if !errors.Is(err, connector.ErrHostedPaymentRestrictionUnsupported) {
+		t.Fatalf("hosted payment without a safe allowlist reached provider execution: %v", err)
+	}
 }
 
 func TestRuntimeRoutesMetadataAndValidationThroughRegistry(t *testing.T) {

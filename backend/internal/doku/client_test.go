@@ -56,8 +56,9 @@ func TestHostedCheckoutReturnsOfficialDOKUPaymentURL(t *testing.T) {
 		var payload map[string]any
 		_ = json.Unmarshal(body, &payload)
 		payment := nestedMap(payload, "payment")
-		if _, exists := payment["payment_method_types"]; exists {
-			t.Fatalf("hosted checkout must let DOKU show merchant-active methods: %#v", payment)
+		methods, _ := payment["payment_method_types"].([]any)
+		if len(methods) != 2 || methods[0] != "QRIS" || methods[1] != "VIRTUAL_ACCOUNT_BCA" {
+			t.Fatalf("hosted checkout must receive the exact active method allowlist: %#v", payment)
 		}
 		order := nestedMap(payload, "order")
 		if order["amount"] != float64(10000) || order["currency"] != "IDR" || order["callback_url"] != "https://shop.example.com/return" {
@@ -73,6 +74,10 @@ func TestHostedCheckoutReturnsOfficialDOKUPaymentURL(t *testing.T) {
 		Credentials:    map[string]string{"client_id": testClientID, "secret_key": testSecretKey},
 		LocalPaymentID: "pay_doku_1", IdempotencyKey: "idem_doku_1", Amount: 10_000, Currency: "IDR",
 		ReturnURL: "https://shop.example.com/return", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/doku/ins_doku_1",
+		AllowedPaymentMethods: []connector.PaymentMethodMapping{
+			{PaymentMethodCode: "qris", ProviderMethod: "real_time_payment", ProviderMethodType: "qris", ProviderChannelCode: "QRIS"},
+			{PaymentMethodCode: "va_bca", ProviderMethod: "bank_transfer", ProviderMethodType: "bca", ProviderChannelCode: "VIRTUAL_ACCOUNT_BCA"},
+		},
 	})
 	if err != nil || result.ID != "EMS123" || result.Status != "REQUIRES_ACTION" || result.ConnectorTransactionID != "SESSION-1" || !strings.Contains(string(result.NextAction), "checkout.doku.com") {
 		t.Fatalf("unexpected DOKU payment: %#v, %v", result, err)
@@ -136,7 +141,7 @@ func TestManifestMatchesSafeDOKUCheckoutScope(t *testing.T) {
 	if err := manifest.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != "emisell-doku-v2.0.1" || len(manifest.CertificationProfiles) != 20 || !manifest.Supports(connector.OperationCreateHostedCheckout) {
+	if manifest.Version != "emisell-doku-v2.0.2" || len(manifest.CertificationProfiles) != 20 || !manifest.Supports(connector.OperationCreateHostedCheckout) {
 		t.Fatalf("unexpected DOKU manifest: %#v", manifest)
 	}
 	for code, mapping := range supportedMethods {

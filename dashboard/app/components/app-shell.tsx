@@ -28,7 +28,7 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return <svg {...common}>{paths[name]}</svg>;
 }
 
-type ActivePage = "overview" | "payments" | "providers" | "payment-methods" | "webhooks" | "api-keys" | "docs";
+type ActivePage = "overview" | "payments" | "providers" | "payment-methods" | "provider-status" | "webhooks" | "api-keys" | "docs";
 
 const navigation: { label: string; items: { name: string; icon: IconName; href?: string; badge?: string; page?: ActivePage }[] }[] = [
   { label: "Workspace", items: [
@@ -40,6 +40,7 @@ const navigation: { label: string; items: { name: string; icon: IconName; href?:
     { name: "Payment methods", icon: "wallet", href: "/payment-methods", page: "payment-methods" },
   ]},
   { label: "Operations", items: [
+    { name: "Payment status", icon: "activity", href: "/provider-status", page: "provider-status" },
     { name: "Webhooks", icon: "webhook", href: "/webhooks", page: "webhooks" },
   ]},
   { label: "Developers", items: [

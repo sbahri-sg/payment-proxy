@@ -3,7 +3,7 @@ provider:
   code: midtrans
   name: Midtrans
 release:
-  version: emisell-midtrans-v2.0.1
+  version: emisell-midtrans-v2.0.2
 connector:
   contract_version: v1
   runtime: isolated_container

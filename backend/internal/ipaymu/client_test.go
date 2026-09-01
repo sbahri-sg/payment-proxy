@@ -33,7 +33,7 @@ func TestVerifyInstallationUsesSignedPaymentChannelsProbe(t *testing.T) {
 		if request.Header.Get("va") != testVA || request.Header.Get("signature") != requestSignature(http.MethodGet, credentials, []byte("{}")) || request.Header.Get("timestamp") != "20260901030405" {
 			t.Fatalf("invalid iPaymu verification headers: %#v", request.Header)
 		}
-		_, _ = io.WriteString(w, `{"Status":200,"Success":true,"Message":"Success","Data":[]}`)
+		_, _ = io.WriteString(w, `{"Status":200,"Success":true,"Message":"Success","Data":[{"Code":"va","Channels":[{"Code":"bca","FeatureStatus":"active","HealthStatus":"online"},{"Code":"bsi","FeatureStatus":"active","HealthStatus":"maintenance"},{"Code":"permata","FeatureStatus":"active","HealthStatus":"offline"}]},{"Code":"cc","Channels":[{"Code":"cc","FeatureStatus":"inactive","HealthStatus":"online"}]},{"Code":"debitonline","Channels":[{"Code":"cc","FeatureStatus":"active","HealthStatus":"offline"}]},{"Code":"ewallet","Channels":[{"Code":"dana","FeatureStatus":"inactive","HealthStatus":"online"}]}]}`)
 	}))
 	defer server.Close()
 	client, _ := New(server.URL, server.URL, time.Second)
@@ -46,35 +46,33 @@ func TestVerifyInstallationUsesSignedPaymentChannelsProbe(t *testing.T) {
 	if err != nil || result.ConnectorID != "ipaymu:ins_ipaymu_1" || !result.WebhookReady {
 		t.Fatalf("unexpected installation result: %#v, %v", result, err)
 	}
+	availability := make(map[string]connector.PaymentMethodAvailability, len(result.PaymentMethodAvailability))
+	for _, item := range result.PaymentMethodAvailability {
+		availability[item.PaymentMethodCode] = item
+	}
+	if availability["va_bca"].Status != connector.PaymentMethodAvailabilityAvailable ||
+		availability["va_bsi"].Reason != "PROVIDER_MAINTENANCE" ||
+		availability["va_permata"].Reason != "PROVIDER_OFFLINE" ||
+		availability["card"].Reason != "CHANNEL_INACTIVE" ||
+		availability["ewallet_dana"].Reason != "CHANNEL_INACTIVE" {
+		t.Fatalf("unexpected iPaymu channel availability: %#v", availability)
+	}
 }
 
-func TestHostedCheckoutReturnsOfficialIPaymuPaymentURL(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		body, _ := io.ReadAll(request.Body)
-		if request.URL.Path != paymentPath || request.Header.Get("signature") != requestSignature(http.MethodPost, apiCredentials{va: testVA, apiKey: testAPIKey}, body) {
-			t.Fatalf("invalid iPaymu hosted request: %s %#v", request.URL.Path, request.Header)
-		}
-		var payload map[string]any
-		_ = json.Unmarshal(body, &payload)
-		if _, exists := payload["paymentMethod"]; exists {
-			t.Fatalf("hosted checkout must let iPaymu show merchant-active methods: %#v", payload)
-		}
-		if payload["referenceId"] != "order-ipaymu-1" || payload["notifyUrl"] != "https://payments.example.com/webhooks/v1/providers/ipaymu/ins_1" {
-			t.Fatalf("unexpected hosted payload: %#v", payload)
-		}
-		_, _ = io.WriteString(w, `{"Status":200,"Message":"success","Data":{"SessionID":"SESSION-1","Url":"https://sandbox.ipaymu.com/payment/SESSION-1"}}`)
-	}))
-	defer server.Close()
-	client, _ := New(server.URL, server.URL, time.Second)
-	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
+func TestHostedCheckoutFailsClosedWhenIPaymuCannotApplyAllowlist(t *testing.T) {
+	client, _ := New("https://sandbox.ipaymu.test", "https://ipaymu.test", time.Second)
+	_, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", CheckoutMode: connector.CheckoutModeProviderHosted,
 		Credentials:    map[string]string{"va": testVA, "api_key": testAPIKey},
 		LocalPaymentID: "pay_ipaymu_1", MerchantReference: "order-ipaymu-1", Amount: 10_000, Currency: "IDR",
 		ReturnURL: "https://shop.example.com/return", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/ipaymu/ins_1",
 		Items: []connector.Item{{Name: "Subscription", NetUnitAmount: 10_000, Quantity: 1}},
+		AllowedPaymentMethods: []connector.PaymentMethodMapping{
+			{PaymentMethodCode: "qris", ProviderMethod: "real_time_payment", ProviderMethodType: "qris", ProviderChannelCode: "mpm"},
+		},
 	})
-	if err != nil || result.ID != "order-ipaymu-1" || result.Status != "REQUIRES_ACTION" || result.ConnectorTransactionID != "SESSION-1" || !strings.Contains(string(result.NextAction), "sandbox.ipaymu.com/payment") {
-		t.Fatalf("unexpected hosted checkout: %#v, %v", result, err)
+	if !errors.Is(err, connector.ErrHostedPaymentRestrictionUnsupported) {
+		t.Fatalf("iPaymu hosted checkout must fail closed: %v", err)
 	}
 }
 
@@ -172,7 +170,7 @@ func TestManifestMatchesSafeIPaymuScope(t *testing.T) {
 	if err := manifest.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != "emisell-ipaymu-v2.0.1" || len(manifest.CertificationProfiles) != 18 || !manifest.Supports(connector.OperationCreateHostedCheckout) {
+	if manifest.Version != "emisell-ipaymu-v2.0.2" || len(manifest.CertificationProfiles) != 18 || manifest.Supports(connector.OperationCreateHostedCheckout) {
 		t.Fatalf("unexpected iPaymu manifest: %#v", manifest)
 	}
 	for code, mapping := range supportedMethods {

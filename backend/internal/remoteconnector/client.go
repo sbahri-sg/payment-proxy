@@ -126,6 +126,15 @@ func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) err
 	return c.do(context.Background(), http.MethodPost, "/partner/v1/payment-methods/validate", payload, nil, false)
 }
 
+func (c *Client) ValidateHostedPaymentMethods(input []connector.PaymentMethodMapping) error {
+	payload := struct {
+		ProviderCode    string                           `json:"provider_code"`
+		ProviderVersion string                           `json:"provider_version"`
+		Input           []connector.PaymentMethodMapping `json:"input"`
+	}{ProviderCode: c.Code(), ProviderVersion: c.manifest.Version, Input: input}
+	return c.do(context.Background(), http.MethodPost, "/partner/v1/hosted-payment-methods/validate", payload, nil, false)
+}
+
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 	payload := struct {
 		ProviderCode    string                      `json:"provider_code"`
@@ -255,6 +264,8 @@ func (c *Client) do(ctx context.Context, method, path string, input, output any,
 			return &connector.UnknownOutcomeError{Cause: errors.New("connector runner reported unknown outcome")}
 		case "OPERATION_NOT_SUPPORTED":
 			return connector.ErrNotSupported
+		case "HOSTED_PAYMENT_METHOD_RESTRICTION_UNSUPPORTED":
+			return fmt.Errorf("%w: %s", connector.ErrHostedPaymentRestrictionUnsupported, problem.Error.Message)
 		}
 		provider := problem.Error.Provider
 		if provider == "" {

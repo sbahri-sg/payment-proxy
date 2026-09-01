@@ -16,6 +16,7 @@ import (
 	"github.com/emisell/api-payment-proxy/internal/config"
 	"github.com/emisell/api-payment-proxy/internal/connector"
 	"github.com/emisell/api-payment-proxy/internal/observability"
+	"github.com/emisell/api-payment-proxy/internal/providerstatus"
 	"github.com/emisell/api-payment-proxy/internal/ratelimit"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -131,6 +132,14 @@ func TestAdminRoutesUseCanonicalNamespace(t *testing.T) {
 	handler.ServeHTTP(adminPayments, adminPaymentsRequest)
 	if adminPayments.Code != http.StatusUnauthorized || !strings.Contains(adminPayments.Body.String(), "invalid admin credential") {
 		t.Fatalf("cross-merchant payment route did not require admin authentication: %d %s", adminPayments.Code, adminPayments.Body.String())
+	}
+
+	providerAvailability := httptest.NewRecorder()
+	providerAvailabilityRequest := httptest.NewRequest(http.MethodGet, "/api/v1/admin/provider-availability", nil)
+	providerAvailabilityRequest.Header.Set("Authorization", "Bearer test-service-key")
+	handler.ServeHTTP(providerAvailability, providerAvailabilityRequest)
+	if providerAvailability.Code != http.StatusUnauthorized || !strings.Contains(providerAvailability.Body.String(), "invalid admin credential") {
+		t.Fatalf("provider availability route did not require admin authentication: %d %s", providerAvailability.Code, providerAvailability.Body.String())
 	}
 
 	legacy := httptest.NewRecorder()
@@ -503,6 +512,23 @@ func TestRequestDeadlineIsPropagated(t *testing.T) {
 	})).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/providers", nil))
 	if !seen {
 		t.Fatal("service request did not receive a processing deadline")
+	}
+}
+
+func TestMergeOfficialMethodRestrictionsOverridesProviderProbe(t *testing.T) {
+	result := mergeOfficialMethodRestrictions(
+		[]connector.PaymentMethodAvailability{{PaymentMethodCode: "va_bsi", Status: connector.PaymentMethodAvailabilityAvailable}, {PaymentMethodCode: "qris", Status: connector.PaymentMethodAvailabilityAvailable}},
+		[]providerstatus.CheckoutMethodRestriction{{PaymentMethodCode: "va_bsi", Reason: "OFFICIAL_PROVIDER_MAINTENANCE"}, {PaymentMethodCode: "card", Reason: "OFFICIAL_PROVIDER_OFFLINE"}},
+	)
+	byCode := make(map[string]connector.PaymentMethodAvailability, len(result))
+	for _, item := range result {
+		byCode[item.PaymentMethodCode] = item
+	}
+	if byCode["va_bsi"].Status != connector.PaymentMethodAvailabilityUnavailable || byCode["va_bsi"].Reason != "OFFICIAL_PROVIDER_MAINTENANCE" {
+		t.Fatalf("official maintenance did not override the provider probe: %#v", result)
+	}
+	if byCode["card"].Status != connector.PaymentMethodAvailabilityUnavailable || byCode["qris"].Status != connector.PaymentMethodAvailabilityAvailable {
+		t.Fatalf("official restriction merge changed unrelated methods: %#v", result)
 	}
 }
 

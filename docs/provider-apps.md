@@ -171,22 +171,29 @@ Pada **Body → form-data**:
 
 | Key | Type | Value |
 |---|---|---|
-| `bundle` | File | `xendit-provider-app-emisell-v2.0.1.zip` |
+| `bundle` | File | `xendit-provider-app-emisell-v2.0.2.zip` |
 
 Untuk Duitku gunakan hasil deterministic builder
-`dist/provider-apps/duitku-provider-app-emisell-v2.0.1.zip`. Submission ini
+`dist/provider-apps/duitku-provider-app-emisell-v2.0.2.zip`. Submission ini
 memuat kontrak dan source review saja; runtime `duitku-provider-app` harus sudah
 memuat versi dan executable digest yang sama sebelum release dapat dipublish.
+POP hanya dapat membatasi satu `paymentMethod`; hosted request dengan lebih dari
+satu assignment eligible ditolak secara fail-closed.
 
-Untuk DOKU gunakan `dist/provider-apps/doku-provider-app-emisell-v2.0.1.zip`.
+Untuk DOKU gunakan `dist/provider-apps/doku-provider-app-emisell-v2.0.2.zip`.
 Submission mendeklarasikan DOKU Checkout hosted/direct, status order, notification
 HMAC, credential `client_id` + `secret_key`, serta 20 metode awal yang dapat
-dipenuhi oleh kontrak canonical saat ini.
+dipenuhi oleh kontrak canonical saat ini. Hosted checkout menerima daftar exact
+`payment.payment_method_types` dari assignment `ACTIVE`.
 
-Untuk iPaymu gunakan `dist/provider-apps/ipaymu-provider-app-emisell-v2.0.1.zip`.
-Submission mendeklarasikan Redirect Payment resmi, direct payment per channel,
-lookup status berdasarkan `referenceId`, callback `X-Signature`, credential
-`va` + `api_key`, dan 18 metode canonical API v2.
+Untuk iPaymu gunakan `dist/provider-apps/ipaymu-provider-app-emisell-v2.0.2.zip`.
+Submission mendeklarasikan direct payment per channel, lookup status berdasarkan
+`referenceId`, callback `X-Signature`, credential `va` + `api_key`, dan 18
+metode canonical API v2. Redirect Payment tidak diiklankan karena belum
+memiliki allowlist exact per transaksi. Verification iPaymu juga mengembalikan
+status channel dari Payment Channels API sebagai
+`payment_method_availability`; Kernel memakainya hanya untuk menyaring checkout,
+bukan untuk mengubah assignment merchant.
 
 Contoh response `201 Created`:
 
@@ -200,7 +207,7 @@ Contoh response `201 Created`:
     "status": "UPLOADED",
     "runtime": "isolated_container",
     "sdk_version": "v1",
-    "file_name": "xendit-provider-app-emisell-v2.0.1.zip",
+    "file_name": "xendit-provider-app-emisell-v2.0.2.zip",
     "artifact_size": 11220,
     "artifact_sha256": "a791f4...9d2c",
     "manifest": {

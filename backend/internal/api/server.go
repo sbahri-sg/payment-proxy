@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/emisell/api-payment-proxy/internal/config"
@@ -30,6 +31,7 @@ import (
 	"github.com/emisell/api-payment-proxy/internal/model"
 	"github.com/emisell/api-payment-proxy/internal/observability"
 	"github.com/emisell/api-payment-proxy/internal/providerapps"
+	"github.com/emisell/api-payment-proxy/internal/providerstatus"
 	"github.com/emisell/api-payment-proxy/internal/ratelimit"
 	"github.com/emisell/api-payment-proxy/internal/secrets"
 	"github.com/emisell/api-payment-proxy/internal/servicekeys"
@@ -37,6 +39,7 @@ import (
 	"github.com/emisell/api-payment-proxy/internal/webhooksettings"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -44,6 +47,9 @@ const (
 	maxProviderLogoBytes = 512 << 10
 	maxProviderLogoSide  = 2048
 	maxAssignmentBatch   = 50
+	availabilityProbeTTL = 2 * time.Minute
+	availabilityErrorTTL = 30 * time.Second
+	availabilityTimeout  = 5 * time.Second
 	// apiContractVersion is descriptive metadata returned by readiness and
 	// capability resources. Request versioning is defined solely by /api/v1.
 	apiContractVersion = "2026-08-28"
@@ -60,6 +66,7 @@ type Engine interface {
 	Manifests() []connector.Manifest
 	SupportsVersion(string, string, connector.Operation) (bool, error)
 	ValidatePaymentMethodVersion(string, string, connector.PaymentMethodMapping) error
+	ValidateHostedPaymentMethodsVersion(string, string, []connector.PaymentMethodMapping) error
 	ValidatePaymentVersion(string, string, connector.PaymentValidation) error
 	VerifyInstallation(context.Context, connector.InstallationInput) (connector.InstallationResult, error)
 	DisableInstallation(context.Context, connector.InstallationInput) error
@@ -85,16 +92,28 @@ type Server struct {
 	rateLimiter      *ratelimit.Limiter
 	adminRateLimiter *ratelimit.Limiter
 	inFlight         chan struct{}
+	availability     singleflight.Group
+	providerStatus   *providerstatus.Client
 	log              *slog.Logger
 }
 
 func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *secrets.Cipher, keys *servicekeys.Service, settings *webhooksettings.Service, logger *slog.Logger) http.Handler {
+	return NewWithProviderStatus(cfg, database, engine, cipher, keys, settings, nil, logger)
+}
+
+// NewWithProviderStatus lets the API process share one official-status cache
+// between its background refresher, checkout guards, and admin status endpoint.
+func NewWithProviderStatus(cfg config.Config, database *store.Postgres, engine Engine, cipher *secrets.Cipher, keys *servicekeys.Service, settings *webhooksettings.Service, statusClient *providerstatus.Client, logger *slog.Logger) http.Handler {
+	if statusClient == nil {
+		statusClient = providerstatus.New()
+	}
 	s := &Server{
 		cfg: cfg, store: database, engine: engine, cipher: cipher, serviceKeys: keys,
 		installations:   installationservice.New(database, engine, cipher, cfg.PublicBaseURL),
 		webhookSettings: settings, metrics: observability.New(),
 		rateLimiter: ratelimit.New(cfg.APIRateLimitRPS, cfg.APIRateLimitBurst), log: logger,
 		adminRateLimiter: ratelimit.New(cfg.AdminRateLimitRPS, cfg.AdminRateLimitBurst),
+		providerStatus:   statusClient,
 	}
 	if cfg.APIMaxInFlight > 0 {
 		s.inFlight = make(chan struct{}, cfg.APIMaxInFlight)
@@ -149,6 +168,7 @@ func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *sec
 
 func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Get("/dashboard/overview", s.dashboardOverview)
+	r.Get("/provider-availability", s.providerAvailability)
 	r.Get("/engine/readiness", s.engineReadiness)
 	r.Get("/observability", s.observabilitySnapshot)
 	r.Get("/metrics", s.prometheusMetrics)
@@ -172,6 +192,16 @@ func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Put("/emisell-webhook", s.updateEmisellWebhookSettings)
 	r.Post("/emisell-webhook/secret", s.generateEmisellWebhookSecret)
 	r.Post("/emisell-webhook/test", s.testEmisellWebhook)
+}
+
+func (s *Server) providerAvailability(w http.ResponseWriter, r *http.Request) {
+	result, err := s.store.ListProviderAvailabilityAdmin(r.Context(), time.Now().UTC())
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	result.OfficialProviders = s.providerStatus.Snapshot(r.Context())
+	writeData(w, http.StatusOK, result)
 }
 
 func (s *Server) live(w http.ResponseWriter, _ *http.Request) {
@@ -1091,6 +1121,10 @@ func (s *Server) listPaymentMethodAssignments(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) listPaymentOptions(w http.ResponseWriter, r *http.Request) {
+	if err := s.refreshActiveInstallationAvailability(r.Context(), tenant(r), ""); err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	items, err := s.store.ListPaymentOptions(r.Context(), tenant(r))
 	if err != nil {
 		s.internal(w, r, err)
@@ -1102,6 +1136,10 @@ func (s *Server) listPaymentOptions(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listProviderOptions(w http.ResponseWriter, r *http.Request) {
 	environment, ok := requireEnvironmentQuery(w, r)
 	if !ok {
+		return
+	}
+	if err := s.refreshActiveInstallationAvailability(r.Context(), tenant(r), environment); err != nil {
+		s.internal(w, r, err)
 		return
 	}
 	items, err := s.store.ListProviderOptions(r.Context(), tenant(r), environment)
@@ -1769,6 +1807,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var installation model.Installation
+	var selectedAssignment model.PaymentMethodAssignment
 	var err error
 	var mode string
 	if request.PaymentOptionID != "" {
@@ -1777,6 +1816,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 			s.storeError(w, r, assignmentErr)
 			return
 		}
+		selectedAssignment = assignment
 		mode = assignment.Environment
 	} else {
 		installation, err = s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
@@ -1798,6 +1838,41 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		s.recordIntegrationEvidence(r, mode, "idempotency_replay", map[string]any{"payment_id": existing.ID})
 		writeData(w, http.StatusOK, existing)
 		return
+	}
+	if installation.ID == "" {
+		installationID := request.InstallationID
+		if selectedAssignment.ID != "" {
+			installationID = selectedAssignment.InstallationID
+		}
+		installation, err = s.store.GetInstallation(r.Context(), tenant(r), installationID)
+		if err != nil {
+			s.storeError(w, r, err)
+			return
+		}
+	}
+	if installation.Environment != mode || installation.Status != model.InstallationActive {
+		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active for the selected payment environment")
+		return
+	}
+	providerAvailable, availabilityErr := s.refreshInstallationAvailability(r.Context(), installation)
+	if availabilityErr != nil {
+		s.internal(w, r, availabilityErr)
+		return
+	}
+	if !providerAvailable {
+		problem(w, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_TEMPORARILY_UNAVAILABLE", "the selected payment provider is temporarily unavailable")
+		return
+	}
+	if selectedAssignment.ID != "" {
+		methodAvailable, methodAvailabilityErr := s.store.IsPaymentMethodAvailable(r.Context(), tenant(r), installation.ID, selectedAssignment.PaymentMethodCode, time.Now().UTC())
+		if methodAvailabilityErr != nil {
+			s.internal(w, r, methodAvailabilityErr)
+			return
+		}
+		if !methodAvailable {
+			problem(w, http.StatusServiceUnavailable, "PAYMENT_METHOD_TEMPORARILY_UNAVAILABLE", "the selected payment method is temporarily unavailable")
+			return
+		}
 	}
 	if request.CheckoutMode == connector.CheckoutModeDirect && request.PaymentOptionID != "" {
 		option, optionErr := s.store.GetActivePaymentOption(r.Context(), tenant(r), mode, request.PaymentOptionID)
@@ -1822,22 +1897,20 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		request.PaymentMethod = option.PaymentMethod
 		request.PaymentMethodType = option.PaymentMethodType
 	}
-	if installation.ID == "" {
-		installation, err = s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
-		if err != nil {
-			s.storeError(w, r, err)
-			return
-		}
-	}
-	if installation.Environment != mode || installation.Status != model.InstallationActive {
-		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active for the selected payment environment")
-		return
-	}
 	var capability model.ProviderPaymentMethodCapability
 	var allowedPaymentMethods []connector.PaymentMethodMapping
 	if request.CheckoutMode == connector.CheckoutModeDirect {
 		if request.PaymentMethodCode == "" {
 			request.PaymentMethodCode = paymentMethodCodeFromLegacy(request.PaymentMethod, request.PaymentMethodType)
+		}
+		methodAvailable, methodAvailabilityErr := s.store.IsPaymentMethodAvailable(r.Context(), tenant(r), installation.ID, request.PaymentMethodCode, time.Now().UTC())
+		if methodAvailabilityErr != nil {
+			s.internal(w, r, methodAvailabilityErr)
+			return
+		}
+		if !methodAvailable {
+			problem(w, http.StatusServiceUnavailable, "PAYMENT_METHOD_TEMPORARILY_UNAVAILABLE", "the selected payment method is temporarily unavailable")
+			return
 		}
 		capability, err = s.store.GetProviderPaymentMethodCapability(r.Context(), installation.ProviderCode, request.PaymentMethodCode)
 		if errors.Is(err, store.ErrNotFound) {
@@ -1869,10 +1942,10 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 			problem(w, http.StatusUnprocessableEntity, "INVALID_AMOUNT", err.Error())
 			return
 		}
-	} else if installation.ProviderCode == "xendit" {
-		// Xendit v2.0.2 is the first hosted runtime that accepts the normalized
-		// allowlist. Keep older strict-decoding provider runtimes unchanged until
-		// their provider-specific channel restrictions are implemented.
+	} else {
+		// The Kernel owns merchant assignment selection. Every hosted runtime must
+		// prove that it can enforce this exact eligible set before a payment is
+		// reserved, so disabled methods never leak onto a provider checkout page.
 		configuredMethods, listErr := s.store.ListActivePaymentMethodMappings(r.Context(), tenant(r), installation.ID)
 		if listErr != nil {
 			s.internal(w, r, listErr)
@@ -1893,6 +1966,14 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(allowedPaymentMethods) == 0 {
 			problem(w, http.StatusConflict, "NO_ELIGIBLE_PAYMENT_METHOD", "the installation has no active payment method eligible for this payment")
+			return
+		}
+		if err = s.engine.ValidateHostedPaymentMethodsVersion(installation.ProviderCode, installation.ProviderVersion, allowedPaymentMethods); err != nil {
+			if errors.Is(err, connector.ErrHostedPaymentRestrictionUnsupported) || errors.Is(err, connector.ErrNotSupported) {
+				problem(w, http.StatusConflict, "HOSTED_PAYMENT_METHOD_RESTRICTION_UNSUPPORTED", err.Error())
+				return
+			}
+			problem(w, http.StatusConflict, "PAYMENT_METHOD_CONFIGURATION_INVALID", err.Error())
 			return
 		}
 	}
@@ -3017,6 +3098,177 @@ func (s *Server) loadCredentials(ctx context.Context, tenantID, installationID s
 		return nil, err
 	}
 	return credentials, nil
+}
+
+func (s *Server) refreshActiveInstallationAvailability(ctx context.Context, tenantID, environment string) error {
+	installations, err := s.store.ListInstallations(ctx, tenantID, environment)
+	if err != nil {
+		return err
+	}
+	var wait sync.WaitGroup
+	semaphore := make(chan struct{}, 4)
+	var errorOnce sync.Once
+	var firstError error
+	for _, installation := range installations {
+		if installation.Status != model.InstallationActive {
+			continue
+		}
+		installation := installation
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				errorOnce.Do(func() { firstError = ctx.Err() })
+				return
+			}
+			if _, refreshErr := s.refreshInstallationAvailability(ctx, installation); refreshErr != nil {
+				errorOnce.Do(func() { firstError = refreshErr })
+			}
+		}()
+	}
+	wait.Wait()
+	return firstError
+}
+
+func (s *Server) refreshInstallationAvailability(ctx context.Context, installation model.Installation) (bool, error) {
+	key := installation.TenantID + "\x00" + installation.ID
+	value, err, _ := s.availability.Do(key, func() (any, error) {
+		now := time.Now().UTC()
+		fresh, freshnessErr := s.store.InstallationAvailabilityFresh(ctx, installation.TenantID, installation.ID, now)
+		if freshnessErr != nil {
+			return false, freshnessErr
+		}
+		if fresh {
+			return s.store.IsPaymentMethodAvailable(ctx, installation.TenantID, installation.ID, "", now)
+		}
+
+		credentials, credentialErr := s.loadCredentials(ctx, installation.TenantID, installation.ID)
+		if credentialErr != nil {
+			storeErr := s.store.ReplaceInstallationAvailability(ctx, installation.TenantID, installation.ID, store.InstallationAvailabilitySnapshot{
+				ProviderStatus: connector.PaymentMethodAvailabilityUnavailable,
+				ProviderReason: "CREDENTIAL_UNAVAILABLE",
+				Source:         "installation_verification",
+				CheckedAt:      now,
+				ExpiresAt:      now.Add(availabilityErrorTTL),
+			})
+			if storeErr != nil {
+				return false, storeErr
+			}
+			return false, nil
+		}
+		defer clearCredentials(credentials)
+
+		probeTimeout := availabilityTimeout
+		if s.cfg.ConnectorTimeout > 0 && s.cfg.ConnectorTimeout < probeTimeout {
+			probeTimeout = s.cfg.ConnectorTimeout
+		}
+		probeContext, cancel := context.WithTimeout(ctx, probeTimeout)
+		result, verificationErr := s.engine.VerifyInstallation(probeContext, connector.InstallationInput{
+			InstallationID:   installation.ID,
+			ProviderCode:     installation.ProviderCode,
+			ProviderVersion:  installation.ProviderVersion,
+			Environment:      installation.Environment,
+			Credentials:      credentials,
+			PublicWebhookURL: s.providerWebhookURL(installation.ProviderCode, installation.ID),
+		})
+		cancel()
+		defer clearCredentials(result.StoredCredentials)
+		checkedAt := time.Now().UTC()
+		if verificationErr != nil {
+			if s.log != nil {
+				s.log.Warn("provider availability probe failed", "provider", installation.ProviderCode, "installation_id", installation.ID, "reason", providerAvailabilityReason(verificationErr))
+			}
+			if storeErr := s.store.ReplaceInstallationAvailability(ctx, installation.TenantID, installation.ID, store.InstallationAvailabilitySnapshot{
+				ProviderStatus: connector.PaymentMethodAvailabilityUnavailable,
+				ProviderReason: providerAvailabilityReason(verificationErr),
+				Source:         "installation_verification",
+				CheckedAt:      checkedAt,
+				ExpiresAt:      checkedAt.Add(availabilityErrorTTL),
+			}); storeErr != nil {
+				return false, storeErr
+			}
+			return false, nil
+		}
+		providerStatus := connector.PaymentMethodAvailabilityAvailable
+		providerReason := ""
+		availabilitySource := "installation_verification"
+		methodAvailability := result.PaymentMethodAvailability
+		officialContext, officialCancel := context.WithTimeout(ctx, 3*time.Second)
+		officialRestrictions := s.providerStatus.CheckoutRestrictions(officialContext, installation.ProviderCode, installation.Environment)
+		officialCancel()
+		if officialRestrictions.ProviderUnavailable {
+			providerStatus = connector.PaymentMethodAvailabilityUnavailable
+			providerReason = officialRestrictions.ProviderReason
+			availabilitySource = "combined_availability"
+		}
+		if len(officialRestrictions.Methods) > 0 {
+			methodAvailability = mergeOfficialMethodRestrictions(methodAvailability, officialRestrictions.Methods)
+			availabilitySource = "combined_availability"
+		}
+		if storeErr := s.store.ReplaceInstallationAvailability(ctx, installation.TenantID, installation.ID, store.InstallationAvailabilitySnapshot{
+			ProviderStatus: providerStatus,
+			ProviderReason: providerReason,
+			Methods:        methodAvailability,
+			Source:         availabilitySource,
+			CheckedAt:      checkedAt,
+			ExpiresAt:      checkedAt.Add(availabilityProbeTTL),
+		}); storeErr != nil {
+			return false, storeErr
+		}
+		return providerStatus == connector.PaymentMethodAvailabilityAvailable, nil
+	})
+	if err != nil {
+		return false, err
+	}
+	available, ok := value.(bool)
+	return available && ok, nil
+}
+
+func mergeOfficialMethodRestrictions(current []connector.PaymentMethodAvailability, official []providerstatus.CheckoutMethodRestriction) []connector.PaymentMethodAvailability {
+	result := append([]connector.PaymentMethodAvailability(nil), current...)
+	indexes := make(map[string]int, len(result))
+	for index, item := range result {
+		indexes[strings.ToLower(strings.TrimSpace(item.PaymentMethodCode))] = index
+	}
+	for _, restriction := range official {
+		code := strings.ToLower(strings.TrimSpace(restriction.PaymentMethodCode))
+		if code == "" {
+			continue
+		}
+		item := connector.PaymentMethodAvailability{PaymentMethodCode: code, Status: connector.PaymentMethodAvailabilityUnavailable, Reason: restriction.Reason}
+		if index, found := indexes[code]; found {
+			result[index] = item
+			continue
+		}
+		indexes[code] = len(result)
+		result = append(result, item)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].PaymentMethodCode < result[j].PaymentMethodCode })
+	return result
+}
+
+func providerAvailabilityReason(err error) string {
+	if errors.Is(err, connector.ErrInvalidCredential) {
+		return "CREDENTIAL_INVALID"
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return "PROVIDER_TIMEOUT"
+	}
+	var apiErr *connector.APIError
+	if errors.As(err, &apiErr) {
+		switch {
+		case apiErr.Status == http.StatusTooManyRequests:
+			return "PROVIDER_RATE_LIMITED"
+		case apiErr.Status >= http.StatusInternalServerError:
+			return "PROVIDER_UNAVAILABLE"
+		default:
+			return "PROVIDER_REJECTED"
+		}
+	}
+	return "PROVIDER_UNAVAILABLE"
 }
 
 func mergeMetadata(input, required map[string]any) map[string]any {

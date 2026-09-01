@@ -18,10 +18,10 @@ install -m 0644 "${repo_dir}/backend/internal/ipaymu/manifest.go" "${bundle_tmp}
 (
   cd "${bundle_tmp}/bundle"
   touch -t 198001010000 emisell-extension.yaml openapi.yaml README.md SECURITY.md contract-tests/README.md src/ipaymu/client.go src/ipaymu/manifest.go
-  COPYFILE_DISABLE=1 zip -X -q "${bundle_tmp}/ipaymu-provider-app-emisell-v2.0.1.zip" \
+  COPYFILE_DISABLE=1 zip -X -q "${bundle_tmp}/ipaymu-provider-app-emisell-v2.0.2.zip" \
     emisell-extension.yaml openapi.yaml README.md SECURITY.md contract-tests/README.md \
     src/ipaymu/client.go src/ipaymu/manifest.go
 )
 
-install -m 0644 "${bundle_tmp}/ipaymu-provider-app-emisell-v2.0.1.zip" "${output_dir}/ipaymu-provider-app-emisell-v2.0.1.zip"
-shasum -a 256 "${output_dir}/ipaymu-provider-app-emisell-v2.0.1.zip"
+install -m 0644 "${bundle_tmp}/ipaymu-provider-app-emisell-v2.0.2.zip" "${output_dir}/ipaymu-provider-app-emisell-v2.0.2.zip"
+shasum -a 256 "${output_dir}/ipaymu-provider-app-emisell-v2.0.2.zip"

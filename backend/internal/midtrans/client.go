@@ -223,9 +223,14 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 }
 
 func (c *Client) createSnapCheckout(ctx context.Context, input connector.PaymentInput, credentials apiCredentials, amount int64, orderID string) (connector.PaymentResult, error) {
+	enabledPayments, err := c.hostedPaymentTypes(input.AllowedPaymentMethods)
+	if err != nil {
+		return connector.PaymentResult{}, err
+	}
 	payload := map[string]any{
 		"transaction_details": map[string]any{"order_id": orderID, "gross_amount": amount},
 		"credit_card":         map[string]any{"secure": true},
+		"enabled_payments":    enabledPayments,
 	}
 	if customer := customerDetails(input.Customer); len(customer) > 0 {
 		payload["customer_details"] = customer
@@ -256,6 +261,30 @@ func (c *Client) createSnapCheckout(ctx context.Context, input connector.Payment
 		ID: orderID, Status: "REQUIRES_ACTION", ConnectorTransactionID: orderID,
 		NextAction: nextAction,
 	}, nil
+}
+
+func (c *Client) hostedPaymentTypes(methods []connector.PaymentMethodMapping) ([]string, error) {
+	if len(methods) == 0 {
+		return nil, errors.New("at least one active payment method is required for Midtrans hosted checkout")
+	}
+	types := make([]string, 0, len(methods))
+	seen := make(map[string]struct{}, len(methods))
+	for _, method := range methods {
+		if err := c.ValidatePaymentMethod(method); err != nil {
+			return nil, err
+		}
+		mapping := supportedMethods[strings.ToLower(strings.TrimSpace(method.PaymentMethodCode))]
+		channelCode := strings.ToLower(strings.TrimSpace(method.ProviderChannelCode))
+		if channelCode == "" {
+			channelCode = mapping.channelCode
+		}
+		if _, exists := seen[channelCode]; exists {
+			continue
+		}
+		seen[channelCode] = struct{}{}
+		types = append(types, channelCode)
+	}
+	return types, nil
 }
 
 func (c *Client) GetPayment(ctx context.Context, input connector.PaymentLookup) (connector.PaymentResult, error) {

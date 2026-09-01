@@ -172,6 +172,87 @@ type ProviderOption struct {
 	HasCustomLogo           bool                    `json:"-"`
 }
 
+type ProviderAvailabilityMethod struct {
+	PaymentMethodCode string    `json:"payment_method_code"`
+	PaymentMethodName string    `json:"payment_method_name"`
+	Status            string    `json:"status"`
+	Reason            string    `json:"reason,omitempty"`
+	Source            string    `json:"source"`
+	Fresh             bool      `json:"fresh"`
+	CheckedAt         time.Time `json:"checked_at"`
+	ExpiresAt         time.Time `json:"expires_at"`
+}
+
+type ProviderAvailabilityItem struct {
+	MerchantID                string                       `json:"merchant_id"`
+	InstallationID            string                       `json:"installation_id"`
+	ProviderCode              string                       `json:"provider_code"`
+	ProviderName              string                       `json:"provider_name"`
+	ProviderVersion           string                       `json:"provider_version"`
+	Environment               string                       `json:"environment"`
+	Status                    string                       `json:"status"`
+	Reason                    string                       `json:"reason,omitempty"`
+	LastStatus                string                       `json:"last_status,omitempty"`
+	LastReason                string                       `json:"last_reason,omitempty"`
+	Source                    string                       `json:"source,omitempty"`
+	CheckedAt                 *time.Time                   `json:"checked_at,omitempty"`
+	ExpiresAt                 *time.Time                   `json:"expires_at,omitempty"`
+	UnavailablePaymentMethods []ProviderAvailabilityMethod `json:"unavailable_payment_methods"`
+}
+
+type ProviderAvailabilitySummary struct {
+	Connections     int `json:"connections"`
+	Available       int `json:"available"`
+	Degraded        int `json:"degraded"`
+	Unavailable     int `json:"unavailable"`
+	Unknown         int `json:"unknown"`
+	AffectedMethods int `json:"affected_methods"`
+}
+
+type ProviderAvailabilityOverview struct {
+	GeneratedAt       time.Time                   `json:"generated_at"`
+	Summary           ProviderAvailabilitySummary `json:"summary"`
+	Items             []ProviderAvailabilityItem  `json:"items"`
+	OfficialProviders []OfficialProviderStatus    `json:"official_providers"`
+}
+
+type OfficialProviderComponent struct {
+	Name   string `json:"name"`
+	Group  string `json:"group,omitempty"`
+	Status string `json:"status"`
+}
+
+type OfficialProviderEvent struct {
+	ID             string     `json:"id"`
+	Type           string     `json:"type"`
+	Name           string     `json:"name"`
+	Status         string     `json:"status"`
+	Impact         string     `json:"impact,omitempty"`
+	Summary        string     `json:"summary,omitempty"`
+	Schedule       string     `json:"schedule,omitempty"`
+	URL            string     `json:"url,omitempty"`
+	Components     []string   `json:"components"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	ScheduledFor   *time.Time `json:"scheduled_for,omitempty"`
+	ScheduledUntil *time.Time `json:"scheduled_until,omitempty"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+}
+
+type OfficialProviderStatus struct {
+	ProviderCode    string                      `json:"provider_code"`
+	ProviderName    string                      `json:"provider_name"`
+	StatusPageURL   string                      `json:"status_page_url"`
+	Status          string                      `json:"status"`
+	Description     string                      `json:"description"`
+	Source          string                      `json:"source"`
+	SourceAvailable bool                        `json:"source_available"`
+	UpdatedAt       *time.Time                  `json:"updated_at,omitempty"`
+	Components      []OfficialProviderComponent `json:"components"`
+	ActiveIncidents []OfficialProviderEvent     `json:"active_incidents"`
+	Maintenance     []OfficialProviderEvent     `json:"scheduled_maintenance"`
+	RecentIncidents []OfficialProviderEvent     `json:"recent_incidents"`
+}
+
 type PaymentMethodCatalogItem struct {
 	Code        string          `json:"code"`
 	Category    string          `json:"category"`

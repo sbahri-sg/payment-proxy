@@ -2,7 +2,7 @@
 
 Status: **IMPLEMENTED · BCA/BNI/PERMATA VA SANDBOX CERTIFIED**
 
-Connector: `emisell-midtrans-v2.0.1`
+Connector: `emisell-midtrans-v2.0.2`
 Runtime: isolated Midtrans Provider App container
 
 Dokumen ini membedakan implementasi kode dari bukti bahwa account Midtrans
@@ -23,6 +23,10 @@ Emisell sudah mempunyai evidence lengkap.
 | `va_permata` | `payment_type=permata` | Implemented, sandbox certified |
 | `ewallet_gopay` | `payment_type=gopay` | Implemented, provider activation pending |
 | `ewallet_shopeepay` | `payment_type=shopeepay` | Implemented, provider activation pending |
+
+Untuk `provider_hosted`, runtime mengubah assignment `ACTIVE` yang eligible
+menjadi daftar exact Snap `enabled_payments`; channel yang tidak di-assign tidak
+ditampilkan pada transaksi tersebut.
 
 Card, Danamon VA, BSI VA, OVO, DANA, retail, dan paylater tetap tercatat sebagai
 informasi katalog tetapi ditandai `CONNECTOR_METHOD_NOT_IMPLEMENTED`. Danamon
@@ -72,14 +76,14 @@ Payload mentah provider tidak diteruskan ke Emisell Backend.
 
 ## Evidence release Provider App 1 September 2026
 
-Artifact `emisell-midtrans-v2.0.1` dibangun sebagai ZIP immutable dan dijalankan
+Artifact `emisell-midtrans-v2.0.2` dibangun sebagai ZIP immutable dan dijalankan
 sebagai container tersendiri. ZIP submission berisi source review, sedangkan
 digest executable runtime dicatat dan diverifikasi secara terpisah saat publish.
 BCA VA menghasilkan webhook `pending` dan `settlement` langsung melalui
 override notification URL; certification run `cert_3d38639c09440121510415f65cc93e62`
 berstatus `PASSED`, termasuk direct provider webhook dan signed delivery ke
 Emisell Backend. Provider App kemudian dipublish dan installation sandbox
-di-upgrade secara eksplisit ke v2.0.1.
+di-upgrade secara eksplisit ke v2.0.2.
 
 ## Evidence sandbox 28 Agustus 2026
 

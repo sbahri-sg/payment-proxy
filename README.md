@@ -53,7 +53,7 @@ Danamon VA, Kredivo, Akulaku, Indodana, Jenius Pay, dan channel lain tetap
 `DOCUMENTED`. Core tidak perlu berubah ketika capability baru ditambahkan;
 connector dan capability mapping yang diperluas.
 
-Connector Midtrans `emisell-midtrans-v2.0.1` berjalan sebagai Provider App
+Connector Midtrans `emisell-midtrans-v2.0.2` berjalan sebagai Provider App
 container tersendiri, terpisah dari runner Xendit. Ini membuktikan bahwa kontrak
 engine tidak bergantung pada implementasi atau process provider tertentu:
 
@@ -66,6 +66,8 @@ engine tidak bergantung pada implementasi atau process provider tertentu:
 - QRIS, BCA/BNI/BRI/CIMB/Permata VA, Mandiri Bill, GoPay, dan ShopeePay sudah
   mempunyai mapping Core API v2, create/get, customer next action, serta webhook
   signature normalization;
+- Snap menerima `enabled_payments` yang dibentuk dari assignment `ACTIVE`, jadi
+  metode yang dinonaktifkan tidak muncul pada transaksi hosted baru;
 - cancel dan refund Midtrans sudah mempunyai adapter dan contract test, tetapi
   belum diumumkan di manifest runtime sampai bukti sandbox nyata tersedia;
 - channel yang belum diprovisikan tetap fail-closed pada sandbox maupun live;
@@ -76,30 +78,31 @@ engine tidak bergantung pada implementasi atau process provider tertentu:
   berstatus `CERTIFIED` untuk BCA, BNI, dan Permata Virtual Account, sedangkan
   channel lain masih menunggu evidence terminal.
 
-Connector Duitku `emisell-duitku-v2.0.1` juga berjalan sebagai shared Provider
+Connector Duitku `emisell-duitku-v2.0.2` juga berjalan sebagai shared Provider
 App terpisah. Implementasi awal memakai POP Create Invoice dan selalu
-mengembalikan `paymentUrl` resmi Duitku. Pada `provider_hosted`, pemilihan metode
-tetap berada di halaman Duitku; pada direct checkout, canonical payment method
-dipetakan ke code channel Duitku. Installation meminta `merchant_code` dan
+mengembalikan `paymentUrl` resmi Duitku. Karena POP hanya menerima satu
+`paymentMethod`, `provider_hosted` tersedia bila tepat satu assignment layak
+berstatus `ACTIVE`; lebih dari satu ditolak agar metode inactive tidak bocor.
+Pada direct checkout, canonical payment method dipetakan ke code channel Duitku. Installation meminta `merchant_code` dan
 `api_key`, memverifikasi akses ke daftar payment method sesuai environment,
 menandatangani request dengan HMAC-SHA256 terbaru, serta memvalidasi signature
 callback sebelum event masuk ke Payment Kernel. Cancel dan refund belum
 diiklankan sampai tersedia bukti sandbox dan aturan provider yang lengkap.
 
-Connector DOKU `emisell-doku-v2.0.1` memakai DOKU Checkout. Payment Proxy
+Connector DOKU `emisell-doku-v2.0.2` memakai DOKU Checkout. Payment Proxy
 membuat order ke `POST /checkout/v1/payment` dan hanya mengembalikan URL resmi
-DOKU dari `response.payment.url`. Hosted checkout membiarkan DOKU menampilkan
-kanal yang aktif untuk merchant; direct checkout membatasi satu channel.
+DOKU dari `response.payment.url`. Hosted checkout mengirim daftar
+`payment_method_types` yang dibentuk dari assignment `ACTIVE`; direct checkout membatasi satu channel.
 Installation memakai `client_id` dan `secret_key`, request serta notification
 ditandatangani dengan skema HMAC-SHA256 Non-SNAP. Dua puluh kanal checkout dasar
 tersedia pada manifest; kanal yang memerlukan alamat/customer contract tambahan
 tetap `DOCUMENTED` sampai input canonical diperluas dan diuji di sandbox.
 
-Connector iPaymu `emisell-ipaymu-v2.0.1` memakai API v2. Merchant mengisi VA
-number dan API key yang berbeda untuk Sandbox atau Live. Hosted checkout
-memakai Redirect Payment dan hanya mengembalikan `Data.Url` resmi iPaymu;
-direct checkout memetakan satu canonical method ke `paymentMethod` dan
-`paymentChannel`. Instalasi diprobe melalui Payment Channels, status dicari
+Connector iPaymu `emisell-ipaymu-v2.0.2` memakai API v2. Merchant mengisi VA
+number dan API key yang berbeda untuk Sandbox atau Live. Karena Redirect
+Payment tidak menyediakan allowlist transaksi yang exact, hosted checkout tidak
+diiklankan pada release ini; direct checkout memetakan satu canonical method ke
+`paymentMethod` dan `paymentChannel`. Instalasi diprobe melalui Payment Channels, status dicari
 berdasarkan `referenceId`, dan callback JSON/form wajib lolos `X-Signature`
 HMAC-SHA256 dengan VA merchant sebelum masuk ke Payment Kernel.
 
@@ -285,8 +288,22 @@ Docker lokal memakai `emisell-receiver` sebagai contract-test receiver. Status `
 5. Backend membuat payment dengan `installation_id`; mode default adalah `provider_hosted`.
 6. Customer diarahkan ke `checkout_url` milik Xendit Payment Session atau Midtrans Snap dan memilih metode pembayaran di halaman provider.
 
-Assignment dan `payment_option_id` hanya dipakai untuk flow `direct` lanjutan,
-bukan sebagai prasyarat hosted checkout utama.
+Assignment tetap menjadi konfigurasi merchant. Payment Proxy memeriksa
+availability provider dengan cache singkat dan menyaring channel yang sedang
+offline/maintenance dari pilihan checkout serta allowlist hosted. Gangguan tidak
+mengubah status assignment `ACTIVE`, dan tidak ada automatic failover yang dapat
+menciptakan transaksi ganda.
+
+Cache tersebut menggabungkan probe API bercredential dengan status resmi
+Xendit, Midtrans, Duitku, DOKU, dan iPaymu. Outage global menahan provider,
+sedangkan gangguan yang dapat dipetakan hanya menahan payment method terkait.
+Kegagalan membaca situs status resmi bersifat fail-open agar masalah monitoring
+tidak menciptakan outage checkout palsu.
+
+API menyegarkan lima sumber status resmi itu di background saat startup dan
+setiap 60 detik (configurable), jadi update status tidak bergantung pada traffic
+endpoint atau aktivitas merchant. Poll ini hanya memakai endpoint status publik;
+probe kredensial installation tetap on-demand dan tidak dijalankan massal.
 
 Semua amount IDR menggunakan Rupiah utuh. Nilai `10000` berarti tepat Rp10.000 dan diteruskan ke provider tanpa pembagian atau pengalian tersembunyi.
 

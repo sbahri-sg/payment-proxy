@@ -154,7 +154,12 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 		return connector.PaymentResult{}, errors.New("the installation webhook URL must be public HTTPS for Duitku checkout")
 	}
 	paymentMethod := ""
-	if input.CheckoutMode != connector.CheckoutModeProviderHosted {
+	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
+		paymentMethod, err = c.hostedPaymentMethod(input.AllowedPaymentMethods)
+		if err != nil {
+			return connector.PaymentResult{}, err
+		}
+	} else {
 		paymentMethod, err = duitkuChannel(input.PaymentMethodCode, input.ChannelCode)
 		if err != nil {
 			return connector.PaymentResult{}, err

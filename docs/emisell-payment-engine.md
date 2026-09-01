@@ -5,7 +5,7 @@ Status: **ACTIVE FOUNDATION**
 Owner: **Emisell**
 
 Runtime: **Go Payment Kernel + isolated Connector Runner**
-Reference connectors: **Xendit `emisell-xendit-v2.0.2` + Midtrans `emisell-midtrans-v2.0.1` + Duitku `emisell-duitku-v2.0.1` + DOKU `emisell-doku-v2.0.1` + iPaymu `emisell-ipaymu-v2.0.1`**
+Reference connectors: **Xendit `emisell-xendit-v2.0.2` + Midtrans `emisell-midtrans-v2.0.2` + Duitku `emisell-duitku-v2.0.2` + DOKU `emisell-doku-v2.0.2` + iPaymu `emisell-ipaymu-v2.0.2`**
 
 Dokumen ini mengunci batas arsitektur Payment Proxy. Implementasi, endpoint,
 dashboard, dan connector baru tidak boleh menyimpang dari kontrak di bawah tanpa
@@ -85,6 +85,12 @@ tercantum dalam `Manifest.Operations` yang boleh ditawarkan Kernel. Method yang
 belum didukung tetap mengembalikan `connector.ErrNotSupported` sebagai defense
 in depth.
 
+`InstallationResult` boleh menyertakan `payment_method_availability` sebagai
+evidence operasional per canonical method. Kernel menyimpannya pada cache
+internal ber-TTL; field ini tidak mengubah assignment merchant. Connector yang
+tidak mempunyai API status per channel cukup mengembalikan verification sukses
+atau gagal sebagai health tingkat provider.
+
 ## 4. Manifest dan registry
 
 Manifest minimal memuat:
@@ -138,7 +144,7 @@ Browser tidak menerima service key dan tidak memanggil provider connector.
 |---|---:|---:|---:|---:|---:|---|
 | Verify/disable installation | Ya | Ya | Ya | Ya | Ya | Credential diverifikasi langsung ke provider; disable lokal |
 | Create/get payment | Ya | Ya | Ya | Ya | Ya | iPaymu lookup memakai referenceId |
-| Provider-hosted checkout | Ya | Ya | Ya | Ya | Ya | UI checkout tetap milik provider |
+| Provider-hosted checkout | Ya | Ya | Terbatas 1 metode | Ya | Tidak | UI checkout tetap milik provider; allowlist harus exact |
 | Sandbox simulation | Ya | Tidak | Tidak | Tidak | Tidak | Provider lain memakai customer action pada halaman provider |
 | Handle webhook | Ya | Ya | Ya | Ya | Ya | Signature diverifikasi connector lalu dinormalisasi |
 | Capture | Belum | Belum | Belum | Belum | Belum | Tidak diiklankan manifest |
@@ -257,13 +263,15 @@ Payment Kernel, checkout contract, atau canonical webhook delivery.
    membuktikan kontrak tidak bias terhadap Xendit. Unit/contract test dan release
    gate sudah aktif; sandbox evidence per method masih wajib sebelum `CERTIFIED`.
 5. **Third connector (local baseline selesai):** Duitku POP berjalan di shared
-   Provider App sendiri dengan hosted/direct invoice, status, credential probe,
-   HMAC-SHA256, callback normalization, dan source-only release bundle.
+   Provider App sendiri dengan hosted invoice untuk satu assignment eligible,
+   direct invoice, status, credential probe, HMAC-SHA256, callback normalization,
+   dan source-only release bundle.
 6. **Fourth connector (local baseline selesai):** DOKU Checkout berjalan pada
    isolated shared runtime dengan hosted/direct payment link resmi, Non-SNAP
    request signing, status order, notification verification, dan source-only bundle.
 7. **Fifth connector (local baseline selesai):** iPaymu API v2 berjalan pada
-   shared runtime dengan Redirect Payment resmi, direct method mapping, signed
-   reference lookup, callback HMAC, dan source-only release bundle.
+   shared runtime dengan direct method mapping, signed reference lookup,
+   callback HMAC, dan source-only release bundle. Redirect Payment tetap
+   fail-closed sampai tersedia allowlist exact per transaksi.
 8. **Deployment hardening berikutnya:** deployment automation, per-provider
    resource isolation, canary, kill switch, dan production-like soak.
