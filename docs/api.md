@@ -80,7 +80,7 @@ Base path: `/api/v1`. API ini adalah kontrak canonical antara Emisell Backend da
 |---|---:|---|
 | `Authorization: Bearer <SERVICE_API_KEY>` | endpoint merchant/service | service authentication |
 | `X-Emisell-Merchant-ID` | endpoint merchant/service | tenant isolation |
-| `X-Emisell-Execution-Mode` | readiness, diagnostics, dan payment | `sandbox` atau `live`; tidak dipakai oleh Payment Methods |
+| `X-Emisell-Execution-Mode` | readiness, diagnostics, dan filter installation | `sandbox` atau `live`; tidak dipakai oleh Payment Methods atau Payment Sessions |
 | `Idempotency-Key` | create/cancel payment dan create refund | ID logical operation, 8–128 karakter |
 
 Error selalu stabil:
@@ -661,9 +661,12 @@ Semua amount adalah integer minor unit. Untuk IDR, `1000000` berarti Rp10.000.
 Headers tambahan:
 
 ```text
-X-Emisell-Execution-Mode: sandbox
 Idempotency-Key: order-2026-0001-attempt-1
 ```
+
+Environment diambil dari `installation_id` untuk hosted checkout atau dari
+`payment_option_id` untuk direct-channel. Header `X-Emisell-Execution-Mode`
+tidak digunakan.
 
 ```json
 {
@@ -724,7 +727,9 @@ mengubah arti status canonical.
 
 ### `GET /payment-sessions`
 
-Query: `status`, `provider`, `q`, `limit` (1–100), dan `offset` (0–10.000). Execution mode opsional.
+Query: `environment` (`sandbox` atau `live`), `status`, `provider`, `q`,
+`limit` (1–100), dan `offset` (0–10.000). Filter `environment` bersifat
+opsional; tanpa filter, kedua environment dikembalikan.
 
 ### `GET /payment-sessions/{id}`
 

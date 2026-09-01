@@ -1026,7 +1026,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/payment-sessions?provider=xendit&limit=25&offset=0",
+                  "raw": "{{base_url}}/api/v1/payment-sessions?environment={{execution_mode}}&provider=xendit&limit=25&offset=0",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -1036,6 +1036,10 @@
                     "payment-sessions"
                   ],
                   "query": [
+                    {
+                      "key": "environment",
+                      "value": "{{execution_mode}}"
+                    },
                     {
                       "key": "provider",
                       "value": "xendit"
@@ -1050,7 +1054,7 @@
                     }
                   ]
                 },
-                "description": "List canonical payments with provider, status, search, execution-mode, and pagination filters."
+                "description": "List canonical payments with environment, provider, status, search, and pagination query filters."
               },
               "response": [
                 {
@@ -2532,11 +2536,6 @@
                   {
                     "key": "X-Emisell-Merchant-ID",
                     "value": "{{merchant_id}}",
-                    "type": "text"
-                  },
-                  {
-                    "key": "X-Emisell-Execution-Mode",
-                    "value": "{{execution_mode}}",
                     "type": "text"
                   },
                   {

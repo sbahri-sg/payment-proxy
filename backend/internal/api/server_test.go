@@ -262,6 +262,23 @@ func TestPaymentMethodEnvironmentQuery(t *testing.T) {
 	}
 }
 
+func TestCreatePaymentDoesNotRequireExecutionMode(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	handler := New(config.Config{ServiceAPIKey: "test-service-key"}, nil, nil, nil, nil, nil, logger)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/payment-sessions", strings.NewReader(`{}`))
+	request.Header.Set("Authorization", "Bearer test-service-key")
+	request.Header.Set("X-Emisell-Merchant-ID", "merchant_test")
+	request.Header.Set("Idempotency-Key", "checkout-contract-test")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnprocessableEntity || strings.Contains(response.Body.String(), "INVALID_EXECUTION_MODE") {
+		t.Fatalf("create payment still required execution mode: %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestProviderRegistryStatusAllowlist(t *testing.T) {
 	for _, status := range []string{"DRAFT", "ACTIVE", "DISABLED"} {
 		if !validProviderRegistryStatus(status) {

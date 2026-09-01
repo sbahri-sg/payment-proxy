@@ -745,8 +745,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     summary: "Kontrak canonical untuk create, retrieve, dan cancel pembayaran.",
     endpoints: [
       {
-        method: "GET", path: "/api/v1/payment-sessions?status=PENDING&provider=xendit&q=order_2026&limit=25&offset=0", title: "List payments", description: "Menampilkan payment milik tenant dengan filter status, provider, reference/ID, environment header, dan pagination berbasis offset.",
-        headers: ["X-Emisell-Execution-Mode: sandbox (optional)"],
+        method: "GET", path: "/api/v1/payment-sessions?environment=sandbox&status=PENDING&provider=xendit&q=order_2026&limit=25&offset=0", title: "List payments", description: "Menampilkan payment milik tenant dengan filter query environment, status, provider, reference/ID, dan pagination berbasis offset. Environment bersifat opsional.",
         response: `{
   "data": {
     "items": [${paymentListBase}],
@@ -764,7 +763,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
           {
             title: "Xendit atau Midtrans hosted checkout",
             description: "Gunakan installation_id provider aktif milik merchant. Provider menampilkan sendiri QRIS, VA, e-wallet, card, dan channel lain yang tersedia untuk akun tersebut.",
-            headers: ["X-Emisell-Execution-Mode: sandbox", "Idempotency-Key: checkout-order-123-attempt-1"],
+            headers: ["Idempotency-Key: checkout-order-123-attempt-1"],
             body: `{
   "installation_id": "ins_...",
   "checkout_mode": "provider_hosted",
@@ -1633,7 +1632,7 @@ midtrans_server_key = <Midtrans Sandbox Server Key>`;
 6. POST /payment-sessions (ulang request yang sama dengan Idempotency-Key yang sama)
 7. GET  /payment-sessions/{id} → terima signed payment.updated
 8. GET  /integration-readiness → READY`}</Code>
-                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Environment Payment Methods berasal dari installation_id atau query environment; endpoint payment yang masih mensyaratkannya tetap memakai X-Emisell-Execution-Mode. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
+                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Environment Payment Methods dan Payment Sessions berasal dari installation_id/payment_option_id atau query environment. X-Emisell-Execution-Mode hanya dikirim pada endpoint yang masih mendokumentasikannya secara eksplisit. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
                 <div className="postman-card"><div><strong>AI-readable contract</strong><span>Gunakan kontrak ringkas ini untuk coding assistant. Isinya hanya API Emisell Backend dan guardrail keamanan, bukan endpoint admin atau secret provider.</span></div><a className="download-link" href="/docs/llms.txt">Open llms.txt <span>→</span></a></div>
               </section>}
               <section className="doc-section" id="engine-contract">

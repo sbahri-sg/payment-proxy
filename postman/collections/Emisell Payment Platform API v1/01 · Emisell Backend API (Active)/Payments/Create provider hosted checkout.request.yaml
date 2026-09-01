@@ -3,7 +3,6 @@ url: "{{base_url}}/api/v1/payment-sessions"
 method: POST
 headers:
   X-Emisell-Merchant-ID: "{{merchant_id}}"
-  X-Emisell-Execution-Mode: "{{execution_mode}}"
   Idempotency-Key: checkout-{{$guid}}
   Content-Type: application/json
 body:

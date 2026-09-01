@@ -582,13 +582,14 @@ export function deactivatePaymentMethodAssignment(actor: string, id: string, ver
 
 export function listPayments(actor: string, filters: { environment?: string; status?: string; provider?: string; q?: string; limit?: number; offset?: number } = {}) {
   const query = new URLSearchParams();
+  if (filters.environment) query.set("environment", filters.environment);
   if (filters.status) query.set("status", filters.status);
   if (filters.provider) query.set("provider", filters.provider);
   if (filters.q) query.set("q", filters.q);
   if (filters.limit) query.set("limit", String(filters.limit));
   if (filters.offset) query.set("offset", String(filters.offset));
   const suffix = query.size ? `?${query}` : "";
-  return proxyRequest<PaymentList>(`/api/v1/payment-sessions${suffix}`, actor, filters.environment ? { headers: { "X-Emisell-Execution-Mode": filters.environment } } : undefined);
+  return proxyRequest<PaymentList>(`/api/v1/payment-sessions${suffix}`, actor);
 }
 
 export function getPayment(actor: string, id: string) {

@@ -1,8 +1,9 @@
 $kind: http-request
-description: List canonical payments with provider, status, search, execution-mode, and pagination filters.
-url: "{{base_url}}/api/v1/payment-sessions?provider=xendit&limit=25&offset=0"
+description: List canonical payments with environment, provider, status, search, and pagination query filters.
+url: "{{base_url}}/api/v1/payment-sessions?environment={{execution_mode}}&provider=xendit&limit=25&offset=0"
 method: GET
 queryParams:
+  environment: "{{execution_mode}}"
   provider: xendit
   limit: "25"
   offset: "0"

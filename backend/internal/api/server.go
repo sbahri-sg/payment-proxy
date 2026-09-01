@@ -1593,10 +1593,6 @@ type paymentRequest struct {
 }
 
 func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
-	mode, ok := requireMode(w, r)
-	if !ok {
-		return
-	}
 	key, ok := requireIdempotency(w, r)
 	if !ok {
 		return
@@ -1637,6 +1633,24 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "payment_option_id or installation_id, merchant_reference, positive amount, and 3-letter currency are required")
 		return
 	}
+	var installation model.Installation
+	var err error
+	var mode string
+	if request.PaymentOptionID != "" {
+		assignment, assignmentErr := s.store.GetPaymentMethodAssignment(r.Context(), tenant(r), request.PaymentOptionID)
+		if assignmentErr != nil {
+			s.storeError(w, r, assignmentErr)
+			return
+		}
+		mode = assignment.Environment
+	} else {
+		installation, err = s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
+		if err != nil {
+			s.storeError(w, r, err)
+			return
+		}
+		mode = installation.Environment
+	}
 	hash, err := canonicalHash(request)
 	if err != nil {
 		s.internal(w, r, err)
@@ -1673,13 +1687,15 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		request.PaymentMethod = option.PaymentMethod
 		request.PaymentMethodType = option.PaymentMethodType
 	}
-	installation, err := s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
-	if err != nil {
-		s.storeError(w, r, err)
-		return
+	if installation.ID == "" {
+		installation, err = s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
+		if err != nil {
+			s.storeError(w, r, err)
+			return
+		}
 	}
 	if installation.Environment != mode || installation.Status != model.InstallationActive {
-		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active in the requested execution mode")
+		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active for the selected payment environment")
 		return
 	}
 	var capability model.ProviderPaymentMethodCapability
@@ -1769,6 +1785,10 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listPayments(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
+	environment, ok := optionalEnvironmentQuery(w, r)
+	if !ok {
+		return
+	}
 	status := strings.ToUpper(strings.TrimSpace(query.Get("status")))
 	if status != "" && !validPaymentStatus(status) {
 		problem(w, http.StatusUnprocessableEntity, "INVALID_STATUS", "status is not a supported payment status")
@@ -1794,7 +1814,7 @@ func (s *Server) listPayments(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnprocessableEntity, "INVALID_OFFSET", "offset must be between 0 and 10000")
 		return
 	}
-	items, err := s.store.ListPayments(r.Context(), tenant(r), store.PaymentListFilter{Environment: optionalMode(r), Status: status, Provider: provider, Query: search, Limit: limit, Offset: offset})
+	items, err := s.store.ListPayments(r.Context(), tenant(r), store.PaymentListFilter{Environment: environment, Status: status, Provider: provider, Query: search, Limit: limit, Offset: offset})
 	if err != nil {
 		s.internal(w, r, err)
 		return

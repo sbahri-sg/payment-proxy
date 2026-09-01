@@ -14,7 +14,7 @@ Authorization: Bearer <SERVICE_API_KEY>
 X-Emisell-Merchant-ID: <merchant_id>
 Content-Type: application/json
 
-X-Emisell-Execution-Mode: sandbox | live is required only by endpoints that explicitly document it, such as payments and integration-readiness. Payment Methods does not use this header: assignment mutations derive environment from installation_id, while list endpoints use the environment query when filtering is needed.
+X-Emisell-Execution-Mode: sandbox | live is required only by endpoints that explicitly document it, such as integration-readiness and internal diagnostics. Payment Methods and Payment Sessions do not use this header: mutations derive environment from installation_id or payment_option_id, while list endpoints use the environment query when filtering is needed.
 
 Every mutation that represents a business operation must use a stable Idempotency-Key. Retry the same operation with the same key and identical body. Never generate a new key merely because a request timed out.
 
@@ -31,7 +31,7 @@ Sandbox and Live are separate installation slots with separate merchant credenti
 ## Payment flow
 
 POST /api/v1/payment-sessions
-Headers: X-Emisell-Execution-Mode and Idempotency-Key are required.
+Header: Idempotency-Key is required. Do not send X-Emisell-Execution-Mode; Payment Proxy derives environment from installation_id or payment_option_id.
 Preferred request fields: installation_id, checkout_mode=provider_hosted, merchant_reference, amount in minor units, currency, customer, return_url, metadata.
 
 For provider_hosted checkout, do not send payment_option_id or payment_method_code. Payment Proxy creates a Xendit Payment Session or Midtrans Snap transaction and returns payment.checkout_url plus next_action.redirect_url. Redirect the customer to that provider-owned URL. Emisell must not render its own payment-method page or collect PAN, CVV, OTP, VA, QR, or wallet authorization details.
@@ -40,6 +40,9 @@ payment-options and payment-method-assignments remain available only for the opt
 
 GET /api/v1/payment-sessions/{id}
 Returns the canonical payment projection and may synchronize with the same pinned provider installation.
+
+GET /api/v1/payment-sessions?environment=sandbox|live
+Lists canonical payments. The environment query is optional; without it, both environments are returned.
 
 POST /api/v1/payment-sessions/{id}/cancel
 Allowed only for PENDING or PROCESSING payments when the connector supports cancellation. Requires Idempotency-Key.
