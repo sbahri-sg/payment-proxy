@@ -280,7 +280,7 @@ export default async function Home() {
 
           <section className="roadmap-panel">
             <div><p className="panel-kicker">EMISELL ROADMAP</p><h2>What comes next</h2><p>Fokus berikutnya adalah connector gateway dan capability pembayaran yang benar-benar dibutuhkan merchant.</p></div>
-            <div className="roadmap-steps"><article className="done"><span>01</span><strong>Native foundation</strong><p>Overview, payments, Xendit connector, webhook, API docs.</p><em>Available now</em></article><article><span>02</span><strong>Gateway extensions</strong><p>Midtrans, DOKU, and Duitku through the same connector contract.</p><em>Next milestone</em></article><article><span>03</span><strong>Capability expansion</strong><p>E-wallet, cards, paylater, and refunds after provider conformance.</p><em>Planned</em></article></div>
+            <div className="roadmap-steps"><article className="done"><span>01</span><strong>Native foundation</strong><p>Overview, payments, Xendit connector, webhook, API docs.</p><em>Available now</em></article><article className="done"><span>02</span><strong>Gateway extensions</strong><p>Midtrans, Duitku, and DOKU use the same shared Provider App contract.</p><em>Local baseline ready</em></article><article><span>03</span><strong>Capability expansion</strong><p>Refunds and additional channels after provider conformance.</p><em>Next milestone</em></article></div>
           </section>
         </main>
       </div>

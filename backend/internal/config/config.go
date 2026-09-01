@@ -394,6 +394,112 @@ func LoadMidtransProviderApp() (MidtransProviderAppConfig, error) {
 	return cfg, nil
 }
 
+type DuitkuProviderAppConfig struct {
+	AppEnv            string
+	HTTPAddr          string
+	Token             string
+	SandboxPOPBaseURL string
+	LivePOPBaseURL    string
+	SandboxAPIBaseURL string
+	LiveAPIBaseURL    string
+	ConnectorTimeout  time.Duration
+	TLSCertPEM        []byte
+	TLSKeyPEM         []byte
+}
+
+func LoadDuitkuProviderApp() (DuitkuProviderAppConfig, error) {
+	tlsCertPEM, tlsKeyPEM, err := connectorTLSKeyPair()
+	if err != nil {
+		return DuitkuProviderAppConfig{}, err
+	}
+	cfg := DuitkuProviderAppConfig{
+		AppEnv:            envOr("APP_ENV", "development"),
+		HTTPAddr:          ":" + envOr("PROVIDER_APP_PORT", "18084"),
+		Token:             strings.TrimSpace(os.Getenv("PROVIDER_APP_TOKEN")),
+		SandboxPOPBaseURL: strings.TrimRight(envOr("DUITKU_SANDBOX_POP_BASE_URL", "https://api-sandbox.duitku.com"), "/"),
+		LivePOPBaseURL:    strings.TrimRight(envOr("DUITKU_LIVE_POP_BASE_URL", "https://api-prod.duitku.com"), "/"),
+		SandboxAPIBaseURL: strings.TrimRight(envOr("DUITKU_SANDBOX_API_BASE_URL", "https://sandbox.duitku.com/webapi"), "/"),
+		LiveAPIBaseURL:    strings.TrimRight(envOr("DUITKU_LIVE_API_BASE_URL", "https://passport.duitku.com/webapi"), "/"),
+		ConnectorTimeout:  seconds("CONNECTOR_TIMEOUT_SECONDS", 15),
+		TLSCertPEM:        tlsCertPEM,
+		TLSKeyPEM:         tlsKeyPEM,
+	}
+	for name, value := range map[string]string{
+		"DUITKU_SANDBOX_POP_BASE_URL": cfg.SandboxPOPBaseURL,
+		"DUITKU_LIVE_POP_BASE_URL":    cfg.LivePOPBaseURL,
+		"DUITKU_SANDBOX_API_BASE_URL": cfg.SandboxAPIBaseURL,
+		"DUITKU_LIVE_API_BASE_URL":    cfg.LiveAPIBaseURL,
+	} {
+		parsed, parseErr := url.Parse(value)
+		if parseErr != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return DuitkuProviderAppConfig{}, fmt.Errorf("%s must be an HTTP(S) URL without credentials", name)
+		}
+		if cfg.AppEnv == "production" && parsed.Scheme != "https" {
+			return DuitkuProviderAppConfig{}, fmt.Errorf("%s must use HTTPS in production", name)
+		}
+	}
+	if cfg.Token == "" {
+		return DuitkuProviderAppConfig{}, errors.New("PROVIDER_APP_TOKEN is required")
+	}
+	if cfg.AppEnv == "production" && weakProductionSecret(cfg.Token) {
+		return DuitkuProviderAppConfig{}, errors.New("PROVIDER_APP_TOKEN must be a non-default secret with at least 32 characters in production")
+	}
+	if cfg.AppEnv == "production" && len(cfg.TLSCertPEM) == 0 {
+		return DuitkuProviderAppConfig{}, errors.New("CONNECTOR_TLS_CERT_BASE64 and CONNECTOR_TLS_KEY_BASE64 are required in production")
+	}
+	return cfg, nil
+}
+
+type DokuProviderAppConfig struct {
+	AppEnv           string
+	HTTPAddr         string
+	Token            string
+	SandboxBaseURL   string
+	LiveBaseURL      string
+	ConnectorTimeout time.Duration
+	TLSCertPEM       []byte
+	TLSKeyPEM        []byte
+}
+
+func LoadDokuProviderApp() (DokuProviderAppConfig, error) {
+	tlsCertPEM, tlsKeyPEM, err := connectorTLSKeyPair()
+	if err != nil {
+		return DokuProviderAppConfig{}, err
+	}
+	cfg := DokuProviderAppConfig{
+		AppEnv:           envOr("APP_ENV", "development"),
+		HTTPAddr:         ":" + envOr("PROVIDER_APP_PORT", "18085"),
+		Token:            strings.TrimSpace(os.Getenv("PROVIDER_APP_TOKEN")),
+		SandboxBaseURL:   strings.TrimRight(envOr("DOKU_SANDBOX_BASE_URL", "https://api-sandbox.doku.com"), "/"),
+		LiveBaseURL:      strings.TrimRight(envOr("DOKU_LIVE_BASE_URL", "https://api.doku.com"), "/"),
+		ConnectorTimeout: seconds("CONNECTOR_TIMEOUT_SECONDS", 15),
+		TLSCertPEM:       tlsCertPEM,
+		TLSKeyPEM:        tlsKeyPEM,
+	}
+	for name, value := range map[string]string{
+		"DOKU_SANDBOX_BASE_URL": cfg.SandboxBaseURL,
+		"DOKU_LIVE_BASE_URL":    cfg.LiveBaseURL,
+	} {
+		parsed, parseErr := url.Parse(value)
+		if parseErr != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return DokuProviderAppConfig{}, fmt.Errorf("%s must be an HTTP(S) URL without credentials", name)
+		}
+		if cfg.AppEnv == "production" && parsed.Scheme != "https" {
+			return DokuProviderAppConfig{}, fmt.Errorf("%s must use HTTPS in production", name)
+		}
+	}
+	if cfg.Token == "" {
+		return DokuProviderAppConfig{}, errors.New("PROVIDER_APP_TOKEN is required")
+	}
+	if cfg.AppEnv == "production" && weakProductionSecret(cfg.Token) {
+		return DokuProviderAppConfig{}, errors.New("PROVIDER_APP_TOKEN must be a non-default secret with at least 32 characters in production")
+	}
+	if cfg.AppEnv == "production" && len(cfg.TLSCertPEM) == 0 {
+		return DokuProviderAppConfig{}, errors.New("CONNECTOR_TLS_CERT_BASE64 and CONNECTOR_TLS_KEY_BASE64 are required in production")
+	}
+	return cfg, nil
+}
+
 func connectorTLSKeyPair() ([]byte, []byte, error) {
 	certPEM, err := optionalBase64("CONNECTOR_TLS_CERT_BASE64")
 	if err != nil {

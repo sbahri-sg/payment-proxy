@@ -17,6 +17,14 @@ FROM build-base AS build-midtrans-provider-app
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/midtrans-provider-app ./cmd/midtrans-provider-app
 
+FROM build-base AS build-duitku-provider-app
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/duitku-provider-app ./cmd/duitku-provider-app
+
+FROM build-base AS build-doku-provider-app
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/doku-provider-app ./cmd/doku-provider-app
+
 FROM alpine:3.22 AS runtime-base
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 app \
@@ -33,8 +41,24 @@ COPY --from=build-midtrans-provider-app /out/midtrans-provider-app /usr/local/bi
 EXPOSE 18083
 ENTRYPOINT ["/usr/local/bin/midtrans-provider-app"]
 
+FROM runtime-base AS duitku-provider-app
+COPY --from=build-duitku-provider-app /out/duitku-provider-app /usr/local/bin/duitku-provider-app
+EXPOSE 18084
+ENTRYPOINT ["/usr/local/bin/duitku-provider-app"]
+
+FROM runtime-base AS doku-provider-app
+COPY --from=build-doku-provider-app /out/doku-provider-app /usr/local/bin/doku-provider-app
+EXPOSE 18085
+ENTRYPOINT ["/usr/local/bin/doku-provider-app"]
+
 FROM scratch AS midtrans-provider-app-artifact
 COPY --from=build-midtrans-provider-app /out/midtrans-provider-app /connector
+
+FROM scratch AS duitku-provider-app-artifact
+COPY --from=build-duitku-provider-app /out/duitku-provider-app /connector
+
+FROM scratch AS doku-provider-app-artifact
+COPY --from=build-doku-provider-app /out/doku-provider-app /connector
 
 FROM scratch AS xendit-provider-runtime-artifact
 COPY --from=build-connector-runner /out/connector-runner /connector

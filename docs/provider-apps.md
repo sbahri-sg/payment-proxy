@@ -123,7 +123,7 @@ provider-submission.zip
 └── contract-tests/
 ```
 
-Sumber submission Xendit dan Midtrans berada di `provider-apps/<provider>` dan
+Sumber submission Xendit, Midtrans, Duitku, dan DOKU berada di `provider-apps/<provider>` dan
 dibangun dengan `./scripts/build-<provider>-provider-app.sh`. Hasilnya kecil dan
 portable karena tidak berisi binary Linux. Runtime provider dibangun terpisah
 sebagai OCI image dari `backend/Dockerfile`, lalu dideploy satu kali untuk setiap
@@ -172,6 +172,16 @@ Pada **Body → form-data**:
 | Key | Type | Value |
 |---|---|---|
 | `bundle` | File | `xendit-provider-app-emisell-v1.1.0.zip` |
+
+Untuk Duitku gunakan hasil deterministic builder
+`dist/provider-apps/duitku-provider-app-emisell-v1.0.0.zip`. Submission ini
+memuat kontrak dan source review saja; runtime `duitku-provider-app` harus sudah
+memuat versi dan executable digest yang sama sebelum release dapat dipublish.
+
+Untuk DOKU gunakan `dist/provider-apps/doku-provider-app-emisell-v1.0.0.zip`.
+Submission mendeklarasikan DOKU Checkout hosted/direct, status order, notification
+HMAC, credential `client_id` + `secret_key`, serta 20 metode awal yang dapat
+dipenuhi oleh kontrak canonical saat ini.
 
 Contoh response `201 Created`:
 

@@ -419,6 +419,28 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
           { "code": "server_key", "label": "Server key", "input_type": "password", "secret": true, "required": true },
           { "code": "pop_id", "label": "PoP ID (Core API)", "input_type": "password", "secret": true, "required": false }
         ]
+      },
+      {
+        "code": "duitku",
+        "name": "Duitku",
+        "version": "emisell-duitku-v1.0.0",
+        "runtime": "isolated_container",
+        "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
+        "credential_fields": [
+          { "code": "merchant_code", "label": "Merchant code", "input_type": "text", "secret": false, "required": true },
+          { "code": "api_key", "label": "API key", "input_type": "password", "secret": true, "required": true }
+        ]
+      },
+      {
+        "code": "doku",
+        "name": "DOKU",
+        "version": "emisell-doku-v1.0.0",
+        "runtime": "isolated_container",
+        "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
+        "credential_fields": [
+          { "code": "client_id", "label": "Client ID", "input_type": "text", "secret": false, "required": true },
+          { "code": "secret_key", "label": "Secret key", "input_type": "password", "secret": true, "required": true }
+        ]
       }
     ],
     "integration_invariants": [
@@ -747,10 +769,10 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
         note: "`next_action` dan checkout_url tidak disertakan pada item list agar payload tetap ringkas. Ambil detail payment untuk membuka kembali URL provider.",
       },
       {
-        method: "POST", path: "/api/v1/payment-sessions", title: "Create provider checkout", description: "Membuat sesi canonical lalu meminta provider membuat halaman checkout. Customer selalu diarahkan ke URL Xendit atau Midtrans; Emisell tidak merender daftar metode pembayaran.",
+        method: "POST", path: "/api/v1/payment-sessions", title: "Create provider checkout", description: "Membuat sesi canonical lalu meminta provider membuat halaman checkout. Customer selalu diarahkan ke URL resmi Xendit, Midtrans, atau Duitku; Emisell tidak merender daftar metode pembayaran.",
         examples: [
           {
-            title: "Xendit atau Midtrans hosted checkout",
+            title: "Hosted checkout milik provider",
             description: "Gunakan installation_id provider aktif milik merchant. Provider menampilkan sendiri QRIS, VA, e-wallet, card, dan channel lain yang tersedia untuk akun tersebut.",
             headers: ["Idempotency-Key: checkout-order-123-attempt-1"],
             body: `{
@@ -768,7 +790,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     "payment": ${paymentBase}
   }
 }`,
-            note: "Jika checkout_mode dihilangkan dan tidak ada field metode, mode ini dipilih otomatis. Buka checkout_url pada browser pelanggan. Jangan kirim payment_option_id/payment_method_code, PAN, expiry, CVV/CVN, atau OTP pada flow ini.",
+            note: "Jika checkout_mode dihilangkan dan tidak ada field metode, mode ini dipilih otomatis. Buka checkout_url pada browser pelanggan. Duitku mewajibkan customer.email yang valid. Jangan kirim payment_option_id/payment_method_code, PAN, expiry, CVV/CVN, atau OTP pada flow ini.",
           },
         ],
       },
@@ -1175,7 +1197,7 @@ const omittedEndpointDecisions = [
   ["Tidak ada /xendit atau /midtrans API", "Semua provider memakai normalized provider, installation, payment option, dan payment API."],
   ["Tidak ada merchant runtime/container API", "Runtime Dispatcher memilih shared runtime berdasarkan provider + version secara internal."],
   ["Tidak ada endpoint membaca secret", "API hanya mengembalikan configured_fields dan metadata verifikasi."],
-  ["Tidak ada create endpoint per metode", "POST /payment-sessions memakai installation_id; Xendit atau Midtrans menampilkan channel pada hosted checkout mereka."],
+  ["Tidak ada create endpoint per metode", "POST /payment-sessions memakai installation_id; Xendit, Midtrans, atau Duitku menampilkan channel pada hosted checkout mereka."],
   ["Refund merupakan kontrak inti bersyarat", "Backend hanya memanggilnya untuk channel dengan return-to-source policy dan connector release yang mendukung create_refund."],
 ] as const;
 
@@ -1214,7 +1236,7 @@ const partnerGroups: Group[] = [
     ]
   }
 }`,
-        note: "Xendit dan Midtrans memakai base URL serta bearer token terpisah. Capability yang diumumkan harus termasuk dalam release yang telah diverifikasi backend sebelum dapat dipetakan ke checkout.",
+        note: "Xendit, Midtrans, dan Duitku memakai base URL serta bearer token runtime terpisah. Capability yang diumumkan harus termasuk dalam release yang telah diverifikasi backend sebelum dapat dipetakan ke checkout.",
       },
     ],
   },
@@ -1665,6 +1687,20 @@ HandleWebhook()`}</Code>
                     <span>QRIS, enam VA/Mandiri Bill, GoPay, ShopeePay, credential verification, dan webhook normalization tersedia. BCA, BNI, dan Permata VA sudah lulus sandbox end-to-end; channel lain tetap fail-closed sampai diaktifkan untuk merchant oleh Midtrans.</span>
                   </div>
                   <span className="version-pill">emisell-midtrans-v1.2.1</span>
+                </div>
+                <div className="postman-card">
+                  <div>
+                    <strong>Duitku · POP connector</strong>
+                    <span>Hosted dan direct POP invoice, credential verification, transaction status, serta callback HMAC-SHA256 tersedia. Checkout tetap memakai paymentUrl resmi Duitku; activation per channel menunggu evidence sandbox merchant.</span>
+                  </div>
+                  <span className="version-pill">emisell-duitku-v1.0.0</span>
+                </div>
+                <div className="postman-card">
+                  <div>
+                    <strong>DOKU · Checkout connector</strong>
+                    <span>Hosted dan direct DOKU Checkout, Client ID/Secret Key verification, order status, serta Non-SNAP notification HMAC tersedia. Checkout selalu memakai response.payment.url resmi DOKU.</span>
+                  </div>
+                  <span className="version-pill">emisell-doku-v1.0.0</span>
                 </div>
               </section>
 

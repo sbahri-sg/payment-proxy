@@ -708,7 +708,8 @@ tidak digunakan.
 
 Jika request hanya berisi `installation_id` tanpa payment method,
 `checkout_mode` otomatis menjadi `provider_hosted`. Payment Proxy meminta
-provider membuat hosted checkout dan mengembalikan URL provider:
+provider membuat hosted checkout dan mengembalikan URL provider. Connector
+Duitku memakai POP Create Invoice dan memerlukan `customer.email` yang valid:
 
 ```json
 {

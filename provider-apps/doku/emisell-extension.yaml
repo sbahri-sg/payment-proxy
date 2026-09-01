@@ -1,0 +1,81 @@
+schema_version: "1"
+provider:
+  code: doku
+  name: DOKU
+release:
+  version: emisell-doku-v1.0.0
+connector:
+  contract_version: v1
+  runtime: isolated_container
+  sdk_version: v1
+operations:
+  - verify_installation
+  - disable_installation
+  - create_payment
+  - create_hosted_checkout
+  - get_payment
+  - handle_webhook
+credentials:
+  fields:
+    - code: client_id
+      label: Client ID
+      input_type: text
+      secret: false
+      required: true
+    - code: secret_key
+      label: Secret key
+      input_type: password
+      secret: true
+      required: true
+certification_profiles:
+  qris: {code: doku-checkout-v1/qris, automated: true}
+  card: {code: doku-checkout-v1/card, automated: true}
+  va_bca: {code: doku-checkout-v1/va_bca, automated: true}
+  va_mandiri: {code: doku-checkout-v1/va_mandiri, automated: true}
+  va_bni: {code: doku-checkout-v1/va_bni, automated: true}
+  va_bri: {code: doku-checkout-v1/va_bri, automated: true}
+  va_permata: {code: doku-checkout-v1/va_permata, automated: true}
+  va_cimb: {code: doku-checkout-v1/va_cimb, automated: true}
+  va_danamon: {code: doku-checkout-v1/va_danamon, automated: true}
+  va_bsi: {code: doku-checkout-v1/va_bsi, automated: true}
+  va_bnc: {code: doku-checkout-v1/va_bnc, automated: true}
+  va_btn: {code: doku-checkout-v1/va_btn, automated: true}
+  va_doku: {code: doku-checkout-v1/va_doku, automated: true}
+  ewallet_ovo: {code: doku-checkout-v1/ewallet_ovo, automated: true}
+  ewallet_dana: {code: doku-checkout-v1/ewallet_dana, automated: true}
+  ewallet_shopeepay: {code: doku-checkout-v1/ewallet_shopeepay, automated: true}
+  ewallet_linkaja: {code: doku-checkout-v1/ewallet_linkaja, automated: true}
+  ewallet_doku: {code: doku-checkout-v1/ewallet_doku, automated: true}
+  retail_alfamart: {code: doku-checkout-v1/retail_alfamart, automated: true}
+  retail_indomaret: {code: doku-checkout-v1/retail_indomaret, automated: true}
+environments:
+  - code: live
+    label: Live
+    description: Transaksi diteruskan ke DOKU production.
+  - code: sandbox
+    label: Sandbox
+    description: Pengujian credential dan transaksi DOKU tanpa transaksi production.
+payment_methods:
+  - qris
+  - card
+  - va_bca
+  - va_mandiri
+  - va_bni
+  - va_bri
+  - va_permata
+  - va_cimb
+  - va_danamon
+  - va_bsi
+  - va_bnc
+  - va_btn
+  - va_doku
+  - ewallet_ovo
+  - ewallet_dana
+  - ewallet_shopeepay
+  - ewallet_linkaja
+  - ewallet_doku
+  - retail_alfamart
+  - retail_indomaret
+outbound_hosts:
+  - api-sandbox.doku.com
+  - api.doku.com

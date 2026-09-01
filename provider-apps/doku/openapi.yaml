@@ -1,0 +1,164 @@
+openapi: 3.0.3
+info:
+  title: DOKU Emisell Payment Connector
+  version: emisell-doku-v1.0.0
+  description: Normalized connector contract backed by the official DOKU Checkout payment page.
+servers:
+  - url: https://connector-runtime.emisell.com/partner/v1
+    description: Runtime Dispatcher route; the submission ZIP itself is never executed.
+tags:
+  - name: Platform
+  - name: Installation
+  - name: Payment
+  - name: Webhook
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Platform]
+      responses: {"200": {description: Connector is ready}}
+  /capabilities:
+    get:
+      operationId: getCapabilities
+      tags: [Platform]
+      responses: {"200": {description: Connector manifest and capabilities}}
+  /payment-methods/validate:
+    post:
+      operationId: validatePaymentMethod
+      tags: [Payment]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/VersionedValidation"}}}
+      responses:
+        "200": {description: Payment method mapping is valid}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
+  /payments/validate:
+    post:
+      operationId: validatePayment
+      tags: [Payment]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/VersionedValidation"}}}
+      responses:
+        "200": {description: Payment request is supported}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
+  /installations/verify:
+    post:
+      operationId: verifyInstallation
+      tags: [Installation]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/InstallationInput"}}}
+      responses:
+        "200": {description: Client ID, Secret Key, environment, and provider access are verified}
+        "401": {$ref: "#/components/responses/ErrorResponse"}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
+  /installations/disable:
+    post:
+      operationId: disableInstallation
+      tags: [Installation]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/InstallationInput"}}}
+      responses:
+        "200": {description: Provider-side installation resources are disabled}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
+  /payments/create:
+    post:
+      operationId: createPayment
+      tags: [Payment]
+      description: Creates a DOKU Checkout order and returns response.payment.url from DOKU.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/PaymentInput"}}}
+      responses:
+        "200": {description: Official DOKU checkout URL was created}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
+        "502": {$ref: "#/components/responses/ErrorResponse"}
+  /payments/get:
+    post:
+      operationId: getPayment
+      tags: [Payment]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/PaymentLookup"}}}
+      responses:
+        "200": {description: Current normalized payment state}
+        "404": {$ref: "#/components/responses/ErrorResponse"}
+        "502": {$ref: "#/components/responses/ErrorResponse"}
+  /webhooks/normalize:
+    post:
+      operationId: normalizeWebhook
+      tags: [Webhook]
+      description: Verifies DOKU Non-SNAP HMAC and returns one normalized event.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/WebhookInput"}}}
+      responses:
+        "200": {description: Normalized webhook event}
+        "401": {$ref: "#/components/responses/ErrorResponse"}
+        "422": {$ref: "#/components/responses/ErrorResponse"}
+components:
+  securitySchemes:
+    runtimeToken: {type: http, scheme: bearer}
+  schemas:
+    VersionedValidation:
+      type: object
+      required: [provider_code, provider_version, input]
+      properties:
+        provider_code: {type: string, example: doku}
+        provider_version: {type: string, example: emisell-doku-v1.0.0}
+        input: {type: object, additionalProperties: true}
+    InstallationInput:
+      type: object
+      required: [provider_code, provider_version, environment, credentials]
+      properties:
+        provider_code: {type: string, example: doku}
+        provider_version: {type: string, example: emisell-doku-v1.0.0}
+        environment: {type: string, enum: [live, sandbox]}
+        credentials: {type: object, additionalProperties: {type: string}, writeOnly: true}
+        public_webhook_url: {type: string, format: uri}
+    PaymentInput:
+      allOf:
+        - {$ref: "#/components/schemas/InstallationInput"}
+        - type: object
+          required: [local_payment_id, amount, currency, idempotency_key, return_url]
+          properties:
+            local_payment_id: {type: string}
+            checkout_mode: {type: string, enum: [direct, provider_hosted]}
+            payment_method_code: {type: string}
+            amount: {type: integer, format: int64, description: Minor IDR units; must resolve to whole rupiah}
+            currency: {type: string, enum: [IDR]}
+            idempotency_key: {type: string}
+            return_url: {type: string, format: uri}
+    PaymentLookup:
+      allOf:
+        - {$ref: "#/components/schemas/InstallationInput"}
+        - type: object
+          required: [payment_id]
+          properties: {payment_id: {type: string}}
+    WebhookInput:
+      type: object
+      required: [provider_code, provider_version, headers, body]
+      properties:
+        provider_code: {type: string, example: doku}
+        provider_version: {type: string, example: emisell-doku-v1.0.0}
+        headers: {type: object, additionalProperties: {type: string}}
+        body: {type: string, format: byte, description: Exact original DOKU JSON notification body}
+  responses:
+    ErrorResponse:
+      description: Normalized connector error
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: object
+                required: [code, message]
+                properties:
+                  code: {type: string}
+                  message: {type: string}
+security:
+  - runtimeToken: []

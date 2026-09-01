@@ -2359,7 +2359,12 @@ func (s *Server) providerWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clearCredentials(credentials)
-	event, err := s.engine.HandleWebhook(r.Context(), connector.WebhookInput{ProviderCode: providerCode, ProviderVersion: installation.ProviderVersion, Credentials: credentials, Headers: r.Header.Clone(), Body: body})
+	providerHeaders := r.Header.Clone()
+	// The public API supplies the trusted request target to isolated runtimes.
+	// DOKU includes this exact path in the HMAC calculation, so it must never be
+	// accepted from an untrusted inbound header.
+	providerHeaders.Set("X-Emisell-Webhook-Request-Target", r.URL.EscapedPath())
+	event, err := s.engine.HandleWebhook(r.Context(), connector.WebhookInput{ProviderCode: providerCode, ProviderVersion: installation.ProviderVersion, Credentials: credentials, Headers: providerHeaders, Body: body})
 	if err != nil {
 		s.metrics.RecordProviderWebhook("invalid")
 		var apiErr *connector.APIError

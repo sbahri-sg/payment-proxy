@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emisell/api-payment-proxy/internal/doku"
+	"github.com/emisell/api-payment-proxy/internal/duitku"
 	"github.com/emisell/api-payment-proxy/internal/midtrans"
 	"github.com/emisell/api-payment-proxy/internal/xendit"
 )
@@ -185,6 +187,104 @@ func TestMidtransProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
 	}
 	if !result.Report.Passed || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Report.FileCount != len(files) || !verification.Passed {
 		t.Fatalf("Midtrans submission failed release verification: submission=%#v verification=%#v", result, verification)
+	}
+}
+
+func TestDuitkuProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
+	files := []struct {
+		archivePath string
+		sourcePath  string
+	}{
+		{archivePath: "emisell-extension.yaml", sourcePath: "../../../provider-apps/duitku/emisell-extension.yaml"},
+		{archivePath: "openapi.yaml", sourcePath: "../../../provider-apps/duitku/openapi.yaml"},
+		{archivePath: "README.md", sourcePath: "../../../provider-apps/duitku/README.md"},
+		{archivePath: "SECURITY.md", sourcePath: "../../../provider-apps/duitku/SECURITY.md"},
+		{archivePath: "contract-tests/README.md", sourcePath: "../../../provider-apps/duitku/contract-tests/README.md"},
+		{archivePath: "src/duitku/client.go", sourcePath: "../duitku/client.go"},
+		{archivePath: "src/duitku/manifest.go", sourcePath: "../duitku/manifest.go"},
+	}
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for _, item := range files {
+		content, err := os.ReadFile(item.sourcePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := writer.Create(item.archivePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = file.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	result, err := ValidateBundle(buffer.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := duitku.New("", "", "", "", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.SetExecutableSHA256(strings.Repeat("b", 64))
+	verification := VerifyRuntimeContract(result.Manifest, client.Manifest())
+	if result.Manifest.Code != "duitku" || result.Manifest.Version != client.Manifest().Version || len(result.Manifest.CredentialFields) != 2 {
+		t.Fatalf("Duitku Provider App manifest diverged from runtime release: %#v", result.Manifest)
+	}
+	if !result.Report.Passed || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Report.FileCount != len(files) || !verification.Passed {
+		t.Fatalf("Duitku submission failed release verification: submission=%#v verification=%#v", result, verification)
+	}
+}
+
+func TestDOKUProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
+	files := []struct {
+		archivePath string
+		sourcePath  string
+	}{
+		{archivePath: "emisell-extension.yaml", sourcePath: "../../../provider-apps/doku/emisell-extension.yaml"},
+		{archivePath: "openapi.yaml", sourcePath: "../../../provider-apps/doku/openapi.yaml"},
+		{archivePath: "README.md", sourcePath: "../../../provider-apps/doku/README.md"},
+		{archivePath: "SECURITY.md", sourcePath: "../../../provider-apps/doku/SECURITY.md"},
+		{archivePath: "contract-tests/README.md", sourcePath: "../../../provider-apps/doku/contract-tests/README.md"},
+		{archivePath: "src/doku/client.go", sourcePath: "../doku/client.go"},
+		{archivePath: "src/doku/manifest.go", sourcePath: "../doku/manifest.go"},
+	}
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for _, item := range files {
+		content, err := os.ReadFile(item.sourcePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := writer.Create(item.archivePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = file.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	result, err := ValidateBundle(buffer.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := doku.New("", "", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.SetExecutableSHA256(strings.Repeat("c", 64))
+	verification := VerifyRuntimeContract(result.Manifest, client.Manifest())
+	if result.Manifest.Code != "doku" || result.Manifest.Version != client.Manifest().Version || len(result.Manifest.CredentialFields) != 2 || len(result.Manifest.PaymentMethods) != 20 {
+		t.Fatalf("DOKU Provider App manifest diverged from runtime release: %#v", result.Manifest)
+	}
+	if !result.Report.Passed || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Report.FileCount != len(files) || !verification.Passed {
+		t.Fatalf("DOKU submission failed release verification: submission=%#v verification=%#v", result, verification)
 	}
 }
 

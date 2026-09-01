@@ -76,6 +76,25 @@ engine tidak bergantung pada implementasi atau process provider tertentu:
   berstatus `CERTIFIED` untuk BCA, BNI, dan Permata Virtual Account, sedangkan
   channel lain masih menunggu evidence terminal.
 
+Connector Duitku `emisell-duitku-v1.0.0` juga berjalan sebagai shared Provider
+App terpisah. Implementasi awal memakai POP Create Invoice dan selalu
+mengembalikan `paymentUrl` resmi Duitku. Pada `provider_hosted`, pemilihan metode
+tetap berada di halaman Duitku; pada direct checkout, canonical payment method
+dipetakan ke code channel Duitku. Installation meminta `merchant_code` dan
+`api_key`, memverifikasi akses ke daftar payment method sesuai environment,
+menandatangani request dengan HMAC-SHA256 terbaru, serta memvalidasi signature
+callback sebelum event masuk ke Payment Kernel. Cancel dan refund belum
+diiklankan sampai tersedia bukti sandbox dan aturan provider yang lengkap.
+
+Connector DOKU `emisell-doku-v1.0.0` memakai DOKU Checkout. Payment Proxy
+membuat order ke `POST /checkout/v1/payment` dan hanya mengembalikan URL resmi
+DOKU dari `response.payment.url`. Hosted checkout membiarkan DOKU menampilkan
+kanal yang aktif untuk merchant; direct checkout membatasi satu channel.
+Installation memakai `client_id` dan `secret_key`, request serta notification
+ditandatangani dengan skema HMAC-SHA256 Non-SNAP. Dua puluh kanal checkout dasar
+tersedia pada manifest; kanal yang memerlukan alamat/customer contract tambahan
+tetap `DOCUMENTED` sampai input canonical diperluas dan diuji di sandbox.
+
 ## Menjalankan lokal
 
 ```bash
@@ -90,6 +109,8 @@ Alamat default:
 - Payment API: `http://localhost:18080`
 - Connector Runner: `http://127.0.0.1:18082` (private contract; local development only)
 - Midtrans Provider App: `http://127.0.0.1:18083` (private contract; local development only)
+- Duitku Provider App: `http://127.0.0.1:18084` (private contract; local development only)
+- DOKU Provider App: `http://127.0.0.1:18085` (private contract; local development only)
 - Liveness: `http://localhost:18080/health/live`
 - Readiness: `http://localhost:18080/health/ready`
 - Runtime capabilities: `GET http://localhost:18080/api/v1/engine/capabilities`
@@ -127,10 +148,10 @@ Callback URL boleh dikosongkan dan diatur kemudian dari menu Webhooks:
 Perintah di atas otomatis:
 
 - membuat secret acak yang fail-closed dan tidak masuk Git;
-- membuat private CA serta TLS certificate terpisah untuk Xendit dan Midtrans
+- membuat private CA serta TLS certificate terpisah untuk Xendit, Midtrans, Duitku, dan DOKU
   connector;
 - membangun image minimum yang berbeda untuk Kernel, Xendit connector,
-  Midtrans connector, dan dashboard;
+  Midtrans connector, Duitku connector, DOKU connector, dan dashboard;
 - menjalankan PostgreSQL migration;
 - menjalankan Kernel, worker, connector, dan dashboard sebagai non-root dengan
   read-only filesystem; gateway memakai capability minimum, sementara seluruh
@@ -165,9 +186,17 @@ CONNECTOR_RUNNER_BASE_URLS    comma-separated private HTTPS runtime URLs
 CONNECTOR_RUNNER_TOKENS       token per runtime dengan urutan yang sama
 CONNECTOR_RUNNER_TOKEN        token runtime Xendit
 MIDTRANS_PROVIDER_APP_TOKEN   token runtime Midtrans yang terpisah
+DUITKU_PROVIDER_APP_TOKEN     token runtime Duitku yang terpisah
+DOKU_PROVIDER_APP_TOKEN       token runtime DOKU yang terpisah
 XENDIT_BASE_URL                default https://api.xendit.co
 MIDTRANS_SANDBOX_BASE_URL      default https://api.sandbox.midtrans.com
 MIDTRANS_LIVE_BASE_URL         default https://api.midtrans.com
+DUITKU_SANDBOX_POP_BASE_URL    default https://api-sandbox.duitku.com
+DUITKU_LIVE_POP_BASE_URL       default https://api-prod.duitku.com
+DUITKU_SANDBOX_API_BASE_URL    default https://sandbox.duitku.com/webapi
+DUITKU_LIVE_API_BASE_URL       default https://passport.duitku.com/webapi
+DOKU_SANDBOX_BASE_URL          default https://api-sandbox.doku.com
+DOKU_LIVE_BASE_URL             default https://api.doku.com
 CONNECTOR_TIMEOUT_SECONDS      default 15
 API_REQUEST_TIMEOUT_SECONDS    default 25
 API_RATE_LIMIT_RPS             production default 300; 0 disables in development
@@ -182,6 +211,8 @@ CERTIFICATION_RETURN_URL       HTTPS dashboard return page; wajib di production
 ```text
 POST /webhooks/v1/providers/xendit/{installation_id}
 POST /webhooks/v1/providers/midtrans/{installation_id}
+POST /webhooks/v1/providers/duitku/{installation_id}
+POST /webhooks/v1/providers/doku/{installation_id}
 ```
 
 Dashboard Next.js juga meneruskan kontrak publik ke Kernel melalui jaringan

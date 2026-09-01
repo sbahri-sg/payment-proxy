@@ -5,7 +5,7 @@ Status: **ACTIVE FOUNDATION**
 Owner: **Emisell**
 
 Runtime: **Go Payment Kernel + isolated Connector Runner**
-Reference connectors: **Xendit `emisell-xendit-v1.1.0` + Midtrans `emisell-midtrans-v1.2.1`**
+Reference connectors: **Xendit `emisell-xendit-v1.1.0` + Midtrans `emisell-midtrans-v1.2.1` + Duitku `emisell-duitku-v1.0.0` + DOKU `emisell-doku-v1.0.0`**
 
 Dokumen ini mengunci batas arsitektur Payment Proxy. Implementasi, endpoint,
 dashboard, dan connector baru tidak boleh menyimpang dari kontrak di bawah tanpa
@@ -132,16 +132,17 @@ Browser tidak menerima service key dan tidak memanggil provider connector.
 
 ## 6. Operation matrix reference connector
 
-| Operation | Xendit v1 | Midtrans v1 | Catatan |
-|---|---:|---:|---|
-| Verify/disable installation | Ya | Ya | Credential diverifikasi langsung ke provider; disable lokal |
-| Create/get payment | Ya | Ya | Payload provider tetap berada di isolated runner |
-| Sandbox simulation | Ya | Tidak | Midtrans memakai customer action lalu resume resource yang sama |
-| Handle webhook | Ya | Ya | Signature diverifikasi connector lalu dinormalisasi |
-| Capture | Belum | Belum | Tidak diiklankan manifest |
-| Cancel | Belum | Disiapkan | Midtrans adapter diuji lokal, tetapi manifest tetap ditutup sampai sandbox evidence |
-| Create refund | Disiapkan | Disiapkan | Adapter diuji lokal; keduanya tetap ditutup sampai sandbox + webhook evidence |
-| Get refund provider | Tidak | Disiapkan | Projection canonical selalu tersedia; provider lookup hanya dipakai bila didokumentasikan |
+| Operation | Xendit v1 | Midtrans v1 | Duitku v1 | DOKU v1 | Catatan |
+|---|---:|---:|---:|---:|---|
+| Verify/disable installation | Ya | Ya | Ya | Ya | Credential diverifikasi langsung ke provider; disable lokal |
+| Create/get payment | Ya | Ya | Ya | Ya | DOKU memakai Checkout order dan Check Status API |
+| Provider-hosted checkout | Ya | Ya | Ya | Ya | UI checkout tetap milik provider |
+| Sandbox simulation | Ya | Tidak | Tidak | Tidak | Provider lain memakai customer action pada halaman provider |
+| Handle webhook | Ya | Ya | Ya | Ya | Signature diverifikasi connector lalu dinormalisasi |
+| Capture | Belum | Belum | Belum | Belum | Tidak diiklankan manifest |
+| Cancel | Belum | Disiapkan | Belum | Belum | Tetap ditutup sampai sandbox evidence |
+| Create refund | Disiapkan | Disiapkan | Belum | Belum | Tetap ditutup sampai sandbox + webhook evidence |
+| Get refund provider | Tidak | Disiapkan | Belum | Belum | Projection canonical selalu tersedia |
 
 Operation baru baru boleh dimasukkan ke manifest setelah implementation,
 contract test, sandbox evidence, webhook evidence, dan failure-mode test lulus.
@@ -253,5 +254,11 @@ Payment Kernel, checkout contract, atau canonical webhook delivery.
 4. **Second connector (local baseline selesai):** Midtrans dimuat di runner untuk
    membuktikan kontrak tidak bias terhadap Xendit. Unit/contract test dan release
    gate sudah aktif; sandbox evidence per method masih wajib sebelum `CERTIFIED`.
-5. **Deployment hardening berikutnya:** deployment automation, per-provider
+5. **Third connector (local baseline selesai):** Duitku POP berjalan di shared
+   Provider App sendiri dengan hosted/direct invoice, status, credential probe,
+   HMAC-SHA256, callback normalization, dan source-only release bundle.
+6. **Fourth connector (local baseline selesai):** DOKU Checkout berjalan pada
+   isolated shared runtime dengan hosted/direct payment link resmi, Non-SNAP
+   request signing, status order, notification verification, dan source-only bundle.
+7. **Deployment hardening berikutnya:** deployment automation, per-provider
    resource isolation, canary, kill switch, dan production-like soak.

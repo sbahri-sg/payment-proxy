@@ -86,6 +86,66 @@ services:
       retries: 10
     restart: unless-stopped
 
+  duitku-provider-app:
+    build:
+      context: ./backend
+      target: duitku-provider-app
+    entrypoint: ["/usr/local/bin/duitku-provider-app"]
+    command: []
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      PROVIDER_APP_PORT: "18084"
+      PROVIDER_APP_TOKEN: ${DUITKU_PROVIDER_APP_TOKEN:-local-duitku-provider-app-token-change-before-production}
+      DUITKU_SANDBOX_POP_BASE_URL: ${DUITKU_SANDBOX_POP_BASE_URL:-https://api-sandbox.duitku.com}
+      DUITKU_LIVE_POP_BASE_URL: ${DUITKU_LIVE_POP_BASE_URL:-https://api-prod.duitku.com}
+      DUITKU_SANDBOX_API_BASE_URL: ${DUITKU_SANDBOX_API_BASE_URL:-https://sandbox.duitku.com/webapi}
+      DUITKU_LIVE_API_BASE_URL: ${DUITKU_LIVE_API_BASE_URL:-https://passport.duitku.com/webapi}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    ports:
+      - "127.0.0.1:${DUITKU_PROVIDER_APP_PORT:-18084}:18084"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:18084/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  doku-provider-app:
+    build:
+      context: ./backend
+      target: doku-provider-app
+    entrypoint: ["/usr/local/bin/doku-provider-app"]
+    command: []
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      PROVIDER_APP_PORT: "18085"
+      PROVIDER_APP_TOKEN: ${DOKU_PROVIDER_APP_TOKEN:-local-doku-provider-app-token-change-before-production}
+      DOKU_SANDBOX_BASE_URL: ${DOKU_SANDBOX_BASE_URL:-https://api-sandbox.doku.com}
+      DOKU_LIVE_BASE_URL: ${DOKU_LIVE_BASE_URL:-https://api.doku.com}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    ports:
+      - "127.0.0.1:${DOKU_PROVIDER_APP_PORT:-18085}:18085"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:18085/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   api:
     build:
       context: ./backend
@@ -98,8 +158,8 @@ services:
       PAYMENT_PROXY_PUBLIC_BASE_URL: ${PAYMENT_PROXY_PUBLIC_BASE_URL:-}
       CERTIFICATION_RETURN_URL: ${CERTIFICATION_RETURN_URL:-}
       CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
-      CONNECTOR_RUNNER_BASE_URLS: ${CONNECTOR_RUNNER_BASE_URLS:-http://connector-runner:18081,http://midtrans-provider-app:18083}
-      CONNECTOR_RUNNER_TOKENS: "${CONNECTOR_RUNNER_TOKEN:-local-connector-runner-token-change-before-production},${MIDTRANS_PROVIDER_APP_TOKEN:-local-midtrans-provider-app-token-change-before-production}"
+      CONNECTOR_RUNNER_BASE_URLS: ${CONNECTOR_RUNNER_BASE_URLS:-http://connector-runner:18081,http://midtrans-provider-app:18083,http://duitku-provider-app:18084,http://doku-provider-app:18085}
+      CONNECTOR_RUNNER_TOKENS: "${CONNECTOR_RUNNER_TOKEN:-local-connector-runner-token-change-before-production},${MIDTRANS_PROVIDER_APP_TOKEN:-local-midtrans-provider-app-token-change-before-production},${DUITKU_PROVIDER_APP_TOKEN:-local-duitku-provider-app-token-change-before-production},${DOKU_PROVIDER_APP_TOKEN:-local-doku-provider-app-token-change-before-production}"
       API_REQUEST_TIMEOUT_SECONDS: ${API_REQUEST_TIMEOUT_SECONDS:-25}
       API_RATE_LIMIT_RPS: ${API_RATE_LIMIT_RPS:-0}
       API_RATE_LIMIT_BURST: ${API_RATE_LIMIT_BURST:-0}
@@ -120,6 +180,10 @@ services:
       connector-runner:
         condition: service_healthy
       midtrans-provider-app:
+        condition: service_healthy
+      duitku-provider-app:
+        condition: service_healthy
+      doku-provider-app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health/live"]

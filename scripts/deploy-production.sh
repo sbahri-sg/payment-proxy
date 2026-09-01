@@ -85,6 +85,8 @@ generate_tls_material() {
     -days 3650 -sha256 >/dev/null 2>&1
   generate_connector_certificate connector-runner xendit
   generate_connector_certificate midtrans-provider-app midtrans
+  generate_connector_certificate duitku-provider-app duitku
+  generate_connector_certificate doku-provider-app doku
   chmod 600 "$TLS_DIR"/*.key
   chmod 644 "$TLS_DIR"/*.crt
 }
@@ -116,6 +118,8 @@ write_environment() {
   ADMIN_API_KEY=${ADMIN_API_KEY:-$(random_hex 32)}
   CONNECTOR_RUNNER_TOKEN=${CONNECTOR_RUNNER_TOKEN:-$(random_hex 32)}
   MIDTRANS_PROVIDER_APP_TOKEN=${MIDTRANS_PROVIDER_APP_TOKEN:-$(random_hex 32)}
+  DUITKU_PROVIDER_APP_TOKEN=${DUITKU_PROVIDER_APP_TOKEN:-$(random_hex 32)}
+  DOKU_PROVIDER_APP_TOKEN=${DOKU_PROVIDER_APP_TOKEN:-$(random_hex 32)}
   DASHBOARD_ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD:-$(random_hex 16)}
   DASHBOARD_SESSION_SECRET=${DASHBOARD_SESSION_SECRET:-$(random_hex 32)}
   EMISELL_BACKEND_WEBHOOK_SECRET=${EMISELL_BACKEND_WEBHOOK_SECRET:-whsec_$(random_hex 32)}
@@ -127,6 +131,36 @@ write_environment() {
     XENDIT_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/xendit.key")
     MIDTRANS_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/midtrans.crt")
     MIDTRANS_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/midtrans.key")
+    DUITKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/duitku.crt")
+    DUITKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/duitku.key")
+    DOKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/doku.crt")
+    DOKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/doku.key")
+  elif { [ -z "${DUITKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DUITKU_CONNECTOR_TLS_KEY_BASE64:-}" ] || [ -z "${DOKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DOKU_CONNECTOR_TLS_KEY_BASE64:-}" ]; } && { [ ! -f "$TLS_DIR/connector-ca.crt" ] || [ ! -f "$TLS_DIR/connector-ca.key" ]; }; then
+    generate_tls_material
+    CONNECTOR_TLS_CA_BASE64=$(base64_file "$TLS_DIR/connector-ca.crt")
+    XENDIT_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/xendit.crt")
+    XENDIT_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/xendit.key")
+    MIDTRANS_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/midtrans.crt")
+    MIDTRANS_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/midtrans.key")
+    DUITKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/duitku.crt")
+    DUITKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/duitku.key")
+    DOKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/doku.crt")
+    DOKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/doku.key")
+  else
+    if [ -z "${DUITKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DUITKU_CONNECTOR_TLS_KEY_BASE64:-}" ]; then
+      generate_connector_certificate duitku-provider-app duitku
+      chmod 600 "$TLS_DIR/duitku.key"
+      chmod 644 "$TLS_DIR/duitku.crt"
+      DUITKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/duitku.crt")
+      DUITKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/duitku.key")
+    fi
+    if [ -z "${DOKU_CONNECTOR_TLS_CERT_BASE64:-}" ] || [ -z "${DOKU_CONNECTOR_TLS_KEY_BASE64:-}" ]; then
+      generate_connector_certificate doku-provider-app doku
+      chmod 600 "$TLS_DIR/doku.key"
+      chmod 644 "$TLS_DIR/doku.crt"
+      DOKU_CONNECTOR_TLS_CERT_BASE64=$(base64_file "$TLS_DIR/doku.crt")
+      DOKU_CONNECTOR_TLS_KEY_BASE64=$(base64_file "$TLS_DIR/doku.key")
+    fi
   fi
 
   temp_file="$ENV_FILE.tmp"
@@ -143,11 +177,17 @@ write_environment() {
     echo "ADMIN_API_KEY=$ADMIN_API_KEY"
     echo "CONNECTOR_RUNNER_TOKEN=$CONNECTOR_RUNNER_TOKEN"
     echo "MIDTRANS_PROVIDER_APP_TOKEN=$MIDTRANS_PROVIDER_APP_TOKEN"
+    echo "DUITKU_PROVIDER_APP_TOKEN=$DUITKU_PROVIDER_APP_TOKEN"
+    echo "DOKU_PROVIDER_APP_TOKEN=$DOKU_PROVIDER_APP_TOKEN"
     echo "CONNECTOR_TLS_CA_BASE64=$CONNECTOR_TLS_CA_BASE64"
     echo "XENDIT_CONNECTOR_TLS_CERT_BASE64=$XENDIT_CONNECTOR_TLS_CERT_BASE64"
     echo "XENDIT_CONNECTOR_TLS_KEY_BASE64=$XENDIT_CONNECTOR_TLS_KEY_BASE64"
     echo "MIDTRANS_CONNECTOR_TLS_CERT_BASE64=$MIDTRANS_CONNECTOR_TLS_CERT_BASE64"
     echo "MIDTRANS_CONNECTOR_TLS_KEY_BASE64=$MIDTRANS_CONNECTOR_TLS_KEY_BASE64"
+    echo "DUITKU_CONNECTOR_TLS_CERT_BASE64=$DUITKU_CONNECTOR_TLS_CERT_BASE64"
+    echo "DUITKU_CONNECTOR_TLS_KEY_BASE64=$DUITKU_CONNECTOR_TLS_KEY_BASE64"
+    echo "DOKU_CONNECTOR_TLS_CERT_BASE64=$DOKU_CONNECTOR_TLS_CERT_BASE64"
+    echo "DOKU_CONNECTOR_TLS_KEY_BASE64=$DOKU_CONNECTOR_TLS_KEY_BASE64"
     echo "DASHBOARD_MERCHANT_ID=${DASHBOARD_MERCHANT_ID:-payment_proxy_operator}"
     echo "DASHBOARD_ADMIN_PASSWORD=$DASHBOARD_ADMIN_PASSWORD"
     echo "DASHBOARD_SESSION_SECRET=$DASHBOARD_SESSION_SECRET"

@@ -123,6 +123,68 @@ services:
     mem_limit: 256m
     cpus: 1.0
 
+  duitku-provider-app:
+    image: emisell/connector-duitku:${IMAGE_TAG:-production}
+    build:
+      context: ./backend
+      target: duitku-provider-app
+    environment:
+      APP_ENV: production
+      PROVIDER_APP_PORT: "18084"
+      PROVIDER_APP_TOKEN: ${DUITKU_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_CERT_BASE64: ${DUITKU_CONNECTOR_TLS_CERT_BASE64:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_KEY_BASE64: ${DUITKU_CONNECTOR_TLS_KEY_BASE64:?run scripts/deploy-production.sh first}
+      DUITKU_SANDBOX_POP_BASE_URL: ${DUITKU_SANDBOX_POP_BASE_URL:-https://api-sandbox.duitku.com}
+      DUITKU_LIVE_POP_BASE_URL: ${DUITKU_LIVE_POP_BASE_URL:-https://api-prod.duitku.com}
+      DUITKU_SANDBOX_API_BASE_URL: ${DUITKU_SANDBOX_API_BASE_URL:-https://sandbox.duitku.com/webapi}
+      DUITKU_LIVE_API_BASE_URL: ${DUITKU_LIVE_API_BASE_URL:-https://passport.duitku.com/webapi}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    expose:
+      - "18084"
+    networks:
+      - connector_control
+      - provider_egress
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "--spider", "https://127.0.0.1:18084/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    <<: *stateless-hardening
+    mem_limit: 256m
+    cpus: 1.0
+
+  doku-provider-app:
+    image: emisell/connector-doku:${IMAGE_TAG:-production}
+    build:
+      context: ./backend
+      target: doku-provider-app
+    environment:
+      APP_ENV: production
+      PROVIDER_APP_PORT: "18085"
+      PROVIDER_APP_TOKEN: ${DOKU_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_CERT_BASE64: ${DOKU_CONNECTOR_TLS_CERT_BASE64:?run scripts/deploy-production.sh first}
+      CONNECTOR_TLS_KEY_BASE64: ${DOKU_CONNECTOR_TLS_KEY_BASE64:?run scripts/deploy-production.sh first}
+      DOKU_SANDBOX_BASE_URL: ${DOKU_SANDBOX_BASE_URL:-https://api-sandbox.doku.com}
+      DOKU_LIVE_BASE_URL: ${DOKU_LIVE_BASE_URL:-https://api.doku.com}
+      CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
+    expose:
+      - "18085"
+    networks:
+      - connector_control
+      - provider_egress
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "--spider", "https://127.0.0.1:18085/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    <<: *stateless-hardening
+    mem_limit: 256m
+    cpus: 1.0
+
   api:
     <<: [*payment-image, *stateless-hardening]
     environment:
@@ -140,8 +202,8 @@ services:
       CERTIFICATION_RETURN_URL: https://${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}/certifications/return
       CORS_ALLOWED_ORIGINS: https://${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}
       CONNECTOR_TIMEOUT_SECONDS: ${CONNECTOR_TIMEOUT_SECONDS:-15}
-      CONNECTOR_RUNNER_BASE_URLS: https://connector-runner:18081,https://midtrans-provider-app:18083
-      CONNECTOR_RUNNER_TOKENS: ${CONNECTOR_RUNNER_TOKEN:?run scripts/deploy-production.sh first},${MIDTRANS_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first}
+      CONNECTOR_RUNNER_BASE_URLS: https://connector-runner:18081,https://midtrans-provider-app:18083,https://duitku-provider-app:18084,https://doku-provider-app:18085
+      CONNECTOR_RUNNER_TOKENS: ${CONNECTOR_RUNNER_TOKEN:?run scripts/deploy-production.sh first},${MIDTRANS_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first},${DUITKU_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first},${DOKU_PROVIDER_APP_TOKEN:?run scripts/deploy-production.sh first}
       CONNECTOR_TLS_CA_BASE64: ${CONNECTOR_TLS_CA_BASE64:?run scripts/deploy-production.sh first}
       API_REQUEST_TIMEOUT_SECONDS: ${API_REQUEST_TIMEOUT_SECONDS:-25}
       API_RATE_LIMIT_RPS: ${API_RATE_LIMIT_RPS:-300}
@@ -163,6 +225,10 @@ services:
       connector-runner:
         condition: service_healthy
       midtrans-provider-app:
+        condition: service_healthy
+      duitku-provider-app:
+        condition: service_healthy
+      doku-provider-app:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health/ready"]
