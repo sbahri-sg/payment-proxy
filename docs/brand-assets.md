@@ -32,7 +32,7 @@ Dokumentasi Midtrans menyatakan koleksi GitHub tersebut dapat dipakai di website
 - Raster diperkecil maksimal 320 piksel agar katalog tidak mengunduh file multi-megabyte.
 - Mapping UI berada di `dashboard/app/components/brand-logo.tsx`; domain model/API tetap memakai canonical `code`, bukan path logo.
 - Jika aset yang stabil belum tersedia, UI menampilkan fallback singkatan. Saat ini fallback dipakai untuk Pegadaian/Pos Indonesia dan Kartu Kredit Indonesia.
-- Logo tidak menentukan dukungan teknis. Hanya capability status `CERTIFIED` yang boleh dipetakan ke checkout.
+- Logo tidak menentukan dukungan teknis. Capability `DOCUMENTED` dan `CERTIFIED` dapat dipetakan; `DISABLED` tetap ditolak.
 
 ## Menambah atau memperbarui logo
 

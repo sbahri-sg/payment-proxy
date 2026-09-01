@@ -17,13 +17,8 @@ dianggap sebagai kewajiban integrasi Main Service.
 | Lifecycle | `POST .../{id}/activate` | Mengizinkan connection dipakai checkout. |
 | Lifecycle | `POST .../{id}/deactivate` | Menghentikan pemakaian tanpa menghapus credential. |
 | Lifecycle | `DELETE /api/v1/provider-installations/{id}` | Uninstall dan hapus ciphertext credential. |
-| Method | `GET /api/v1/payment-methods` | Master metode canonical. |
-| Assignment | `GET /api/v1/payment-method-assignments` | Konfigurasi gateway merchant saat ini. |
-| Assignment | `PUT /api/v1/payment-method-assignments` | Mengikat metode ke installation aktif. |
-| Assignment | `POST .../{id}/deactivate` | Menutup option untuk checkout baru. |
-| Checkout | `GET /api/v1/payment-options` | Opaque option yang boleh dipakai checkout. |
 | Readiness | `GET /api/v1/integration-readiness` | Evidence kesiapan integrasi per merchant dan Sandbox/Live. |
-| Payment | `POST /api/v1/payment-sessions` | Create payment normalized untuk seluruh provider/metode. |
+| Payment | `POST /api/v1/payment-sessions` | Membuat hosted checkout provider dari installation aktif. |
 | Payment | `GET /api/v1/payment-sessions/{id}` | Status canonical dan provider sync. |
 | Payment | `POST .../{id}/cancel` | Cancel bila capability connector tersedia. |
 | Refund | `POST /api/v1/refunds` | Return-to-source refund bersyarat pada policy channel dan connector release. |
@@ -46,6 +41,7 @@ dianggap sebagai kewajiban integrasi Main Service.
 | Health | `/health/live`, `/health/ready` | Orchestrator/load balancer |
 | Provider ingress | `/webhooks/v1/providers/*` | Payment provider → Payment Proxy |
 | Connector contract | `/partner/v1/*` | Payment Proxy → isolated runtime |
+| Direct-channel configuration | payment methods, assignments, `/payment-options` | Flow lanjutan; bukan kebutuhan hosted checkout utama |
 
 Endpoint sandbox diagnostics sudah berada di namespace admin dan tetap
 tenant-scoped. Jangan tambahkan pemanggilan dari Emisell Backend; lifecycle
@@ -62,8 +58,8 @@ merchant hanya Install → Configure/Verify credential → Activate.
 - endpoint merchant untuk memilih runtime/container: Runtime Dispatcher memilih
   shared runtime dari `provider_code + provider_version`.
 - endpoint membaca/decrypt credential: API hanya mengembalikan metadata field.
-- endpoint create payment per QRIS/VA/e-wallet/card: `payment_option_id`
-  menentukan metode pada `POST /payment-sessions`.
+- endpoint create payment per QRIS/VA/e-wallet/card: hosted checkout memakai
+  `installation_id`, lalu halaman provider menampilkan channel yang aktif.
 - capture pada kontrak inti sebelum ada released connector yang mengiklankan
   dan lulus capability tersebut. Refund sudah menjadi kontrak inti bersyarat:
   channel wajib mempunyai policy return-to-source dan runtime wajib

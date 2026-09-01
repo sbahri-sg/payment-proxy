@@ -357,16 +357,17 @@ func validateSubmissionOpenAPI(payload []byte, operations []connector.Operation)
 		"/health": "get", "/capabilities": "get", "/payment-methods/validate": "post", "/payments/validate": "post",
 	}
 	operationPaths := map[connector.Operation]string{
-		connector.OperationVerifyInstallation:  "POST /installations/verify",
-		connector.OperationDisableInstallation: "POST /installations/disable",
-		connector.OperationCreatePayment:       "POST /payments/create",
-		connector.OperationGetPayment:          "POST /payments/get",
-		connector.OperationCapturePayment:      "POST /payments/capture",
-		connector.OperationCancelPayment:       "POST /payments/cancel",
-		connector.OperationSimulatePayment:     "POST /payments/simulate",
-		connector.OperationCreateRefund:        "POST /refunds/create",
-		connector.OperationGetRefund:           "POST /refunds/get",
-		connector.OperationHandleWebhook:       "POST /webhooks/normalize",
+		connector.OperationVerifyInstallation:   "POST /installations/verify",
+		connector.OperationDisableInstallation:  "POST /installations/disable",
+		connector.OperationCreatePayment:        "POST /payments/create",
+		connector.OperationCreateHostedCheckout: "POST /payments/create",
+		connector.OperationGetPayment:           "POST /payments/get",
+		connector.OperationCapturePayment:       "POST /payments/capture",
+		connector.OperationCancelPayment:        "POST /payments/cancel",
+		connector.OperationSimulatePayment:      "POST /payments/simulate",
+		connector.OperationCreateRefund:         "POST /refunds/create",
+		connector.OperationGetRefund:            "POST /refunds/get",
+		connector.OperationHandleWebhook:        "POST /webhooks/normalize",
 	}
 	for _, operation := range operations {
 		declaration, ok := operationPaths[operation]

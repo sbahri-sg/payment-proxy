@@ -110,8 +110,11 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 	if err != nil {
 		return connector.PaymentResult{}, err
 	}
+	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
+		return c.createHostedPaymentSession(ctx, input, key, amount, nil)
+	}
 	if input.PaymentMethodCode == "card" {
-		return c.createCardPaymentSession(ctx, input, key, amount)
+		return c.createHostedPaymentSession(ctx, input, key, amount, []string{"CARDS"})
 	}
 	channelCode := strings.TrimSpace(input.ChannelCode)
 	channelProperties := map[string]any{}
@@ -340,10 +343,10 @@ func (c *Client) HandleWebhook(_ context.Context, input connector.WebhookInput) 
 	return connector.WebhookEvent{ID: eventID, Type: eventType, PaymentID: paymentID, RefundID: refundID, Status: status}, nil
 }
 
-func (c *Client) createCardPaymentSession(ctx context.Context, input connector.PaymentInput, key string, amount any) (connector.PaymentResult, error) {
+func (c *Client) createHostedPaymentSession(ctx context.Context, input connector.PaymentInput, key string, amount any, allowedChannels []string) (connector.PaymentResult, error) {
 	returnURL := strings.TrimSpace(input.ReturnURL)
 	if !isHTTPSURL(returnURL) {
-		return connector.PaymentResult{}, errors.New("https return_url is required for Xendit hosted card payments")
+		return connector.PaymentResult{}, errors.New("https return_url is required for Xendit hosted checkout")
 	}
 	reference := strings.TrimSpace(input.MerchantReference)
 	if reference == "" || len(reference) > 64 {
@@ -358,11 +361,16 @@ func (c *Client) createCardPaymentSession(ctx context.Context, input connector.P
 		"country":                   "ID",
 		"currency":                  strings.ToUpper(strings.TrimSpace(input.Currency)),
 		"amount":                    amount,
-		"allowed_payment_channels":  []string{"CARDS"},
 		"success_return_url":        returnURL,
 		"cancel_return_url":         returnURL,
-		"description":               "Emisell card payment",
+		"description":               "Emisell payment",
 		"metadata":                  input.Metadata,
+	}
+	if len(allowedChannels) > 0 {
+		payload["allowed_payment_channels"] = allowedChannels
+	}
+	if expiresAt := strings.TrimSpace(input.ExpiresAt); expiresAt != "" {
+		payload["expires_at"] = expiresAt
 	}
 	if description := strings.TrimSpace(input.Description); description != "" {
 		payload["description"] = description

@@ -233,6 +233,8 @@ export type PaymentSession = {
   installation_id: string;
   payment_option_id?: string;
   payment_method_code?: string;
+  checkout_mode: "provider_hosted" | "direct";
+  checkout_url?: string;
   provider_code: string;
   provider_version: string;
   environment: "sandbox" | "live";

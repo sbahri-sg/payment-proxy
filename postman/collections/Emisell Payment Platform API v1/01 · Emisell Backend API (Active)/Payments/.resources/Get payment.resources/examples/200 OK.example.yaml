@@ -16,12 +16,15 @@ response:
         "data": {
           "id": "pay_01k3...",
           "installation_id": "ins_01k3...",
+          "checkout_mode": "provider_hosted",
           "provider_code": "xendit",
           "environment": "sandbox",
           "amount": 1000000,
           "currency": "IDR",
           "status": "PENDING",
-          "provider_payment_id": "pay_engine_..."
+          "provider_payment_id": "ps-6a915387...",
+          "checkout_url": "https://dev.xen.to/...",
+          "next_action": {"type": "redirect", "redirect_url": "https://dev.xen.to/..."}
         }
       }
 order: 1000

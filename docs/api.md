@@ -10,7 +10,6 @@ Emisell Backend hanya mengintegrasikan kontrak canonical berikut:
 | Merchant connection | `POST/GET /api/v1/provider-installations`, `GET/DELETE /api/v1/provider-installations/{id}` |
 | Credential | `PUT/PATCH /api/v1/provider-installations/{id}/credentials` |
 | Lifecycle | `POST .../{id}/activate`, `POST .../{id}/deactivate` |
-| Checkout configuration | payment methods, assignments, dan `GET /api/v1/payment-options` |
 | Payment | `POST /api/v1/payment-sessions`, `GET /api/v1/payment-sessions/{id}`, `POST .../{id}/cancel` |
 | Integration readiness | `GET /api/v1/integration-readiness` |
 | Refund | `POST /api/v1/refunds`, `GET /api/v1/refunds/{id}` |
@@ -140,20 +139,20 @@ X-Emisell-Merchant-ID: merchant_123
     "engine": "emisell_payment_engine",
     "contract_version": "2026-08-28",
     "connector_contract": "v1",
-    "selection_mode": "merchant_assignment",
+    "selection_mode": "merchant_installation",
     "unknown_policy": "reconcile_same_provider",
     "connectors": [
       {
         "code": "xendit",
-        "version": "emisell-xendit-v1",
+        "version": "emisell-xendit-v1.1.0",
         "runtime": "isolated_container",
-        "operations": ["verify_installation", "create_payment", "get_payment", "simulate_payment", "handle_webhook"]
+        "operations": ["verify_installation", "create_payment", "create_hosted_checkout", "get_payment", "simulate_payment", "handle_webhook"]
       },
       {
         "code": "midtrans",
-        "version": "emisell-midtrans-v1.1.0",
+        "version": "emisell-midtrans-v1.2.0",
         "runtime": "isolated_container",
-        "operations": ["verify_installation", "create_payment", "get_payment", "handle_webhook"]
+        "operations": ["verify_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"]
       }
     ]
   }
@@ -312,7 +311,7 @@ Contoh installation Midtrans memakai endpoint yang sama:
 ```json
 {
   "provider_code": "midtrans",
-  "provider_version": "emisell-midtrans-v1.1.0",
+  "provider_version": "emisell-midtrans-v1.2.0",
   "environment": "sandbox"
 }
 ```
@@ -360,7 +359,7 @@ ini agar tidak meng-hardcode versi connector.
     "environment": "sandbox",
     "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
     "execution_engine": "emisell_native",
-    "provider_version": "emisell-xendit-v1",
+    "provider_version": "emisell-xendit-v1.1.0",
     "status": "CONFIG_REQUIRED",
     "credential_metadata": {},
     "payment_methods": [],
@@ -426,7 +425,7 @@ Contoh response:
       "verification": {
         "id": "iver_01k3...",
         "result": "PASSED",
-        "provider_version": "emisell-xendit-v1",
+        "provider_version": "emisell-xendit-v1.1.0",
         "manifest_digest": "sha256-digest-without-prefix",
         "verified_at": "2026-09-01T03:00:00Z"
       }
@@ -511,7 +510,7 @@ Mengubah `ACTIVE` menjadi `INACTIVE` tanpa menghapus credential.
 ```json
 {
   "version": 6,
-  "provider_version": "emisell-midtrans-v1.1.0"
+  "provider_version": "emisell-midtrans-v1.2.0"
 }
 ```
 
@@ -593,7 +592,10 @@ List assignment termasuk yang inactive. Header execution mode opsional.
 
 ### `PUT /payment-method-assignments`
 
-Installation harus `ACTIVE` pada environment yang sama.
+Installation harus `ACTIVE` pada environment yang sama. Capability berstatus
+`DOCUMENTED` maupun `CERTIFIED` dapat di-assign; hanya `DISABLED` yang ditolak.
+`DOCUMENTED` berarti mapping didukung connector tetapi belum mempunyai bukti
+sandbox lengkap.
 
 ```json
 {
@@ -630,7 +632,10 @@ version terakhir.
 
 ### `GET /payment-options`
 
-Wajib execution mode. Checkout hanya menerima opaque option ID:
+Wajib execution mode. Endpoint ini hanya dipakai oleh flow `direct` lanjutan
+yang memilih channel sebelum memanggil provider. Flow utama
+`provider_hosted` tidak memerlukannya karena channel dipilih pelanggan di
+halaman checkout provider.
 
 ```json
 {
@@ -646,7 +651,7 @@ Wajib execution mode. Checkout hanya menerima opaque option ID:
 
 ## Payments
 
-Semua amount adalah integer minor unit. Untuk IDR, `1000000` berarti Rp10.000. Xendit QRIS menerima Rp1–Rp10.000.000; seluruh VA yang diaktifkan menerima Rp10.000–Rp50.000.000; card menerima Rp5.000–Rp200.000.000.
+Semua amount adalah integer minor unit. Untuk IDR, `1000000` berarti Rp10.000.
 
 ### `POST /payment-sessions`
 
@@ -659,17 +664,21 @@ Idempotency-Key: order-2026-0001-attempt-1
 
 ```json
 {
-  "payment_option_id": "pmo_01k3...",
+  "installation_id": "ins_01k3...",
+  "checkout_mode": "provider_hosted",
   "merchant_reference": "order_2026_0001",
   "amount": 1000000,
   "currency": "IDR",
   "description": "Order #2026-0001",
   "customer": {"name":"Budi","email":"budi@example.com"},
+  "return_url": "https://shop.example/payments/return",
   "metadata": {"order_id":"2026-0001"}
 }
 ```
 
-QRIS response:
+Jika request hanya berisi `installation_id` tanpa payment method,
+`checkout_mode` otomatis menjadi `provider_hosted`. Payment Proxy meminta
+provider membuat hosted checkout dan mengembalikan URL provider:
 
 ```json
 {
@@ -677,32 +686,11 @@ QRIS response:
     "payment": {
       "id": "pay_01k3...",
       "provider_code": "xendit",
-      "status": "PENDING",
-      "provider_payment_id": "pr-8877c08a-...",
-      "execution_engine": "emisell_native",
-      "next_action": {
-        "type": "qr_code_information",
-        "raw_qr_data": "00020101..."
-      }
-    }
-  }
-}
-```
-
-Setiap VA memakai `payment_option_id` canonical masing-masing; `next_action.type` bernilai `virtual_account_information` dan `display_text` berisi nomor VA. E-wallet mengembalikan `redirect` atau `mobile_authorization`.
-
-Card menggunakan payment option canonical `card`. Request tetap sama dan wajib mempunyai `return_url` HTTPS. Response mengembalikan `next_action.type=redirect` menuju hosted checkout Xendit. Client membuka URL tersebut dan memasukkan data kartu langsung pada domain Xendit. Jangan pernah menambahkan `card_number`, expiry, CVV/CVN, atau data autentikasi kartu ke request Payment Proxy.
-
-Contoh response card:
-
-```json
-{
-  "data": {
-    "payment": {
-      "id": "pay_01k3...",
-      "provider_code": "xendit",
+      "checkout_mode": "provider_hosted",
       "status": "PENDING",
       "provider_payment_id": "ps-6a915387...",
+      "execution_engine": "emisell_native",
+      "checkout_url": "https://dev.xen.to/...",
       "next_action": {
         "type": "redirect",
         "redirect_url": "https://dev.xen.to/..."
@@ -711,6 +699,16 @@ Contoh response card:
   }
 }
 ```
+
+Untuk Xendit, URL berasal dari `payment_link_url` Payment Session. Untuk
+Midtrans, URL berasal dari `redirect_url` Snap. QRIS, VA, e-wallet, card, dan
+channel lain yang aktif ditampilkan oleh provider pada halaman tersebut;
+Emisell tidak membuat halaman checkout dan tidak menerima PAN, expiry,
+CVV/CVN, OTP, atau detail autentikasi pembayaran.
+
+Flow `direct` lama tetap tersedia dengan `checkout_mode: direct` dan
+`payment_option_id` untuk kebutuhan channel tertentu. Jangan mencampur
+`payment_option_id` atau `payment_method_code` dengan `provider_hosted`.
 
 Request dengan idempotency key dan body sama mengembalikan payment lama. Key sama dengan body berbeda menghasilkan `409 IDEMPOTENCY_CONFLICT`. Transport timeout mutation menghasilkan `202 OUTCOME_UNKNOWN`; jangan membuat payment pengganti sampai reconciliation selesai.
 

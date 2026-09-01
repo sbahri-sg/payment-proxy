@@ -11,20 +11,15 @@ request:
     type: json
     content: |-
       {
-        "payment_option_id": "{{payment_option_id}}",
+        "installation_id": "{{installation_id}}",
+        "checkout_mode": "provider_hosted",
         "merchant_reference": "order_{{$timestamp}}",
         "amount": 1000000,
         "currency": "IDR",
-        "confirm": true,
-        "capture_method": "automatic",
-        "payment_method_data": {
-          "real_time_payment": {
-            "qris": {}
-          }
-        },
+        "description": "Emisell order checkout",
         "return_url": "https://shop.example/payments/return",
         "metadata": {
-          "source": "postman"
+          "source": "postman-provider-hosted"
         }
       }
 response:

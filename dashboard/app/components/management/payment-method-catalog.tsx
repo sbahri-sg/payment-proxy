@@ -43,7 +43,7 @@ export function PaymentMethodCatalog({ methods }: { methods: PaymentMethodCatalo
         </article>)}
         {filtered.length === 0 && <div className="management-empty master-method-empty"><h3>No matching payment method</h3><p>Try another method, category, or gateway name.</p></div>}
       </div>
-      <div className="catalog-legend"><span><i className="certified"/>Verified connector — dapat dipetakan sekarang</span><span><i className="documented"/>Supported gateway — menunggu verifikasi backend</span><span><i className="blocked"/>Engine blocked — membutuhkan partner connector</span></div>
+      <div className="catalog-legend"><span><i className="certified"/>Verified connector — sandbox evidence lengkap</span><span><i className="documented"/>Documented — dapat dipetakan, verifikasi belum lengkap</span><span><i className="blocked"/>Disabled — tidak dapat dipetakan</span></div>
     </section>
   );
 }

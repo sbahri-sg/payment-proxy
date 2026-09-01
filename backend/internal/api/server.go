@@ -190,11 +190,11 @@ func (s *Server) engineCapabilities(w http.ResponseWriter, _ *http.Request) {
 		"engine":             "emisell_payment_engine",
 		"contract_version":   apiContractVersion,
 		"connector_contract": "v1",
-		"selection_mode":     "merchant_assignment",
+		"selection_mode":     "merchant_installation",
 		"unknown_policy":     "reconcile_same_provider",
 		"connectors":         s.engine.Manifests(),
 		"integration_invariants": []string{
-			"checkout_uses_opaque_payment_option_id",
+			"hosted_checkout_uses_provider_redirect_url",
 			"payment_is_pinned_to_one_installation",
 			"unknown_outcome_never_fails_over",
 			"provider_credentials_never_leave_payment_platform",
@@ -218,7 +218,7 @@ func (s *Server) integrationReadiness(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	webhookConfigured := settings.Configured && settings.Enabled && settings.SecretConfigured
-	checks := make([]model.IntegrationReadinessCheck, 0, 7)
+	checks := make([]model.IntegrationReadinessCheck, 0, 6)
 	add := func(code, label string, passed bool, pendingDetail string) {
 		status, detail := "PASSED", "Verified from platform evidence."
 		if !passed {
@@ -227,7 +227,6 @@ func (s *Server) integrationReadiness(w http.ResponseWriter, r *http.Request) {
 		checks = append(checks, model.IntegrationReadinessCheck{Code: code, Label: label, Status: status, Detail: detail})
 	}
 	add("provider_connection", "Active provider connection", facts.ActiveInstallation, "Install, configure, verify, and activate a provider for this environment.")
-	add("payment_method", "Active payment method", facts.ActiveAssignment, "Assign at least one certified payment method to the active provider connection.")
 	add("payment_create", "Payment creation", facts.PaymentCreated, "Create one payment session using a stable Idempotency-Key.")
 	add("idempotency_replay", "Idempotency replay", facts.IdempotencyReplay, "Repeat the same payment request with the same Idempotency-Key and confirm the same payment is returned.")
 	add("payment_status", "Payment status lookup", facts.PaymentStatusRead, "Retrieve the created payment by its canonical payment ID.")
@@ -1010,8 +1009,8 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 		s.internal(w, r, err)
 		return
 	}
-	if capability.SupportStatus != model.PaymentMethodSupportCertified {
-		problem(w, http.StatusConflict, "CONNECTOR_METHOD_NOT_CERTIFIED", "the gateway supports this method, but its Emisell connector has not passed conformance certification")
+	if !assignablePaymentMethodCapability(capability.SupportStatus) {
+		problem(w, http.StatusConflict, "PAYMENT_METHOD_DISABLED", "the selected gateway payment method is disabled")
 		return
 	}
 	request.PaymentMethod = capability.ProviderMethod
@@ -1445,6 +1444,7 @@ func (s *Server) writeConnectorCertification(w http.ResponseWriter, r *http.Requ
 type paymentRequest struct {
 	InstallationID    string             `json:"installation_id"`
 	PaymentOptionID   string             `json:"payment_option_id"`
+	CheckoutMode      string             `json:"checkout_mode"`
 	PaymentMethodCode string             `json:"payment_method_code"`
 	MerchantReference string             `json:"merchant_reference"`
 	Amount            int64              `json:"amount"`
@@ -1479,9 +1479,30 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 	request.MerchantReference = strings.TrimSpace(request.MerchantReference)
 	request.InstallationID = strings.TrimSpace(request.InstallationID)
 	request.PaymentOptionID = strings.TrimSpace(request.PaymentOptionID)
+	request.CheckoutMode = strings.ToLower(strings.TrimSpace(request.CheckoutMode))
 	request.PaymentMethodCode = strings.ToLower(strings.TrimSpace(request.PaymentMethodCode))
 	request.PaymentMethod = strings.ToLower(strings.TrimSpace(request.PaymentMethod))
 	request.PaymentMethodType = strings.ToLower(strings.TrimSpace(request.PaymentMethodType))
+	if request.CheckoutMode == "" {
+		if request.PaymentOptionID == "" && request.PaymentMethodCode == "" && request.PaymentMethod == "" && request.PaymentMethodType == "" {
+			request.CheckoutMode = connector.CheckoutModeProviderHosted
+		} else {
+			request.CheckoutMode = connector.CheckoutModeDirect
+		}
+	}
+	if request.CheckoutMode != connector.CheckoutModeProviderHosted && request.CheckoutMode != connector.CheckoutModeDirect {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_CHECKOUT_MODE", "checkout_mode must be provider_hosted or direct")
+		return
+	}
+	if request.CheckoutMode == connector.CheckoutModeProviderHosted && (request.InstallationID == "" || request.PaymentOptionID != "" || request.PaymentMethodCode != "" || request.PaymentMethod != "" || request.PaymentMethodType != "" || len(request.PaymentMethodData) > 0 || request.Confirm != nil || strings.TrimSpace(request.CaptureMethod) != "") {
+		problem(w, http.StatusUnprocessableEntity, "HOSTED_CHECKOUT_CONFLICT", "provider_hosted checkout requires installation_id and must not select a payment method")
+		return
+	}
+	request.ReturnURL = strings.TrimSpace(request.ReturnURL)
+	if request.CheckoutMode == connector.CheckoutModeProviderHosted && (request.ReturnURL == "" || !optionalPublicHTTPSURL(request.ReturnURL)) {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_RETURN_URL", "provider_hosted checkout requires a public HTTPS return_url")
+		return
+	}
 	if (request.InstallationID == "" && request.PaymentOptionID == "") || request.MerchantReference == "" || request.Amount <= 0 || len(request.Currency) != 3 {
 		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "payment_option_id or installation_id, merchant_reference, positive amount, and 3-letter currency are required")
 		return
@@ -1499,7 +1520,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		writeData(w, http.StatusOK, existing)
 		return
 	}
-	if request.PaymentOptionID != "" {
+	if request.CheckoutMode == connector.CheckoutModeDirect && request.PaymentOptionID != "" {
 		option, optionErr := s.store.GetActivePaymentOption(r.Context(), tenant(r), mode, request.PaymentOptionID)
 		if optionErr != nil {
 			s.storeError(w, r, optionErr)
@@ -1531,37 +1552,40 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active in the requested execution mode")
 		return
 	}
-	if request.PaymentMethodCode == "" {
-		request.PaymentMethodCode = paymentMethodCodeFromLegacy(request.PaymentMethod, request.PaymentMethodType)
-	}
-	capability, err := s.store.GetProviderPaymentMethodCapability(r.Context(), installation.ProviderCode, request.PaymentMethodCode)
-	if errors.Is(err, store.ErrNotFound) {
-		problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", "the selected provider does not support this payment method")
-		return
-	}
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
-	if capability.SupportStatus != model.PaymentMethodSupportCertified {
-		problem(w, http.StatusConflict, "CONNECTOR_METHOD_NOT_CERTIFIED", "the payment method has not passed Emisell connector certification")
-		return
-	}
-	if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentMethodMapping{
-		PaymentMethodCode:  capability.PaymentMethodCode,
-		ProviderMethod:     capability.ProviderMethod,
-		ProviderMethodType: capability.ProviderMethodType,
-	}); err != nil {
-		problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", err.Error())
-		return
-	}
-	if err = s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
-		PaymentMethodCode: request.PaymentMethodCode,
-		Currency:          request.Currency,
-		Amount:            request.Amount,
-	}); err != nil {
-		problem(w, http.StatusUnprocessableEntity, "INVALID_AMOUNT", err.Error())
-		return
+	var capability model.ProviderPaymentMethodCapability
+	if request.CheckoutMode == connector.CheckoutModeDirect {
+		if request.PaymentMethodCode == "" {
+			request.PaymentMethodCode = paymentMethodCodeFromLegacy(request.PaymentMethod, request.PaymentMethodType)
+		}
+		capability, err = s.store.GetProviderPaymentMethodCapability(r.Context(), installation.ProviderCode, request.PaymentMethodCode)
+		if errors.Is(err, store.ErrNotFound) {
+			problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", "the selected provider does not support this payment method")
+			return
+		}
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		if !assignablePaymentMethodCapability(capability.SupportStatus) {
+			problem(w, http.StatusConflict, "PAYMENT_METHOD_DISABLED", "the selected gateway payment method is disabled")
+			return
+		}
+		if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentMethodMapping{
+			PaymentMethodCode:  capability.PaymentMethodCode,
+			ProviderMethod:     capability.ProviderMethod,
+			ProviderMethodType: capability.ProviderMethodType,
+		}); err != nil {
+			problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", err.Error())
+			return
+		}
+		if err = s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
+			PaymentMethodCode: request.PaymentMethodCode,
+			Currency:          request.Currency,
+			Amount:            request.Amount,
+		}); err != nil {
+			problem(w, http.StatusUnprocessableEntity, "INVALID_AMOUNT", err.Error())
+			return
+		}
 	}
 	credentials, err := s.loadCredentials(r.Context(), tenant(r), installation.ID)
 	if err != nil {
@@ -1587,10 +1611,10 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, Credentials: credentials,
 		InstallationID: installation.ID, LocalPaymentID: session.ID, MerchantReference: request.MerchantReference,
 		IdempotencyKey: key, Amount: request.Amount, Currency: request.Currency,
-		PaymentMethodCode: request.PaymentMethodCode, ChannelCode: capability.ProviderChannelCode,
+		CheckoutMode: request.CheckoutMode, PaymentMethodCode: request.PaymentMethodCode, ChannelCode: capability.ProviderChannelCode,
 		PublicWebhookURL: s.providerWebhookURL(installation.ProviderCode, installation.ID),
 		Customer:         request.Customer, Items: request.Items, ReturnURL: request.ReturnURL, Description: request.Description, ExpiresAt: request.ExpiresAt,
-		Metadata: mergeMetadata(request.Metadata, map[string]any{"emisell_tenant_id": tenant(r), "emisell_payment_id": session.ID}),
+		Metadata: mergeMetadata(request.Metadata, map[string]any{"emisell_tenant_id": tenant(r), "emisell_payment_id": session.ID, "emisell_checkout_mode": request.CheckoutMode}),
 	})
 	if err != nil {
 		status := model.PaymentFailed
@@ -2673,4 +2697,13 @@ func paymentMethodCodeFromLegacy(paymentMethod, paymentMethodType string) string
 		return "va_bca"
 	}
 	return ""
+}
+
+func assignablePaymentMethodCapability(status string) bool {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case model.PaymentMethodSupportDocumented, model.PaymentMethodSupportCertified:
+		return true
+	default:
+		return false
+	}
 }

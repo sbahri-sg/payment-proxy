@@ -66,8 +66,8 @@ Contoh response `201 Created`:
 ```json
 {
   "data": {
-    "provider_code": "midtrans",
-    "provider_name": "Midtrans",
+    "provider_code": "xendit",
+    "provider_name": "Xendit",
     "description": "Midtrans payment connector for Emisell merchants.",
     "status": "DRAFT",
     "version_count": 0,
@@ -142,7 +142,7 @@ Pada **Body → form-data**:
 
 | Key | Type | Value |
 |---|---|---|
-| `bundle` | File | `xendit-provider-app-emisell-v1.zip` |
+| `bundle` | File | `xendit-provider-app-emisell-v1.1.0.zip` |
 
 Contoh response `201 Created`:
 
@@ -152,18 +152,18 @@ Contoh response `201 Created`:
     "id": "papp_9d3a...",
     "provider_code": "midtrans",
     "provider_name": "Midtrans",
-    "version": "emisell-midtrans-v1.1.0",
+    "version": "emisell-xendit-v1.1.0",
     "status": "UPLOADED",
     "runtime": "isolated_container",
     "sdk_version": "v1",
-    "file_name": "xendit-provider-app-emisell-v1.zip",
+    "file_name": "xendit-provider-app-emisell-v1.1.0.zip",
     "artifact_size": 11220,
     "artifact_sha256": "a791f4...9d2c",
     "manifest": {
       "package_format": "provider_submission_v1",
       "contract_version": "v1",
       "code": "xendit",
-      "version": "emisell-xendit-v1",
+      "version": "emisell-xendit-v1.1.0",
       "environments": ["sandbox", "live"],
       "payment_methods": ["qris", "card", "va_bca", "va_mandiri", "ewallet_ovo", "ewallet_dana"],
       "outbound_hosts": ["api.xendit.co"]

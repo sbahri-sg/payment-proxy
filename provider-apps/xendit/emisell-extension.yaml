@@ -3,7 +3,7 @@ provider:
   code: xendit
   name: Xendit
 release:
-  version: emisell-xendit-v1
+  version: emisell-xendit-v1.1.0
 connector:
   contract_version: v1
   runtime: isolated_container
@@ -12,6 +12,7 @@ operations:
   - verify_installation
   - disable_installation
   - create_payment
+  - create_hosted_checkout
   - get_payment
   - simulate_payment
   - handle_webhook

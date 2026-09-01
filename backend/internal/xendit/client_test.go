@@ -211,6 +211,31 @@ func TestCardUsesHostedPaymentSessionWithoutPAN(t *testing.T) {
 	}
 }
 
+func TestProviderHostedCheckoutLeavesChannelSelectionToXendit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/sessions" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["mode"] != "PAYMENT_LINK" || body["allowed_payment_channels"] != nil {
+			t.Fatalf("hosted checkout must leave channel selection to Xendit: %#v", body)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, `{"payment_session_id":"ps-hosted-1","status":"ACTIVE","payment_link_url":"https://dev.xen.to/all-methods"}`)
+	}))
+	defer server.Close()
+	client, _ := New(server.URL, time.Second)
+	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
+		Credentials: map[string]string{"api_key": "secret"}, CheckoutMode: connector.CheckoutModeProviderHosted,
+		MerchantReference: "order-hosted", LocalPaymentID: "pay_hosted", IdempotencyKey: "idem-hosted-1",
+		Amount: 1_000_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
+	})
+	if err != nil || result.ID != "ps-hosted-1" || !strings.Contains(string(result.NextAction), "https://dev.xen.to/all-methods") {
+		t.Fatalf("unexpected hosted checkout: %#v, %v", result, err)
+	}
+}
+
 func TestGetHostedCardPaymentSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/sessions/ps-661f87c614802d6c402cd82d" {

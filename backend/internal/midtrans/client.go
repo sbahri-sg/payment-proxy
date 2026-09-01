@@ -28,6 +28,8 @@ const (
 type Client struct {
 	sandboxURL       *url.URL
 	liveURL          *url.URL
+	sandboxSnapURL   *url.URL
+	liveSnapURL      *url.URL
 	httpClient       *http.Client
 	executableSHA256 string
 }
@@ -56,8 +58,10 @@ func New(sandboxBaseURL, liveBaseURL string, timeout time.Duration) (*Client, er
 		timeout = 15 * time.Second
 	}
 	return &Client{
-		sandboxURL: sandbox,
-		liveURL:    live,
+		sandboxURL:     sandbox,
+		liveURL:        live,
+		sandboxSnapURL: midtransSnapBaseURL(sandbox, true),
+		liveSnapURL:    midtransSnapBaseURL(live, false),
 		httpClient: &http.Client{
 			Timeout: timeout,
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
@@ -65,6 +69,28 @@ func New(sandboxBaseURL, liveBaseURL string, timeout time.Duration) (*Client, er
 			},
 		},
 	}, nil
+}
+
+func midtransSnapBaseURL(core *url.URL, sandbox bool) *url.URL {
+	result := *core
+	switch strings.ToLower(core.Hostname()) {
+	case "api.sandbox.midtrans.com":
+		result.Host = "app.sandbox.midtrans.com"
+	case "api.midtrans.com":
+		result.Host = "app.midtrans.com"
+	default:
+		// Custom URLs (including test servers and egress proxies) serve both
+		// Core API and Snap from the same origin.
+		return &result
+	}
+	if sandbox {
+		result.Host = "app.sandbox.midtrans.com"
+	}
+	result.Path = ""
+	result.RawPath = ""
+	result.RawQuery = ""
+	result.Fragment = ""
+	return &result
 }
 
 func parseBaseURL(value, fallback string) (*url.URL, error) {
@@ -139,6 +165,9 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 	if err != nil {
 		return connector.PaymentResult{}, err
 	}
+	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
+		return c.createSnapCheckout(ctx, input, credentials, amount, orderID)
+	}
 	payload := map[string]any{
 		"transaction_details": map[string]any{"order_id": orderID, "gross_amount": amount},
 	}
@@ -191,6 +220,44 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 		return connector.PaymentResult{}, &connector.UnknownOutcomeError{Cause: err}
 	}
 	return result, nil
+}
+
+func (c *Client) createSnapCheckout(ctx context.Context, input connector.PaymentInput, credentials apiCredentials, amount int64, orderID string) (connector.PaymentResult, error) {
+	payload := map[string]any{
+		"transaction_details": map[string]any{"order_id": orderID, "gross_amount": amount},
+		"credit_card":         map[string]any{"secure": true},
+	}
+	if customer := customerDetails(input.Customer); len(customer) > 0 {
+		payload["customer_details"] = customer
+	}
+	if items := itemDetails(input.Items, input.Currency, amount); len(items) > 0 {
+		payload["item_details"] = items
+	}
+	if returnURL := strings.TrimSpace(input.ReturnURL); returnURL != "" {
+		if !isHTTPSURL(returnURL) {
+			return connector.PaymentResult{}, errors.New("return_url must be HTTPS for Midtrans hosted checkout")
+		}
+		payload["callbacks"] = map[string]any{"finish": returnURL, "error": returnURL}
+		payload["gopay"] = map[string]any{"enable_callback": true, "callback_url": returnURL}
+		payload["shopeepay"] = map[string]any{"callback_url": returnURL}
+	}
+	headers := make(http.Header)
+	if isHTTPSURL(input.PublicWebhookURL) {
+		headers.Set("X-Override-Notification", strings.TrimSpace(input.PublicWebhookURL))
+	}
+	var response map[string]any
+	if err := c.doSnap(ctx, input.Environment, http.MethodPost, "/snap/v1/transactions", credentials, headers, payload, &response, true); err != nil {
+		return connector.PaymentResult{}, err
+	}
+	redirectURL := firstString(response, "redirect_url")
+	if !isHTTPSURL(redirectURL) {
+		return connector.PaymentResult{}, &connector.UnknownOutcomeError{Cause: errors.New("Midtrans Snap response did not contain a valid redirect_url")}
+	}
+	nextAction, _ := json.Marshal(map[string]any{"type": "redirect", "redirect_url": redirectURL})
+	return connector.PaymentResult{
+		ID: orderID, Status: "REQUIRES_ACTION", ConnectorTransactionID: orderID,
+		NextAction: nextAction,
+	}, nil
 }
 
 func (c *Client) GetPayment(ctx context.Context, input connector.PaymentLookup) (connector.PaymentResult, error) {
@@ -373,6 +440,23 @@ func (c *Client) doWithHeaders(ctx context.Context, environment, method, path st
 	if err != nil {
 		return err
 	}
+	return c.doAtBaseURL(ctx, baseURL, method, path, credentials, headers, payload, target, mutation)
+}
+
+func (c *Client) doSnap(ctx context.Context, environment, method, path string, credentials apiCredentials, headers http.Header, payload, target any, mutation bool) error {
+	var baseURL *url.URL
+	switch strings.ToLower(strings.TrimSpace(environment)) {
+	case "sandbox":
+		baseURL = c.sandboxSnapURL
+	case "live":
+		baseURL = c.liveSnapURL
+	default:
+		return errors.New("Midtrans environment must be sandbox or live")
+	}
+	return c.doAtBaseURL(ctx, baseURL, method, path, credentials, headers, payload, target, mutation)
+}
+
+func (c *Client) doAtBaseURL(ctx context.Context, baseURL *url.URL, method, path string, credentials apiCredentials, headers http.Header, payload, target any, mutation bool) error {
 	endpoint := baseURL.ResolveReference(&url.URL{Path: path})
 	var body io.Reader
 	if payload != nil {

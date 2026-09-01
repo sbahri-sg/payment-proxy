@@ -45,7 +45,9 @@ Danamon VA, paylater, Jenius Pay, retail, dan refund tidak boleh dipromosikan ha
 | `DOCUMENTED` | `paylater_kredivo`, `paylater_akulaku`, `paylater_indodana` — channel belum tersedia untuk account sandbox yang diuji |
 | `DOCUMENTED` | `digital_banking_jenius` — Payments API v3 sandbox account menolak channel/endpoint ini |
 
-`DOCUMENTED` berarti mapping katalog tersedia, bukan bukti bahwa provider menerima transaksi. Hanya `CERTIFIED` yang boleh di-assign ke checkout.
+`DOCUMENTED` berarti mapping katalog tersedia dan boleh di-assign, tetapi belum
+menjadi bukti bahwa account provider menerima transaksi. `CERTIFIED` menandai
+bahwa sandbox conformance sudah mempunyai evidence lengkap.
 
 Pada 28 Agustus 2026, `card` dan delapan Virtual Account terlebih dahulu diverifikasi ulang menggunakan payment sandbox yang sama tanpa membuat transaksi pengganti. Kesembilan run menghasilkan `PASSED` dengan bukti `webhook_delivery` dan `emisell_delivery`.
 

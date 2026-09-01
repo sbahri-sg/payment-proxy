@@ -18,10 +18,10 @@ install -m 0644 "${repo_dir}/backend/internal/xendit/manifest.go" "${bundle_tmp}
 (
   cd "${bundle_tmp}/bundle"
   touch -t 198001010000 emisell-extension.yaml openapi.yaml README.md SECURITY.md contract-tests/README.md src/xendit/client.go src/xendit/manifest.go
-  COPYFILE_DISABLE=1 zip -X -q "${bundle_tmp}/xendit-provider-app-emisell-v1.zip" \
+  COPYFILE_DISABLE=1 zip -X -q "${bundle_tmp}/xendit-provider-app-emisell-v1.1.0.zip" \
     emisell-extension.yaml openapi.yaml README.md SECURITY.md contract-tests/README.md \
     src/xendit/client.go src/xendit/manifest.go
 )
 
-install -m 0644 "${bundle_tmp}/xendit-provider-app-emisell-v1.zip" "${output_dir}/xendit-provider-app-emisell-v1.zip"
-shasum -a 256 "${output_dir}/xendit-provider-app-emisell-v1.zip"
+install -m 0644 "${bundle_tmp}/xendit-provider-app-emisell-v1.1.0.zip" "${output_dir}/xendit-provider-app-emisell-v1.1.0.zip"
+shasum -a 256 "${output_dir}/xendit-provider-app-emisell-v1.1.0.zip"

@@ -11,29 +11,31 @@ import (
 type Operation string
 
 const (
-	OperationVerifyInstallation  Operation = "verify_installation"
-	OperationDisableInstallation Operation = "disable_installation"
-	OperationCreatePayment       Operation = "create_payment"
-	OperationGetPayment          Operation = "get_payment"
-	OperationCapturePayment      Operation = "capture_payment"
-	OperationCancelPayment       Operation = "cancel_payment"
-	OperationSimulatePayment     Operation = "simulate_payment"
-	OperationCreateRefund        Operation = "create_refund"
-	OperationGetRefund           Operation = "get_refund"
-	OperationHandleWebhook       Operation = "handle_webhook"
+	OperationVerifyInstallation   Operation = "verify_installation"
+	OperationDisableInstallation  Operation = "disable_installation"
+	OperationCreatePayment        Operation = "create_payment"
+	OperationCreateHostedCheckout Operation = "create_hosted_checkout"
+	OperationGetPayment           Operation = "get_payment"
+	OperationCapturePayment       Operation = "capture_payment"
+	OperationCancelPayment        Operation = "cancel_payment"
+	OperationSimulatePayment      Operation = "simulate_payment"
+	OperationCreateRefund         Operation = "create_refund"
+	OperationGetRefund            Operation = "get_refund"
+	OperationHandleWebhook        Operation = "handle_webhook"
 )
 
 var validOperations = map[Operation]struct{}{
-	OperationVerifyInstallation:  {},
-	OperationDisableInstallation: {},
-	OperationCreatePayment:       {},
-	OperationGetPayment:          {},
-	OperationCapturePayment:      {},
-	OperationCancelPayment:       {},
-	OperationSimulatePayment:     {},
-	OperationCreateRefund:        {},
-	OperationGetRefund:           {},
-	OperationHandleWebhook:       {},
+	OperationVerifyInstallation:   {},
+	OperationDisableInstallation:  {},
+	OperationCreatePayment:        {},
+	OperationCreateHostedCheckout: {},
+	OperationGetPayment:           {},
+	OperationCapturePayment:       {},
+	OperationCancelPayment:        {},
+	OperationSimulatePayment:      {},
+	OperationCreateRefund:         {},
+	OperationGetRefund:            {},
+	OperationHandleWebhook:        {},
 }
 
 type CredentialField struct {

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Midtrans Emisell Payment Connector
-  version: emisell-midtrans-v1.1.1
+  version: emisell-midtrans-v1.2.0
   description: Normalized Payment Connector contract used by the shared Midtrans runtime.
 servers:
   - url: https://connector-runtime.emisell.com/partner/v1
@@ -132,14 +132,14 @@ components:
       required: [provider_code, provider_version, input]
       properties:
         provider_code: {type: string, example: midtrans}
-        provider_version: {type: string, example: emisell-midtrans-v1.1.1}
+        provider_version: {type: string, example: emisell-midtrans-v1.2.0}
         input: {type: object, additionalProperties: true}
     InstallationInput:
       type: object
       required: [provider_code, provider_version, environment, credentials]
       properties:
         provider_code: {type: string, example: midtrans}
-        provider_version: {type: string, example: emisell-midtrans-v1.1.1}
+        provider_version: {type: string, example: emisell-midtrans-v1.2.0}
         environment: {type: string, enum: [live, sandbox]}
         credentials: {type: object, additionalProperties: {type: string}, writeOnly: true}
         public_webhook_url: {type: string, format: uri}
@@ -154,9 +154,10 @@ components:
       allOf:
         - {$ref: "#/components/schemas/InstallationInput"}
         - type: object
-          required: [payment_id, payment_method_code, amount, currency, idempotency_key]
+          required: [local_payment_id, amount, currency, idempotency_key]
           properties:
-            payment_id: {type: string}
+            local_payment_id: {type: string}
+            checkout_mode: {type: string, enum: [direct, provider_hosted]}
             payment_method_code: {type: string}
             amount: {type: integer, format: int64, minimum: 1}
             currency: {type: string, example: IDR}
@@ -173,7 +174,7 @@ components:
       required: [provider_code, provider_version, headers, body]
       properties:
         provider_code: {type: string, example: midtrans}
-        provider_version: {type: string, example: emisell-midtrans-v1.1.1}
+        provider_version: {type: string, example: emisell-midtrans-v1.2.0}
         headers: {type: object, additionalProperties: {type: string}}
         body: {type: string, format: byte}
   responses:

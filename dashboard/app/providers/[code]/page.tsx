@@ -102,7 +102,7 @@ export default async function ProviderDetailPage({
           {tab === "overview" && <>
             <section className="management-metrics provider-detail-metrics">
               <article><span>CAPABILITIES</span><strong>{capabilities.length}</strong><small>canonical payment methods</small></article>
-              <article><span>VERIFIED</span><strong>{verified}</strong><small>available for assignment</small></article>
+              <article><span>VERIFIED</span><strong>{verified}</strong><small>sandbox evidence complete</small></article>
               <article><span>SHARED RUNTIME</span><strong>{runtimeConnector ? "Running" : "Not loaded"}</strong><small>{runtimeConnector?.version || "no published runtime"}</small></article>
               <article><span>MERCHANT SETUP</span><strong>{provider.credential_schema.length}</strong><small>credential fields requested on install</small></article>
             </section>

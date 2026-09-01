@@ -4,6 +4,10 @@ This directory is the review submission for the normalized Xendit payment
 connector. It describes provider identity, credentials, payment methods,
 operations, and the Partner Connector API contract.
 
+The primary checkout flow creates a Xendit Payment Session in `PAYMENT_LINK`
+mode and returns `payment_link_url`. Xendit owns the payment-method selection
+page; Emisell only redirects the customer and tracks canonical status.
+
 The connector contains a fail-closed implementation of asynchronous Unified
 Refund for payment methods whose catalog capability declares a return-to-source
 policy. The release does not advertise `create_refund` yet: it must first pass

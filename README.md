@@ -53,7 +53,7 @@ Danamon VA, Kredivo, Akulaku, Indodana, Jenius Pay, dan channel lain tetap
 `DOCUMENTED`. Core tidak perlu berubah ketika capability baru ditambahkan;
 connector dan capability mapping yang diperluas.
 
-Connector Midtrans `emisell-midtrans-v1.1.0` berjalan sebagai Provider App
+Connector Midtrans `emisell-midtrans-v1.2.0` berjalan sebagai Provider App
 container tersendiri, terpisah dari runner Xendit. Ini membuktikan bahwa kontrak
 engine tidak bergantung pada implementasi atau process provider tertentu:
 
@@ -238,8 +238,11 @@ Docker lokal memakai `emisell-receiver` sebagai contract-test receiver. Status `
 2. Masukkan API key dan webhook verification token.
 3. Engine memverifikasi key langsung ke provider dan menyimpan ciphertext.
 4. Aktifkan installation.
-5. Assign master payment method yang sudah diverifikasi backend ke installation aktif.
-6. Checkout meminta `payment-options`, lalu membuat payment dengan `payment_option_id`.
+5. Backend membuat payment dengan `installation_id`; mode default adalah `provider_hosted`.
+6. Customer diarahkan ke `checkout_url` milik Xendit Payment Session atau Midtrans Snap dan memilih metode pembayaran di halaman provider.
+
+Assignment dan `payment_option_id` hanya dipakai untuk flow `direct` lanjutan,
+bukan sebagai prasyarat hosted checkout utama.
 
 Semua amount API menggunakan minor unit integer. Untuk IDR, `1000000` berarti Rp10.000.
 

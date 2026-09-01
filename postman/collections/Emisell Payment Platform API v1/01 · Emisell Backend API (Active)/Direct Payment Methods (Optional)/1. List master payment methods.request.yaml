@@ -1,5 +1,5 @@
 $kind: http-request
-description: Master canonical payment methods dan capability matrix Xendit, Midtrans, Duitku, serta DOKU. Hanya status CERTIFIED yang boleh di-assign.
+description: Master canonical payment methods dan capability matrix Xendit, Midtrans, Duitku, serta DOKU. Status DOCUMENTED dan CERTIFIED boleh di-assign; DISABLED ditolak.
 url: "{{base_url}}/api/v1/payment-methods"
 method: GET
 headers:

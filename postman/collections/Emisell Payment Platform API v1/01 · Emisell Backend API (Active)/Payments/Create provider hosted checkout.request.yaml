@@ -10,31 +10,30 @@ body:
   type: json
   content: |-
     {
-      "payment_option_id": "{{payment_option_id}}",
+      "installation_id": "{{installation_id}}",
+      "checkout_mode": "provider_hosted",
       "merchant_reference": "order_{{$timestamp}}",
       "amount": 1000000,
       "currency": "IDR",
-      "confirm": true,
-      "capture_method": "automatic",
-      "payment_method_data": {
-        "real_time_payment": {
-          "qris": {}
-        }
-      },
+      "description": "Emisell order checkout",
+      "customer": {"name": "Budi Santoso", "email": "budi@example.com"},
       "return_url": "https://shop.example/payments/return",
       "metadata": {
-        "source": "postman"
+        "source": "postman-provider-hosted"
       }
     }
 scripts:
   - type: afterResponse
     code: |-
-      pm.test('Payment accepted', () => pm.expect([200, 201, 202]).to.include(pm.response.code));
+      pm.test('Provider checkout created', () => pm.expect([200, 201, 202]).to.include(pm.response.code));
       if ([200, 201].includes(pm.response.code)) {
         const data = pm.response.json().data;
         const payment = data.payment || data;
+        pm.expect(payment.checkout_mode).to.eql('provider_hosted');
+        pm.expect(payment.checkout_url).to.match(/^https:\/\//);
+        pm.expect(payment.next_action.type).to.eql('redirect');
         pm.collectionVariables.set('payment_id', payment.id);
       }
     language: text/javascript
-examples: ./.resources/Create QRIS payment.resources/examples
+examples: ./.resources/Create provider hosted checkout.resources/examples
 order: 1000

@@ -196,6 +196,16 @@ func TestPaymentOptionContract(t *testing.T) {
 	if !paymentMethodPattern.MatchString("real_time_payment") || paymentMethodPattern.MatchString("QRIS / Xendit") {
 		t.Fatal("payment method identifier validation is incorrect")
 	}
+	for _, status := range []string{"DOCUMENTED", "CERTIFIED", " documented "} {
+		if !assignablePaymentMethodCapability(status) {
+			t.Fatalf("assignable capability status %q was rejected", status)
+		}
+	}
+	for _, status := range []string{"", "DISABLED", "UNKNOWN"} {
+		if assignablePaymentMethodCapability(status) {
+			t.Fatalf("non-assignable capability status %q was accepted", status)
+		}
+	}
 }
 
 func TestAccessLogAndMetricsDoNotLeakCredentials(t *testing.T) {

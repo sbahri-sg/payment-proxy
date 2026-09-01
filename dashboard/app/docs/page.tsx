@@ -96,7 +96,7 @@ const installationBase = `{
   "environment": "sandbox",
   "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
   "execution_engine": "emisell_native",
-  "provider_version": "emisell-xendit-v1",
+  "provider_version": "emisell-xendit-v1.1.0",
   "status": "CONFIG_REQUIRED",
   "credential_metadata": {},
   "payment_methods": [],
@@ -147,19 +147,19 @@ const certificationBase = `{
 const paymentBase = `{
   "id": "pay_01k3...",
   "installation_id": "ins_01k3...",
-  "payment_option_id": "pmo_01k3...",
-  "payment_method_code": "qris",
+  "checkout_mode": "provider_hosted",
   "provider_code": "xendit",
-  "provider_version": "emisell-xendit-v1",
+  "provider_version": "emisell-xendit-v1.1.0",
   "environment": "sandbox",
   "merchant_reference": "order_2026_0001",
   "amount": 1000000,
   "currency": "IDR",
   "status": "PENDING",
   "flags": [],
-  "provider_payment_id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
+  "provider_payment_id": "ps-6a915387...",
   "execution_engine": "emisell_native",
-  "next_action": { "type": "qr_code_information", "raw_qr_data": "00020101..." },
+  "checkout_url": "https://dev.xen.to/...",
+  "next_action": { "type": "redirect", "redirect_url": "https://dev.xen.to/..." },
   "created_at": "2026-08-28T03:10:00Z",
   "updated_at": "2026-08-28T03:10:01Z"
 }`;
@@ -167,6 +167,7 @@ const paymentBase = `{
 const paymentListBase = `{
   "id": "pay_01k3...",
   "installation_id": "ins_01k3...",
+  "checkout_mode": "provider_hosted",
   "provider_code": "xendit",
   "environment": "sandbox",
   "merchant_reference": "order_2026_0001",
@@ -236,7 +237,7 @@ function installationStateResponse(status: string, version: number, uninstalledA
     "environment": "sandbox",
     "connector_id": "xendit:ins_01k3...",
     "execution_engine": "emisell_native",
-    "provider_version": "emisell-xendit-v1",
+    "provider_version": "emisell-xendit-v1.1.0",
     "status": "${status}",
     "credential_metadata": {
       "configured_fields": [
@@ -343,7 +344,7 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
       },
       {
         method: "GET", path: "/api/v1/admin/provider-app-providers", title: "List registered providers", description: "Menampilkan satu record per provider beserta active version, latest version/status, dan jumlah immutable version. Riwayat versi tidak lagi terlihat sebagai provider duplikat.",
-        response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 2, "active_version": "emisell-midtrans-v1.1.0", "latest_version": "emisell-midtrans-v1.1.0", "latest_status": "PUBLISHED" }] }`,
+        response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 3, "active_version": "emisell-midtrans-v1.2.0", "latest_version": "emisell-midtrans-v1.2.0", "latest_status": "PUBLISHED" }] }`,
       },
       {
         method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/versions", title: "Upload provider version", description: "Menerima submission ZIP maksimum 25 MB. Root emisell-extension.yaml, openapi.yaml, safe paths, secret scan, SDK contract, credential schema, payment methods, dan outbound host divalidasi; code/name manifest harus cocok dengan provider pada URL. Native runtime binary ditolak.",
@@ -389,23 +390,23 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     "engine": "emisell_payment_engine",
     "contract_version": "2026-08-28",
     "connector_contract": "v1",
-    "selection_mode": "merchant_assignment",
+    "selection_mode": "merchant_installation",
     "unknown_policy": "reconcile_same_provider",
     "connectors": [
       {
         "code": "xendit",
         "name": "Xendit",
-        "version": "emisell-xendit-v1",
+        "version": "emisell-xendit-v1.1.0",
         "runtime": "isolated_container",
-        "operations": ["verify_installation", "disable_installation", "create_payment", "get_payment", "simulate_payment", "handle_webhook"],
+        "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "simulate_payment", "handle_webhook"],
         "credential_fields": [{ "code": "api_key", "label": "Secret API key", "input_type": "password", "secret": true, "required": true }]
       },
       {
         "code": "midtrans",
         "name": "Midtrans",
-        "version": "emisell-midtrans-v1.1.0",
+        "version": "emisell-midtrans-v1.2.0",
         "runtime": "isolated_container",
-        "operations": ["verify_installation", "disable_installation", "create_payment", "get_payment", "handle_webhook"],
+        "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
         "credential_fields": [
           { "code": "server_key", "label": "Server key", "input_type": "password", "secret": true, "required": true },
           { "code": "pop_id", "label": "PoP ID (Core API)", "input_type": "password", "secret": true, "required": false }
@@ -413,14 +414,14 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
       }
     ],
     "integration_invariants": [
-      "checkout_uses_opaque_payment_option_id",
+      "hosted_checkout_uses_provider_redirect_url",
       "payment_is_pinned_to_one_installation",
       "unknown_outcome_never_fails_over",
       "provider_credentials_never_leave_payment_platform"
     ]
   }
 }`,
-        note: "Katalog database menentukan metode yang tampil di checkout. Manifest runtime menentukan operasi yang benar-benar dapat dieksekusi. Keduanya harus sama-sama siap.",
+        note: "Hosted checkout dipilih berdasarkan installation aktif. Manifest runtime harus mengiklankan create_hosted_checkout sebelum URL provider dapat dibuat.",
       },
     ],
   },
@@ -430,18 +431,17 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     summary: "Bukti kesiapan integrasi Emisell Backend per merchant dan environment, dihitung otomatis dari aktivitas nyata.",
     endpoints: [
       {
-        method: "GET", path: "/api/v1/integration-readiness", title: "Get merchant integration readiness", description: "Mengembalikan checklist evidence-based untuk connection, payment method, create/read payment, idempotency, dan delivery webhook. Tidak sama dengan diagnostic sandbox internal milik admin.",
+        method: "GET", path: "/api/v1/integration-readiness", title: "Get merchant integration readiness", description: "Mengembalikan checklist evidence-based untuk provider connection, create/read payment, idempotency, dan delivery webhook. Tidak sama dengan diagnostic sandbox internal milik admin.",
         headers: ["X-Emisell-Execution-Mode: sandbox"],
         response: `{
   "data": {
     "environment": "sandbox",
     "status": "READY",
-    "passed": 7,
-    "total": 7,
+    "passed": 6,
+    "total": 6,
     "resilience_evidence": false,
     "checks": [
       { "code": "provider_connection", "label": "Active provider connection", "status": "PASSED", "detail": "Verified from platform evidence." },
-      { "code": "payment_method", "label": "Active payment method", "status": "PASSED", "detail": "Verified from platform evidence." },
       { "code": "payment_create", "label": "Payment creation", "status": "PASSED", "detail": "Verified from platform evidence." },
       { "code": "idempotency_replay", "label": "Idempotency replay", "status": "PASSED", "detail": "Verified from platform evidence." },
       { "code": "payment_status", "label": "Payment status lookup", "status": "PASSED", "detail": "Verified from platform evidence." },
@@ -586,7 +586,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
     "connector_id": "xendit:ins_01k3...",
     "execution_engine": "emisell_native",
-    "provider_version": "emisell-xendit-v1",
+    "provider_version": "emisell-xendit-v1.1.0",
     "status": "READY",
     "credential_metadata": {
       "configured_fields": [
@@ -641,8 +641,8 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
       },
       {
         method: "POST", path: "/api/v1/provider-installations/{id}/upgrade", title: "Upgrade Provider App", description: "Memindahkan installation INACTIVE ke release Provider App yang sudah dimuat oleh runtime.",
-        body: `{ "version": 6, "provider_version": "emisell-midtrans-v1.1.0" }`,
-        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v1.1.0", "status": "CONFIG_REQUIRED", "credential_metadata": { "verification_required": true, "verification_reason": "provider_version_upgrade" }, "version": 7 } }`,
+        body: `{ "version": 6, "provider_version": "emisell-midtrans-v1.2.0" }`,
+        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v1.2.0", "status": "CONFIG_REQUIRED", "credential_metadata": { "verification_required": true, "verification_reason": "provider_version_upgrade" }, "version": 7 } }`,
         note: "Target harus RELEASED dan tersedia pada shared runtime. Credential tetap terenkripsi, tetapi versi baru wajib melewati Save & verify hingga READY sebelum dapat diaktifkan kembali.",
       },
       {
@@ -676,8 +676,8 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
   },
   {
     id: "payment-options",
-    title: "Checkout Payment Methods",
-    summary: "Master canonical menyatukan nama metode lintas gateway; merchant memetakan satu metode ke satu installation aktif per environment.",
+    title: "Direct Payment Methods (Optional)",
+    summary: "Master canonical dan assignment ini hanya untuk flow direct-channel lanjutan. Hosted checkout utama membiarkan provider menampilkan channelnya sendiri.",
     endpoints: [
       {
         method: "GET", path: "/api/v1/payment-methods", title: "Master payment-method catalog", description: "Mengembalikan metode canonical Emisell dan matriks dukungan Xendit, Midtrans, Duitku, serta DOKU.",
@@ -695,7 +695,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     ]
   }]
 }`,
-        note: "DOCUMENTED berarti tersedia di gateway, tetapi belum boleh dipakai sampai Connector SDK Emisell berstatus CERTIFIED.",
+        note: "DOCUMENTED dapat di-assign tetapi belum mempunyai sandbox evidence lengkap. CERTIFIED/VERIFIED menandai conformance telah lulus; DISABLED tidak dapat di-assign.",
       },
       {
         method: "GET", path: "/api/v1/payment-method-assignments", title: "List method assignments", description: "Mengembalikan assignment tenant termasuk yang inactive. Execution mode dapat digunakan sebagai filter.",
@@ -703,7 +703,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
         response: `{ "data": [${assignmentBase}] }`,
       },
       {
-        method: "PUT", path: "/api/v1/payment-method-assignments", title: "Assign gateway", description: "Mengikat payment method ke installation ACTIVE pada environment yang sama. Label checkout otomatis memakai name dari master catalog. Version 0 membuat assignment baru; update wajib memakai version terakhir.",
+        method: "PUT", path: "/api/v1/payment-method-assignments", title: "Assign gateway", description: "Mengikat payment method DOCUMENTED atau CERTIFIED ke installation ACTIVE pada environment yang sama. Hanya DISABLED yang ditolak. Label checkout otomatis memakai name dari master catalog. Version 0 membuat assignment baru; update wajib memakai version terakhir.",
         headers: ["X-Emisell-Execution-Mode: sandbox"],
         body: `{
   "installation_id": "ins_...",
@@ -719,7 +719,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
         response: `{ "data": ${assignmentBase.replace('"status": "ACTIVE"', '"status": "INACTIVE"').replace('"version": 1', '"version": 2')} }`,
       },
       {
-        method: "GET", path: "/api/v1/payment-options", title: "List checkout options", description: "Mengembalikan opaque option ID yang assignment dan installation-nya sama-sama aktif.",
+        method: "GET", path: "/api/v1/payment-options", title: "List direct-channel options", description: "Mengembalikan opaque option ID untuk flow direct yang memilih channel sebelum membuka provider.",
         headers: ["X-Emisell-Execution-Mode: sandbox"],
         response: `{
   "data": [{
@@ -730,7 +730,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     "label": "QRIS"
   }]
 }`,
-        note: "Checkout tidak menerima provider_code, installation_id, atau credential. Hanya Payment Kernel yang me-resolve opaque option ID ke gateway.",
+        note: "Jangan gunakan endpoint ini untuk provider_hosted. Hosted checkout memakai installation_id pada Payment API dan selalu memilih channel di halaman provider. Credential tidak pernah masuk ke checkout.",
       },
     ],
   },
@@ -751,22 +751,21 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     "has_more": false
   }
 }`,
-        note: "`next_action` tidak disertakan pada item list agar QR base64 tidak memperbesar payload. Ambil detail payment untuk menampilkan QRIS.",
+        note: "`next_action` dan checkout_url tidak disertakan pada item list agar payload tetap ringkas. Ambil detail payment untuk membuka kembali URL provider.",
       },
       {
-        method: "POST", path: "/api/v1/payment-sessions", title: "Create payment", description: "Membuat payment melalui payment option merchant dan mengunci binding ke installation tersebut. Endpoint yang sama menangani QRIS, Virtual Account, e-wallet, dan hosted card berdasarkan payment_option_id.",
+        method: "POST", path: "/api/v1/payment-sessions", title: "Create provider checkout", description: "Membuat sesi canonical lalu meminta provider membuat halaman checkout. Customer selalu diarahkan ke URL Xendit atau Midtrans; Emisell tidak merender daftar metode pembayaran.",
         examples: [
           {
-            title: "QRIS, Virtual Account, atau e-wallet",
-            description: "Gunakan payment_option_id aktif dari checkout options. Bentuk next_action mengikuti metode yang dipilih, misalnya QR, nomor VA, redirect, atau mobile authorization.",
+            title: "Xendit atau Midtrans hosted checkout",
+            description: "Gunakan installation_id provider aktif milik merchant. Provider menampilkan sendiri QRIS, VA, e-wallet, card, dan channel lain yang tersedia untuk akun tersebut.",
             headers: ["X-Emisell-Execution-Mode: sandbox", "Idempotency-Key: checkout-order-123-attempt-1"],
             body: `{
-  "payment_option_id": "pmo_...",
+  "installation_id": "ins_...",
+  "checkout_mode": "provider_hosted",
   "merchant_reference": "order_2026_0001",
   "amount": 1000000,
   "currency": "IDR",
-  "confirm": true,
-  "capture_method": "automatic",
   "customer": { "name": "Budi Santoso", "email": "budi@example.com" },
   "return_url": "https://shop.example/payments/return",
   "metadata": { "order_id": "order_2026_0001" }
@@ -776,37 +775,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     "payment": ${paymentBase}
   }
 }`,
-            note: "payment_option_id direkomendasikan. installation_id + method lama tetap diterima selama migrasi. Retry dengan idempotency key dan payload yang sama tetap mengembalikan payment existing meskipun assignment berubah. Amount menggunakan minor unit: 1.000.000 berarti Rp10.000.",
-          },
-          {
-            title: "Hosted card",
-            description: "Payment option card membuat hosted Xendit Payment Session dan mengembalikan redirect URL. Data kartu tidak pernah melewati Emisell.",
-            headers: ["X-Emisell-Execution-Mode: sandbox", "Idempotency-Key: checkout-card-order-123-attempt-1"],
-            body: `{
-  "payment_option_id": "pmo_card_...",
-  "merchant_reference": "order_card_2026_0001",
-  "amount": 1000000,
-  "currency": "IDR",
-  "description": "Order card #2026-0001",
-  "customer": { "name": "Budi Santoso", "email": "budi@example.com" },
-  "return_url": "https://shop.example/payments/return",
-  "metadata": { "order_id": "order_card_2026_0001" }
-}`,
-            response: `{
-  "data": {
-    "payment": {
-      "id": "pay_01k3...",
-      "provider_code": "xendit",
-      "status": "PENDING",
-      "provider_payment_id": "ps-6a915387...",
-      "next_action": {
-        "type": "redirect",
-        "redirect_url": "https://dev.xen.to/..."
-      }
-    }
-  }
-}`,
-            note: "Buka redirect_url pada browser pelanggan. PAN, expiry, CVV/CVN, dan OTP hanya boleh dimasukkan pada halaman hosted Xendit; jangan kirimkan field tersebut ke Payment Proxy, metadata, atau log.",
+            note: "Jika checkout_mode dihilangkan dan tidak ada field metode, mode ini dipilih otomatis. Buka checkout_url pada browser pelanggan. Jangan kirim payment_option_id/payment_method_code, PAN, expiry, CVV/CVN, atau OTP pada flow ini.",
           },
         ],
       },
@@ -1156,12 +1125,9 @@ const backendGroups: Group[] = [
     title: "Merchant Provider Connections",
     summary: "Lifecycle koneksi merchant: Install → Configure/Verify → Activate. Sandbox dan Live adalah dua slot connection yang terpisah.",
   }),
-  scopedGroup("payment-options", {
-    summary: "Konfigurasi metode merchant dan daftar opaque payment_option_id yang aman dipakai checkout.",
-  }),
   scopedGroup("payments", {
-    includeTitles: ["Create payment", "Get payment", "Cancel payment"],
-    summary: "Kontrak pembayaran normalized. Satu endpoint create menangani seluruh provider dan metode melalui payment_option_id.",
+    includeTitles: ["Create provider checkout", "Get payment", "Cancel payment"],
+    summary: "Kontrak pembayaran normalized. Backend memilih installation provider, lalu customer diarahkan ke hosted checkout milik provider.",
   }),
   scopedGroup("webhooks", {
     includeTitles: ["Emisell Backend receiver contract"],
@@ -1212,7 +1178,7 @@ const omittedEndpointDecisions = [
   ["Tidak ada /xendit atau /midtrans API", "Semua provider memakai normalized provider, installation, payment option, dan payment API."],
   ["Tidak ada merchant runtime/container API", "Runtime Dispatcher memilih shared runtime berdasarkan provider + version secara internal."],
   ["Tidak ada endpoint membaca secret", "API hanya mengembalikan configured_fields dan metadata verifikasi."],
-  ["Tidak ada create endpoint per metode", "QRIS, VA, e-wallet, dan card memakai POST /payment-sessions dengan payment_option_id."],
+  ["Tidak ada create endpoint per metode", "POST /payment-sessions memakai installation_id; Xendit atau Midtrans menampilkan channel pada hosted checkout mereka."],
   ["Refund merupakan kontrak inti bersyarat", "Backend hanya memanggilnya untuk channel dengan return-to-source policy dan connector release yang mendukung create_refund."],
 ] as const;
 
@@ -1244,9 +1210,9 @@ const partnerGroups: Group[] = [
       {
         "code": "xendit",
         "name": "Xendit",
-        "version": "emisell-xendit-v1",
+        "version": "emisell-xendit-v1.1.0",
         "runtime": "isolated_container",
-        "operations": ["verify_installation", "disable_installation", "create_payment", "get_payment", "simulate_payment", "handle_webhook"]
+        "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "simulate_payment", "handle_webhook"]
       }
     ]
   }
@@ -1308,7 +1274,7 @@ const partnerGroups: Group[] = [
         method: "POST",
         path: "/partner/v1/payments/create",
         title: "CreatePayment",
-        description: "Membuat payment pada provider dengan idempotency key dari Payment Kernel.",
+        description: "Membuat hosted checkout provider atau direct-channel payment dengan idempotency key dari Payment Kernel.",
         body: `{
   "provider_code": "xendit",
   "installation_id": "ins_...",
@@ -1319,20 +1285,19 @@ const partnerGroups: Group[] = [
   "idempotency_key": "payment-order-123-attempt-1",
   "amount": 1000000,
   "currency": "IDR",
-  "payment_method_code": "qris",
-  "channel_code": "QRIS",
+  "checkout_mode": "provider_hosted",
   "customer": { "name": "Budi Santoso", "email": "budi@example.com" },
   "return_url": "https://shop.example/payments/return",
   "metadata": { "order_id": "order_2026_0001" }
 }`,
         response: `{
   "data": {
-    "id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
-    "status": "PENDING",
-    "next_action": { "type": "qr_code_information", "raw_qr_data": "00020101..." }
+    "id": "ps-6a915387...",
+    "status": "REQUIRES_ACTION",
+    "next_action": { "type": "redirect", "redirect_url": "https://dev.xen.to/..." }
   }
 }`,
-        note: "Timeout setelah request mungkin diterima provider harus dikembalikan sebagai OUTCOME_UNKNOWN. Connector tidak boleh membuat payment kedua atau memilih provider lain.",
+        note: "provider_hosted wajib mengembalikan URL domain provider dan tidak memilih channel. payment_method_code/channel_code hanya dipakai untuk mode direct. Timeout setelah request mungkin diterima provider harus dikembalikan sebagai OUTCOME_UNKNOWN.",
       },
       {
         method: "POST",
@@ -1343,11 +1308,11 @@ const partnerGroups: Group[] = [
   "provider_code": "xendit",
   "environment": "sandbox",
   "credentials": { "api_key": "<injected-secret>" },
-  "payment_id": "pr-8877c08a-740d-4153-9816-3d744ed197a5"
+  "payment_id": "ps-6a915387..."
 }`,
         response: `{
   "data": {
-    "id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
+    "id": "ps-6a915387...",
     "status": "SUCCEEDED",
     "connector_transaction_id": "txn-provider-001"
   }
@@ -1695,14 +1660,14 @@ HandleWebhook()`}</Code>
                     <strong>Xendit · reference connector</strong>
                     <span>Create/get payment, sandbox simulation, installation verification, webhook normalization, dan create-refund asynchronous aktif. Refund tetap fail-closed per channel.</span>
                   </div>
-                  <span className="version-pill">emisell-xendit-v1</span>
+                  <span className="version-pill">emisell-xendit-v1.1.0</span>
                 </div>
                 <div className="postman-card">
                   <div>
                     <strong>Midtrans · second connector</strong>
                     <span>QRIS, enam VA/Mandiri Bill, GoPay, ShopeePay, credential verification, dan webhook normalization tersedia. BCA, BNI, dan Permata VA sudah lulus sandbox end-to-end; channel lain tetap fail-closed sampai diaktifkan untuk merchant oleh Midtrans.</span>
                   </div>
-                  <span className="version-pill">emisell-midtrans-v1.1.0</span>
+                  <span className="version-pill">emisell-midtrans-v1.2.0</span>
                 </div>
               </section>
 

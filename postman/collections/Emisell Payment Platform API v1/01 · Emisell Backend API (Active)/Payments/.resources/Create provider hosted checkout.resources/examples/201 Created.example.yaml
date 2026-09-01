@@ -5,24 +5,22 @@ request:
   headers:
     X-Emisell-Merchant-ID: "{{merchant_id}}"
     X-Emisell-Execution-Mode: "{{execution_mode}}"
-    Idempotency-Key: checkout-card-{{$guid}}
+    Idempotency-Key: checkout-{{$guid}}
     Content-Type: application/json
   body:
     type: json
     content: |-
       {
-        "payment_option_id": "{{card_payment_option_id}}",
-        "merchant_reference": "card-order-{{$timestamp}}",
+        "installation_id": "{{installation_id}}",
+        "checkout_mode": "provider_hosted",
+        "merchant_reference": "order_{{$timestamp}}",
         "amount": 1000000,
         "currency": "IDR",
-        "description": "Hosted card sandbox payment",
-        "customer": {
-          "name": "Budi Santoso",
-          "email": "budi@example.com"
-        },
+        "description": "Emisell order checkout",
+        "customer": {"name": "Budi Santoso", "email": "budi@example.com"},
         "return_url": "https://shop.example/payments/return",
         "metadata": {
-          "source": "postman-card-hosted"
+          "source": "postman-provider-hosted"
         }
       }
 response:
@@ -37,9 +35,16 @@ response:
         "data": {
           "payment": {
             "id": "pay_01k3...",
+            "installation_id": "ins_01k3...",
+            "checkout_mode": "provider_hosted",
             "provider_code": "xendit",
+            "environment": "sandbox",
+            "merchant_reference": "order_2026_0001",
+            "amount": 1000000,
+            "currency": "IDR",
             "status": "PENDING",
             "provider_payment_id": "ps-6a915387...",
+            "checkout_url": "https://dev.xen.to/...",
             "next_action": {
               "type": "redirect",
               "redirect_url": "https://dev.xen.to/..."

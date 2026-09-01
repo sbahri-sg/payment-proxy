@@ -1,0 +1,3 @@
+$kind: collection
+description: Optional direct-channel configuration. Provider-hosted checkout does not require assignments or payment_option_id.
+order: 3000

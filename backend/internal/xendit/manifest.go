@@ -49,13 +49,14 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Xendit",
-		Version:          "emisell-xendit-v1",
+		Version:          "emisell-xendit-v1.1.0",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
 			connector.OperationVerifyInstallation,
 			connector.OperationDisableInstallation,
 			connector.OperationCreatePayment,
+			connector.OperationCreateHostedCheckout,
 			connector.OperationGetPayment,
 			connector.OperationSimulatePayment,
 			connector.OperationHandleWebhook,

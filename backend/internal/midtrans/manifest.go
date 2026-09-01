@@ -32,19 +32,20 @@ func (c *Client) Manifest() connector.Manifest {
 		profiles[method] = connector.CertificationProfile{
 			Code:             mapping.profile,
 			Automated:        true,
-			WebhookSetupHint: "Set the Midtrans Payment Notification URL to the Payment Proxy provider webhook URL, then complete the sandbox action and resume certification. A documented method remains unavailable to checkout until this certification passes.",
+			WebhookSetupHint: "Set the Midtrans Payment Notification URL to the Payment Proxy provider webhook URL, then complete the sandbox action and resume certification. A documented method can be assigned; certification adds verified sandbox evidence.",
 		}
 	}
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Midtrans",
-		Version:          "emisell-midtrans-v1.1.1",
+		Version:          "emisell-midtrans-v1.2.0",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
 			connector.OperationVerifyInstallation,
 			connector.OperationDisableInstallation,
 			connector.OperationCreatePayment,
+			connector.OperationCreateHostedCheckout,
 			connector.OperationGetPayment,
 			connector.OperationHandleWebhook,
 		},

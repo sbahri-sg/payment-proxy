@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emisell/api-payment-proxy/internal/connector"
 	"github.com/emisell/api-payment-proxy/internal/emisellwebhook"
 	"github.com/emisell/api-payment-proxy/internal/ids"
 	"github.com/emisell/api-payment-proxy/internal/model"
@@ -1165,7 +1166,7 @@ func (s *Postgres) ListPaymentOptions(ctx context.Context, tenantID, environment
 		JOIN provider_installations i ON i.tenant_id=a.tenant_id AND i.id=a.installation_id
 		JOIN payment_methods m ON m.code=a.payment_method_code
 		JOIN provider_payment_method_capabilities c ON c.provider_code=i.provider_code
-			AND c.payment_method_code=a.payment_method_code AND c.support_status='CERTIFIED'
+			AND c.payment_method_code=a.payment_method_code AND c.support_status IN ('DOCUMENTED','CERTIFIED')
 		WHERE a.tenant_id=$1 AND a.environment=$2 AND a.status='ACTIVE' AND i.status='ACTIVE'
 		ORDER BY m.sort_order,m.name
 	`, tenantID, environment)
@@ -1191,7 +1192,7 @@ func (s *Postgres) GetActivePaymentOption(ctx context.Context, tenantID, environ
 		  AND EXISTS (
 			SELECT 1 FROM provider_payment_method_capabilities c
 			WHERE c.provider_code=i.provider_code AND c.payment_method_code=a.payment_method_code
-			  AND c.support_status='CERTIFIED'
+			  AND c.support_status IN ('DOCUMENTED','CERTIFIED')
 		  )
 	`, tenantID, environment, id))
 	return item, translateNotFound(err)
@@ -1318,7 +1319,6 @@ type ReconciliationListFilter struct {
 
 type IntegrationReadinessFacts struct {
 	ActiveInstallation bool
-	ActiveAssignment   bool
 	PaymentCreated     bool
 	IdempotencyReplay  bool
 	PaymentStatusRead  bool
@@ -1354,14 +1354,6 @@ func (s *Postgres) GetIntegrationReadinessFacts(ctx context.Context, tenantID, e
 				WHERE tenant_id=$1 AND environment=$2 AND status='ACTIVE'
 			),
 			EXISTS(
-				SELECT 1 FROM payment_method_assignments assignment
-				JOIN provider_installations installation
-				  ON installation.tenant_id=assignment.tenant_id
-				 AND installation.id=assignment.installation_id
-				WHERE assignment.tenant_id=$1 AND assignment.environment=$2
-				  AND assignment.status='ACTIVE' AND installation.status='ACTIVE'
-			),
-			EXISTS(
 				SELECT 1 FROM payment_sessions
 				WHERE tenant_id=$1 AND environment=$2
 			),
@@ -1387,7 +1379,7 @@ func (s *Postgres) GetIntegrationReadinessFacts(ctx context.Context, tenantID, e
 				  AND flags ?| ARRAY['late_payment','provider_delayed_confirmation']
 			)
 	`, tenantID, environment).Scan(
-		&facts.ActiveInstallation, &facts.ActiveAssignment, &facts.PaymentCreated,
+		&facts.ActiveInstallation, &facts.PaymentCreated,
 		&facts.IdempotencyReplay, &facts.PaymentStatusRead, &facts.WebhookDelivered,
 		&facts.ResilienceObserved,
 	)
@@ -2186,6 +2178,20 @@ func scanPayment(row scanner) (model.PaymentSession, []byte, error) {
 	var i model.PaymentSession
 	var hash []byte
 	err := row.Scan(&i.ID, &i.TenantID, &i.InstallationID, &i.PaymentOptionID, &i.PaymentMethodCode, &i.ProviderCode, &i.ProviderVersion, &i.Environment, &i.MerchantReference, &i.IdempotencyKey, &hash, &i.Amount, &i.Currency, &i.Status, &i.Flags, &i.EnginePaymentID, &i.ConnectorTxnID, &i.ExecutionEngine, &i.NextAction, &i.LastError, &i.ReconciliationCount, &i.LastReconciledAt, &i.LastReconciledBy, &i.LastReconciliationKey, &i.CreatedAt, &i.UpdatedAt)
+	if err == nil {
+		if i.PaymentMethodCode == "" {
+			i.CheckoutMode = connector.CheckoutModeProviderHosted
+		} else {
+			i.CheckoutMode = connector.CheckoutModeDirect
+		}
+		var action struct {
+			Type        string `json:"type"`
+			RedirectURL string `json:"redirect_url"`
+		}
+		if json.Unmarshal(i.NextAction, &action) == nil && action.Type == "redirect" {
+			i.CheckoutURL = strings.TrimSpace(action.RedirectURL)
+		}
+	}
 	return i, hash, err
 }
 

@@ -23,8 +23,7 @@ Every mutation that represents a business operation must use a stable Idempotenc
 2. POST /api/v1/provider-installations with provider_code and environment.
 3. PUT /api/v1/provider-installations/{id}/credentials. This both stores encrypted credentials and verifies them with the provider.
 4. POST /api/v1/provider-installations/{id}/activate.
-5. PUT /api/v1/payment-method-assignments.
-6. GET /api/v1/payment-options and give checkout only the opaque payment_option_id.
+5. Keep the active installation_id in the merchant configuration used by Emisell Backend.
 
 Sandbox and Live are separate installation slots with separate merchant credentials. There is no switch-environment mutation and no merchant-owned runtime/container.
 
@@ -32,7 +31,11 @@ Sandbox and Live are separate installation slots with separate merchant credenti
 
 POST /api/v1/payment-sessions
 Headers: X-Emisell-Execution-Mode and Idempotency-Key are required.
-Preferred request fields: payment_option_id, merchant_reference, amount in minor units, currency, customer, return_url, metadata.
+Preferred request fields: installation_id, checkout_mode=provider_hosted, merchant_reference, amount in minor units, currency, customer, return_url, metadata.
+
+For provider_hosted checkout, do not send payment_option_id or payment_method_code. Payment Proxy creates a Xendit Payment Session or Midtrans Snap transaction and returns payment.checkout_url plus next_action.redirect_url. Redirect the customer to that provider-owned URL. Emisell must not render its own payment-method page or collect PAN, CVV, OTP, VA, QR, or wallet authorization details.
+
+payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout.
 
 GET /api/v1/payment-sessions/{id}
 Returns the canonical payment projection and may synchronize with the same pinned provider installation.
@@ -54,7 +57,7 @@ Verify the Payment Proxy HMAC over timestamp + "." + the exact raw body. Reject 
 ## Readiness
 
 GET /api/v1/integration-readiness with X-Emisell-Execution-Mode.
-READY requires platform evidence for: active provider connection, active payment method, payment creation, idempotency replay, payment status lookup, configured signed backend webhook, and successful webhook delivery. Sandbox and Live are evaluated separately.
+READY requires platform evidence for: active provider connection, payment creation, idempotency replay, payment status lookup, configured signed backend webhook, and successful webhook delivery. Sandbox and Live are evaluated separately.
 
 ## Refunds
 
@@ -64,7 +67,7 @@ POST /api/v1/refunds is conditional. Only expose refund when the original paymen
 
 - Never put service API keys, provider credentials, webhook secrets, card data, OTP, or raw customer secrets in prompts, logs, metadata, generated code, or tool output.
 - Do not let an AI tool perform Live mutations without explicit operator approval and narrowly scoped credentials.
-- Do not invent provider-specific endpoints or fields. Discover credential_fields from GET /api/v1/providers and payment options from GET /api/v1/payment-options.
+- Do not invent provider-specific endpoints or fields. Discover credential_fields from GET /api/v1/providers. Use GET /api/v1/payment-options only for the optional direct-channel flow, never for provider_hosted checkout.
 - Do not retry UNKNOWN outcomes against another provider.
 - Do not mark an order paid from a browser redirect alone; trust the canonical API/webhook status.
 - Admin Control Plane and /partner/v1 connector runtime endpoints are outside the Emisell Backend contract.

@@ -5,7 +5,7 @@ Status: **ACTIVE FOUNDATION**
 Owner: **Emisell**
 
 Runtime: **Go Payment Kernel + isolated Connector Runner**
-Reference connectors: **Xendit `emisell-xendit-v1` + Midtrans `emisell-midtrans-v1.1.0`**
+Reference connectors: **Xendit `emisell-xendit-v1.1.0` + Midtrans `emisell-midtrans-v1.2.0`**
 
 Dokumen ini mengunci batas arsitektur Payment Proxy. Implementasi, endpoint,
 dashboard, dan connector baru tidak boleh menyimpang dari kontrak di bawah tanpa
@@ -52,7 +52,7 @@ response payload, signature webhook, atau limit nominal provider.
 | Provider auth/payload/channel | Connector | Tidak boleh bocor ke Kernel |
 | Operation support dan limit provider | Connector manifest | Divalidasi saat startup dan sebelum mutation |
 | Provider webhook verification | Connector | Kernel menangani dedup, state transition, dan outbox |
-| Checkout method visibility | Catalog + certified assignment | Manifest saja tidak mengaktifkan checkout |
+| Direct method visibility | Catalog + documented/certified assignment | Capability disabled tidak dapat diaktifkan |
 | Provider transaction truth | Provider | Disinkronkan melalui resource yang sama |
 | Event ke Emisell Backend | Durable outbox | Payload canonical dan HMAC-signed |
 
@@ -122,8 +122,9 @@ card           →    card / card               →    CARDS
 
 `payment_methods` adalah catalog universal. Mapping disimpan di
 `provider_payment_method_capabilities`. Connector memvalidasi bahwa kombinasi
-canonical code dan mapping memang dapat dieksekusi. Assignment checkout hanya
-dapat dibuat untuk capability `CERTIFIED` dan installation `ACTIVE`.
+canonical code dan mapping memang dapat dieksekusi. Assignment direct-channel
+dapat dibuat untuk capability `DOCUMENTED` atau `CERTIFIED` dan installation
+`ACTIVE`; capability `DISABLED` tetap ditolak.
 
 Checkout mengambil `GET /api/v1/payment-options`, menampilkan HTML milik Emisell,
 dan mengirim kembali `payment_option_id` ke `POST /api/v1/payment-sessions`.
@@ -223,8 +224,8 @@ runner yang dapat diskalakan independen.
 6. lulus manifest/registry test dan provider unit test;
 7. lulus sandbox conformance per method;
 8. uji idempotency, timeout ambigu, duplicate/out-of-order webhook, dan redaction;
-9. ubah capability dari `DOCUMENTED` ke `CERTIFIED` setelah evidence tersimpan;
-10. baru izinkan merchant assignment.
+9. izinkan assignment ketika mapping connector valid dan capability tidak `DISABLED`;
+10. ubah capability dari `DOCUMENTED` ke `CERTIFIED` setelah evidence tersimpan.
 
 Perubahan provider baru tidak boleh menambah `if provider == ...` pada API,
 Payment Kernel, checkout contract, atau canonical webhook delivery.

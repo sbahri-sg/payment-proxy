@@ -3,7 +3,7 @@ provider:
   code: midtrans
   name: Midtrans
 release:
-  version: emisell-midtrans-v1.1.1
+  version: emisell-midtrans-v1.2.0
 connector:
   contract_version: v1
   runtime: isolated_container
@@ -12,6 +12,7 @@ operations:
   - verify_installation
   - disable_installation
   - create_payment
+  - create_hosted_checkout
   - get_payment
   - handle_webhook
 credentials:
@@ -56,3 +57,5 @@ payment_methods:
 outbound_hosts:
   - api.midtrans.com
   - api.sandbox.midtrans.com
+  - app.midtrans.com
+  - app.sandbox.midtrans.com

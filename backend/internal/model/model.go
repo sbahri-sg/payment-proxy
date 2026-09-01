@@ -206,6 +206,8 @@ type PaymentSession struct {
 	InstallationID        string          `json:"installation_id"`
 	PaymentOptionID       string          `json:"payment_option_id,omitempty"`
 	PaymentMethodCode     string          `json:"payment_method_code,omitempty"`
+	CheckoutMode          string          `json:"checkout_mode"`
+	CheckoutURL           string          `json:"checkout_url,omitempty"`
 	ProviderCode          string          `json:"provider_code"`
 	ProviderVersion       string          `json:"provider_version"`
 	Environment           string          `json:"environment"`

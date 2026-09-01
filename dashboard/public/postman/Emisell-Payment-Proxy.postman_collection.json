@@ -118,16 +118,11 @@
     },
     {
       "key": "target_provider_version",
-      "value": "emisell-midtrans-v1.1.0",
+      "value": "emisell-midtrans-v1.2.0",
       "type": "string"
     },
     {
       "key": "payment_option_id",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "card_payment_option_id",
       "value": "",
       "type": "string"
     },
@@ -143,11 +138,6 @@
     },
     {
       "key": "payment_id",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "card_payment_id",
       "value": "",
       "type": "string"
     },
@@ -552,7 +542,7 @@
                   "name": "200 OK",
                   "status": "OK",
                   "code": 200,
-                  "body": "{\n  \"data\": [{ \"provider_code\": \"midtrans\", \"provider_name\": \"Midtrans\", \"status\": \"ACTIVE\", \"version_count\": 2, \"active_version\": \"emisell-midtrans-v1.1.0\" }]\n}"
+                  "body": "{\n  \"data\": [{ \"provider_code\": \"midtrans\", \"provider_name\": \"Midtrans\", \"status\": \"ACTIVE\", \"version_count\": 2, \"active_version\": \"emisell-midtrans-v1.2.0\" }]\n}"
                 }
               ]
             },
@@ -690,7 +680,7 @@
                   "name": "200 OK",
                   "status": "OK",
                   "code": 200,
-                  "body": "{\n  \"data\": {\n    \"engine\": \"emisell_payment_engine\",\n    \"contract_version\": \"2026-08-28\",\n    \"connector_contract\": \"v1\",\n    \"selection_mode\": \"merchant_assignment\",\n    \"unknown_policy\": \"reconcile_same_provider\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v1.1.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"engine\": \"emisell_payment_engine\",\n    \"contract_version\": \"2026-08-28\",\n    \"connector_contract\": \"v1\",\n    \"selection_mode\": \"merchant_installation\",\n    \"unknown_policy\": \"reconcile_same_provider\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v1.1.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v1.2.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
                 }
               ]
             }
@@ -764,7 +754,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"midtrans\",\n    \"provider_version\": \"emisell-midtrans-v1.1.0\",\n    \"status\": \"CONFIG_REQUIRED\",\n    \"credential_metadata\": {\n      \"verification_required\": true,\n      \"verification_reason\": \"provider_version_upgrade\"\n    },\n    \"version\": 7\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"provider_code\": \"midtrans\",\n    \"provider_version\": \"emisell-midtrans-v1.2.0\",\n    \"status\": \"CONFIG_REQUIRED\",\n    \"credential_metadata\": {\n      \"verification_required\": true,\n      \"verification_reason\": \"provider_version_upgrade\"\n    },\n    \"version\": 7\n  }\n}"
                 }
               ]
             }
@@ -1642,7 +1632,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"environment\": \"sandbox\",\n    \"status\": \"NOT_READY\",\n    \"passed\": 2,\n    \"total\": 7,\n    \"resilience_evidence\": false,\n    \"recommended_action\": \"Create one payment session using a stable Idempotency-Key.\",\n    \"checks\": []\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"environment\": \"sandbox\",\n    \"status\": \"NOT_READY\",\n    \"passed\": 2,\n    \"total\": 6,\n    \"resilience_evidence\": false,\n    \"recommended_action\": \"Create one payment session using a stable Idempotency-Key.\",\n    \"checks\": []\n  }\n}"
                 }
               ]
             }
@@ -1731,7 +1721,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"provider_code\": \"xendit\",\n  \"provider_version\": \"emisell-xendit-v1\",\n  \"environment\": \"{{execution_mode}}\"\n}",
+                  "raw": "{\n  \"provider_code\": \"xendit\",\n  \"provider_version\": \"emisell-xendit-v1.1.0\",\n  \"environment\": \"{{execution_mode}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1763,7 +1753,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"merchant_id\": \"merchant_123\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"public_webhook_url\": \"https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...\",\n    \"provider_version\": \"emisell-xendit-v1\",\n    \"status\": \"CONFIG_REQUIRED\",\n    \"credential_metadata\": {},\n    \"payment_methods\": [],\n    \"version\": 1\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"id\": \"ins_01k3...\",\n    \"merchant_id\": \"merchant_123\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"public_webhook_url\": \"https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...\",\n    \"provider_version\": \"emisell-xendit-v1.1.0\",\n    \"status\": \"CONFIG_REQUIRED\",\n    \"credential_metadata\": {},\n    \"payment_methods\": [],\n    \"version\": 1\n  }\n}"
                 }
               ]
             },
@@ -2172,7 +2162,7 @@
           ]
         },
         {
-          "name": "Checkout Payment Methods",
+          "name": "Direct Payment Methods (Optional)",
           "item": [
             {
               "name": "1. List master payment methods",
@@ -2196,7 +2186,7 @@
                     "payment-methods"
                   ]
                 },
-                "description": "Master canonical payment methods dan capability matrix Xendit, Midtrans, Duitku, serta DOKU. Hanya status CERTIFIED yang boleh di-assign."
+                "description": "Master canonical payment methods dan capability matrix Xendit, Midtrans, Duitku, serta DOKU. Status DOCUMENTED dan CERTIFIED boleh di-assign; DISABLED ditolak."
               },
               "response": [
                 {
@@ -2272,7 +2262,7 @@
                     "payment-method-assignments"
                   ]
                 },
-                "description": "Membuat atau memindahkan QRIS ke satu gateway aktif pada environment merchant. Kirim version terakhir untuk optimistic concurrency."
+                "description": "Membuat atau memindahkan payment method DOCUMENTED atau CERTIFIED ke satu gateway aktif pada environment merchant. DISABLED tetap ditolak. Label checkout otomatis memakai name dari master catalog. Kirim version terakhir untuk optimistic concurrency."
               },
               "response": [
                 {
@@ -2477,17 +2467,20 @@
           "name": "Payments",
           "item": [
             {
-              "name": "Create QRIS payment",
+              "name": "Create provider hosted checkout",
               "event": [
                 {
                   "listen": "test",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test('Payment accepted', () => pm.expect([200, 201, 202]).to.include(pm.response.code));",
+                      "pm.test('Provider checkout created', () => pm.expect([200, 201, 202]).to.include(pm.response.code));",
                       "if ([200, 201].includes(pm.response.code)) {",
                       "  const data = pm.response.json().data;",
                       "  const payment = data.payment || data;",
+                      "  pm.expect(payment.checkout_mode).to.eql('provider_hosted');",
+                      "  pm.expect(payment.checkout_url).to.match(/^https:\\/\\//);",
+                      "  pm.expect(payment.next_action.type).to.eql('redirect');",
                       "  pm.collectionVariables.set('payment_id', payment.id);",
                       "}"
                     ]
@@ -2520,7 +2513,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"payment_option_id\": \"{{payment_option_id}}\",\n  \"merchant_reference\": \"order_{{$timestamp}}\",\n  \"amount\": 1000000,\n  \"currency\": \"IDR\",\n  \"confirm\": true,\n  \"capture_method\": \"automatic\",\n  \"payment_method_data\": {\n    \"real_time_payment\": {\n      \"qris\": {}\n    }\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman\"\n  }\n}",
+                  "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"checkout_mode\": \"provider_hosted\",\n  \"merchant_reference\": \"order_{{$timestamp}}\",\n  \"amount\": 1000000,\n  \"currency\": \"IDR\",\n  \"description\": \"Emisell order checkout\",\n  \"customer\": {\n    \"name\": \"Budi Santoso\",\n    \"email\": \"budi@example.com\"\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman-provider-hosted\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2537,7 +2530,8 @@
                     "v1",
                     "payment-sessions"
                   ]
-                }
+                },
+                "description": "Payment Proxy membuat sesi normalized lalu mengembalikan URL hosted checkout milik Xendit atau Midtrans. Jangan kirim payment_option_id atau payment_method_code pada flow ini."
               },
               "response": [
                 {
@@ -2552,7 +2546,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"payment_option_id\": \"pmo_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"merchant_reference\": \"order_2026_0001\",\n      \"amount\": 1000000,\n      \"currency\": \"IDR\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"pay_engine_...\",\n      \"next_action\": {\n        \"type\": \"qr_code_url\",\n        \"url\": \"https://...\"\n      }\n    },\n    \"client_secret\": \"pay_engine_..._secret_...\"\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"checkout_mode\": \"provider_hosted\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"merchant_reference\": \"order_2026_0001\",\n      \"amount\": 1000000,\n      \"currency\": \"IDR\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"ps-6a915387...\",\n      \"checkout_url\": \"https://dev.xen.to/...\",\n      \"next_action\": {\n        \"type\": \"redirect\",\n        \"redirect_url\": \"https://dev.xen.to/...\"\n      }\n    }\n  }\n}"
                 },
                 {
                   "name": "202 Outcome unknown",
@@ -2607,90 +2601,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"amount\": 1000000,\n    \"currency\": \"IDR\",\n    \"status\": \"PENDING\",\n    \"provider_payment_id\": \"pay_engine_...\"\n  }\n}"
-                }
-              ]
-            },
-            {
-              "name": "Create hosted card payment",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('Hosted card session created', () => pm.expect([200, 201]).to.include(pm.response.code));",
-                      "if ([200, 201].includes(pm.response.code)) {",
-                      "  const data = pm.response.json().data;",
-                      "  const payment = data.payment || data;",
-                      "  pm.expect(payment.provider_payment_id).to.match(/^ps-/);",
-                      "  pm.expect(payment.next_action.type).to.eql('redirect');",
-                      "  pm.collectionVariables.set('card_payment_id', payment.id);",
-                      "}"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "X-Emisell-Merchant-ID",
-                    "value": "{{merchant_id}}",
-                    "type": "text"
-                  },
-                  {
-                    "key": "X-Emisell-Execution-Mode",
-                    "value": "{{execution_mode}}",
-                    "type": "text"
-                  },
-                  {
-                    "key": "Idempotency-Key",
-                    "value": "checkout-card-{{$guid}}",
-                    "type": "text"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json",
-                    "type": "text"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"payment_option_id\": \"{{card_payment_option_id}}\",\n  \"merchant_reference\": \"card-order-{{$timestamp}}\",\n  \"amount\": 1000000,\n  \"currency\": \"IDR\",\n  \"description\": \"Hosted card sandbox payment\",\n  \"customer\": {\n    \"name\": \"Budi Santoso\",\n    \"email\": \"budi@example.com\"\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman-card-hosted\"\n  }\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "{{base_url}}/api/v1/payment-sessions",
-                  "host": [
-                    "{{base_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "v1",
-                    "payment-sessions"
-                  ]
-                },
-                "description": "Set card_payment_option_id dari assignment card yang ACTIVE. Response berisi hosted Xendit redirect_url. Jangan pernah menambahkan nomor kartu, expiry, CVV/CVN, atau OTP ke request ini; input tersebut hanya dilakukan pelanggan pada domain checkout Xendit."
-              },
-              "response": [
-                {
-                  "name": "201 Hosted card session",
-                  "status": "Created",
-                  "code": 201,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"provider_code\": \"xendit\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"ps-6a915387...\",\n      \"next_action\": {\n        \"type\": \"redirect\",\n        \"redirect_url\": \"https://dev.xen.to/...\"\n      }\n    }\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"amount\": 1000000,\n    \"currency\": \"IDR\",\n    \"status\": \"PENDING\",\n    \"provider_payment_id\": \"pay_engine_...\",\n    \"checkout_mode\": \"provider_hosted\",\n    \"checkout_url\": \"https://dev.xen.to/...\",\n    \"next_action\": {\n      \"type\": \"redirect\",\n      \"redirect_url\": \"https://dev.xen.to/...\"\n    }\n  }\n}"
                 }
               ]
             },
@@ -2966,7 +2877,7 @@
                   "name": "200 OK",
                   "status": "OK",
                   "code": 200,
-                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v1\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v1.1.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [\n      {\"code\": \"xendit\", \"name\": \"Xendit\", \"version\": \"emisell-xendit-v1.1.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"simulate_payment\", \"handle_webhook\"]},\n      {\"code\": \"midtrans\", \"name\": \"Midtrans\", \"version\": \"emisell-midtrans-v1.2.0\", \"runtime\": \"isolated_container\", \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"handle_webhook\"]}\n    ]\n  }\n}"
                 }
               ]
             },
@@ -2993,7 +2904,7 @@
                   "name": "200 Midtrans v1.1.0",
                   "status": "OK",
                   "code": 200,
-                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [{\n      \"code\": \"midtrans\",\n      \"name\": \"Midtrans\",\n      \"version\": \"emisell-midtrans-v1.1.0\",\n      \"runtime\": \"isolated_container\",\n      \"executable_sha256\": \"a069ea...82a\",\n      \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"get_payment\", \"handle_webhook\"]\n    }]\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"contract_version\": \"v1\",\n    \"connectors\": [{\n      \"code\": \"midtrans\",\n      \"name\": \"Midtrans\",\n      \"version\": \"emisell-midtrans-v1.2.0\",\n      \"runtime\": \"isolated_container\",\n      \"executable_sha256\": \"a069ea...82a\",\n      \"operations\": [\"verify_installation\", \"disable_installation\", \"create_payment\", \"create_hosted_checkout\", \"get_payment\", \"handle_webhook\"]\n    }]\n  }\n}"
                 }
               ]
             }

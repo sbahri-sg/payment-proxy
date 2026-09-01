@@ -112,9 +112,16 @@ func (r *Runtime) DisableInstallation(ctx context.Context, input connector.Insta
 }
 
 func (r *Runtime) CreatePayment(ctx context.Context, input connector.PaymentInput) (connector.PaymentResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationCreatePayment)
+	operation := connector.OperationCreatePayment
+	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
+		operation = connector.OperationCreateHostedCheckout
+	}
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, operation)
 	if err != nil {
 		return connector.PaymentResult{}, err
+	}
+	if input.CheckoutMode == connector.CheckoutModeProviderHosted {
+		return item.CreatePayment(ctx, input)
 	}
 	if err = item.ValidatePayment(connector.PaymentValidation{
 		PaymentMethodCode: input.PaymentMethodCode,

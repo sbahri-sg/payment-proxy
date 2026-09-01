@@ -9,7 +9,7 @@ body:
   content: |-
     {
       "provider_code": "xendit",
-      "provider_version": "emisell-xendit-v1",
+      "provider_version": "emisell-xendit-v1.1.0",
       "environment": "{{execution_mode}}"
     }
 scripts:

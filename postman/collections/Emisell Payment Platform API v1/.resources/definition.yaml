@@ -21,13 +21,11 @@ variables:
   provider_refund_id: ""
   installation_id: ""
   installation_version: "0"
-  target_provider_version: emisell-midtrans-v1.1.0
+  target_provider_version: emisell-midtrans-v1.2.0
   payment_option_id: ""
-  card_payment_option_id: ""
   payment_option_version: "0"
   payment_method_code: qris
   payment_id: ""
-  card_payment_id: ""
   refund_id: ""
   delivery_id: ""
   emisell_backend_webhook_url: http://localhost:19090/webhooks/v1/payment-proxy

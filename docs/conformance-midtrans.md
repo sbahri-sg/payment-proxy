@@ -7,9 +7,9 @@ Runtime: isolated Midtrans Provider App container
 
 Dokumen ini membedakan implementasi kode dari bukti bahwa account Midtrans
 merchant benar-benar dapat mengeksekusi suatu channel. Provider berstatus
-available berarti connector dapat di-install; metode baru boleh muncul di
-checkout hanya setelah status capability berubah dari `DOCUMENTED` menjadi
-`CERTIFIED` melalui sandbox run Emisell.
+available berarti connector dapat di-install. Capability `DOCUMENTED` maupun
+`CERTIFIED` boleh di-assign; status `CERTIFIED` hanya menandai bahwa sandbox run
+Emisell sudah mempunyai evidence lengkap.
 
 ## Scope implementasi awal
 

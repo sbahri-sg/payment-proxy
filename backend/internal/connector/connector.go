@@ -14,6 +14,11 @@ var (
 	ErrInvalidCredential = errors.New("provider credential is invalid")
 )
 
+const (
+	CheckoutModeDirect         = "direct"
+	CheckoutModeProviderHosted = "provider_hosted"
+)
+
 type APIError struct {
 	Provider string
 	Status   int
@@ -75,6 +80,7 @@ type PaymentInput struct {
 	IdempotencyKey    string            `json:"idempotency_key"`
 	Amount            int64             `json:"amount"`
 	Currency          string            `json:"currency"`
+	CheckoutMode      string            `json:"checkout_mode,omitempty"`
 	PaymentMethodCode string            `json:"payment_method_code"`
 	ChannelCode       string            `json:"channel_code,omitempty"`
 	PublicWebhookURL  string            `json:"public_webhook_url,omitempty"`
