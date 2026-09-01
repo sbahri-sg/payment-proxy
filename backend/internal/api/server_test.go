@@ -262,6 +262,46 @@ func TestPaymentMethodEnvironmentQuery(t *testing.T) {
 	}
 }
 
+func TestPaymentMethodAssignmentBulkPayload(t *testing.T) {
+	decode := func(body string) ([]paymentMethodAssignmentRequest, bool, bool, *httptest.ResponseRecorder) {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPut, "/api/v1/payment-method-assignments", strings.NewReader(body))
+		items, legacy, ok := decodePaymentMethodAssignmentRequests(response, request)
+		return items, legacy, ok, response
+	}
+
+	items, legacy, ok, _ := decode(`{"assignments":[{"installation_id":"ins_a","payment_method_code":"qris","version":0},{"installation_id":"ins_a","payment_method_code":"va_bca","version":2}]}`)
+	if !ok || legacy || len(items) != 2 || items[1].PaymentMethodCode != "va_bca" {
+		t.Fatalf("valid bulk payload was not decoded: legacy=%v ok=%v items=%#v", legacy, ok, items)
+	}
+	items, legacy, ok, _ = decode(`{"installation_id":"ins_a","payment_method_code":"qris","version":0}`)
+	if !ok || !legacy || len(items) != 1 || items[0].InstallationID != "ins_a" {
+		t.Fatalf("legacy payload compatibility failed: legacy=%v ok=%v items=%#v", legacy, ok, items)
+	}
+
+	_, _, ok, response := decode(`{"assignments":[]}`)
+	if ok || response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "INVALID_BATCH_SIZE") {
+		t.Fatalf("empty batch was accepted: %d %s", response.Code, response.Body.String())
+	}
+	_, _, ok, response = decode(`{"assignments":[{"installation_id":"ins_a","payment_method_code":"qris","version":0}],"installation_id":"ins_a"}`)
+	if ok || response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "VALIDATION_ERROR") {
+		t.Fatalf("mixed bulk and legacy payload was accepted: %d %s", response.Code, response.Body.String())
+	}
+
+	tooMany := paymentMethodAssignmentsRequest{Assignments: &[]paymentMethodAssignmentRequest{}}
+	for index := 0; index <= maxAssignmentBatch; index++ {
+		*tooMany.Assignments = append(*tooMany.Assignments, paymentMethodAssignmentRequest{InstallationID: "ins_a", PaymentMethodCode: "qris"})
+	}
+	body, err := json.Marshal(tooMany)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, ok, response = decode(string(body))
+	if ok || response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "INVALID_BATCH_SIZE") {
+		t.Fatalf("oversized batch was accepted: %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestCreatePaymentDoesNotRequireExecutionMode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	handler := New(config.Config{ServiceAPIKey: "test-service-key"}, nil, nil, nil, nil, nil, logger)

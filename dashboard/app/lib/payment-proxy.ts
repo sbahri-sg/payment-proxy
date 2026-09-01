@@ -566,11 +566,15 @@ export function listPaymentOptions(actor: string, environment: "sandbox" | "live
   return proxyRequest<PaymentOption[]>(`/api/v1/payment-options?environment=${encodeURIComponent(environment)}`, actor);
 }
 
-export function upsertPaymentMethodAssignment(actor: string, input: { installation_id: string; payment_method_code: string; version: number }) {
-  return proxyRequest<PaymentMethodAssignment>("/api/v1/payment-method-assignments", actor, {
+export function upsertPaymentMethodAssignments(actor: string, assignments: Array<{ installation_id: string; payment_method_code: string; version: number }>) {
+  return proxyRequest<PaymentMethodAssignment[]>("/api/v1/payment-method-assignments", actor, {
     method: "PUT",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ assignments }),
   });
+}
+
+export function upsertPaymentMethodAssignment(actor: string, input: { installation_id: string; payment_method_code: string; version: number }) {
+  return proxyRequest<PaymentMethodAssignment>("/api/v1/payment-method-assignments", actor, { method: "PUT", body: JSON.stringify(input) });
 }
 
 export function deactivatePaymentMethodAssignment(actor: string, id: string, version: number) {

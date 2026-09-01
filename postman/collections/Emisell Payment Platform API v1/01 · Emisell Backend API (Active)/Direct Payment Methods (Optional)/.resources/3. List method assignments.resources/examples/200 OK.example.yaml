@@ -1,10 +1,9 @@
 $kind: http-example
 request:
-  url: "{{base_url}}/api/v1/payment-method-assignments"
+  url: "{{base_url}}/api/v1/payment-method-assignments?environment={{execution_mode}}"
   method: GET
   headers:
     X-Emisell-Merchant-ID: "{{merchant_id}}"
-    X-Emisell-Execution-Mode: "{{execution_mode}}"
 response:
   statusCode: 200
   statusText: OK
@@ -24,6 +23,16 @@ response:
             "label": "QRIS",
             "status": "ACTIVE",
             "version": 1
+          },
+          {
+            "id": "pmo_01k4...",
+            "payment_method_code": "va_bca",
+            "payment_method": "bank_transfer",
+            "payment_method_type": "bca",
+            "installation_id": "ins_01k3...",
+            "label": "BCA Virtual Account",
+            "status": "INACTIVE",
+            "version": 2
           }
         ]
       }

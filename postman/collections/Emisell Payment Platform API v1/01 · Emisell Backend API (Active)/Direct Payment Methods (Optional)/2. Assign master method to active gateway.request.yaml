@@ -1,5 +1,5 @@
 $kind: http-request
-description: Membuat atau memindahkan payment method DOCUMENTED atau CERTIFIED ke satu gateway aktif pada environment merchant. DISABLED tetap ditolak. Label checkout otomatis memakai name dari master catalog. Kirim version terakhir untuk optimistic concurrency.
+description: Membuat atau memindahkan 1-50 payment method DOCUMENTED atau CERTIFIED secara atomic. DISABLED tetap ditolak dan satu item gagal membatalkan seluruh batch.
 url: "{{base_url}}/api/v1/payment-method-assignments"
 method: PUT
 headers:
@@ -9,18 +9,23 @@ body:
   type: json
   content: |-
     {
-      "installation_id": "{{installation_id}}",
-      "payment_method_code": "{{payment_method_code}}",
-      "version": {{payment_option_version}}
+      "assignments": [{
+        "installation_id": "{{installation_id}}",
+        "payment_method_code": "{{payment_method_code}}",
+        "version": {{payment_option_version}}
+      }]
     }
 scripts:
   - type: afterResponse
     code: |-
-      pm.test('Payment method assigned', () => pm.expect([200, 201]).to.include(pm.response.code));
-      if ([200, 201].includes(pm.response.code)) {
-        const data = pm.response.json().data;
-        pm.collectionVariables.set('payment_option_id', data.id);
-        pm.collectionVariables.set('payment_option_version', String(data.version));
+      pm.test('Payment methods assigned atomically', () => pm.expect(pm.response.code).to.eql(200));
+      if (pm.response.code === 200) {
+        const items = pm.response.json().data || [];
+        const selected = items.find((item) => item.payment_method_code === pm.collectionVariables.get('payment_method_code')) || items[0];
+        if (selected) {
+          pm.collectionVariables.set('payment_option_id', selected.id);
+          pm.collectionVariables.set('payment_option_version', String(selected.version));
+        }
       }
     language: text/javascript
 examples: ./.resources/2. Assign master method to active gateway.resources/examples

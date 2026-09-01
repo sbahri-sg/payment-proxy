@@ -43,6 +43,7 @@ const (
 	maxRequestBody       = 1 << 20
 	maxProviderLogoBytes = 512 << 10
 	maxProviderLogoSide  = 2048
+	maxAssignmentBatch   = 50
 	// apiContractVersion is descriptive metadata returned by readiness and
 	// capability resources. Request versioning is defined solely by /api/v1.
 	apiContractVersion = "2026-08-28"
@@ -1105,11 +1106,92 @@ type paymentMethodAssignmentRequest struct {
 	Version     int64  `json:"version"`
 }
 
+type paymentMethodAssignmentsRequest struct {
+	Assignments       *[]paymentMethodAssignmentRequest `json:"assignments"`
+	PaymentMethodCode *string                           `json:"payment_method_code"`
+	InstallationID    *string                           `json:"installation_id"`
+	PaymentMethod     *string                           `json:"payment_method"`
+	PaymentMethodType *string                           `json:"payment_method_type"`
+	LegacyLabel       *string                           `json:"label"`
+	Version           *int64                            `json:"version"`
+}
+
 func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Request) {
-	var request paymentMethodAssignmentRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	requests, legacy, ok := decodePaymentMethodAssignmentRequests(w, r)
+	if !ok {
 		return
 	}
+	inputs := make([]store.UpsertPaymentMethodAssignmentInput, 0, len(requests))
+	seen := make(map[string]struct{}, len(requests))
+	for index := range requests {
+		input, prepared := s.preparePaymentMethodAssignment(w, r, requests[index])
+		if !prepared {
+			return
+		}
+		key := input.Environment + "\x00" + input.PaymentMethodCode
+		if _, duplicate := seen[key]; duplicate {
+			problem(w, http.StatusUnprocessableEntity, "DUPLICATE_ASSIGNMENT", "assignments must not repeat a payment_method_code in the same environment")
+			return
+		}
+		seen[key] = struct{}{}
+		inputs = append(inputs, input)
+	}
+	items, created, err := s.store.UpsertPaymentMethodAssignments(r.Context(), inputs)
+	if err != nil {
+		s.storeError(w, r, err)
+		return
+	}
+	if legacy {
+		status := http.StatusOK
+		if created == 1 {
+			status = http.StatusCreated
+		}
+		writeData(w, status, items[0])
+		return
+	}
+	writeData(w, http.StatusOK, items)
+}
+
+func decodePaymentMethodAssignmentRequests(w http.ResponseWriter, r *http.Request) ([]paymentMethodAssignmentRequest, bool, bool) {
+	var payload paymentMethodAssignmentsRequest
+	if err := decodeJSON(w, r, &payload); err != nil {
+		return nil, false, false
+	}
+	legacyFieldsPresent := payload.PaymentMethodCode != nil || payload.InstallationID != nil || payload.PaymentMethod != nil || payload.PaymentMethodType != nil || payload.LegacyLabel != nil || payload.Version != nil
+	if payload.Assignments != nil {
+		if legacyFieldsPresent {
+			problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "assignments cannot be combined with legacy single-assignment fields")
+			return nil, false, false
+		}
+		if len(*payload.Assignments) == 0 || len(*payload.Assignments) > maxAssignmentBatch {
+			problem(w, http.StatusUnprocessableEntity, "INVALID_BATCH_SIZE", "assignments must contain between 1 and 50 items")
+			return nil, false, false
+		}
+		return *payload.Assignments, false, true
+	}
+	legacy := paymentMethodAssignmentRequest{}
+	if payload.PaymentMethodCode != nil {
+		legacy.PaymentMethodCode = *payload.PaymentMethodCode
+	}
+	if payload.InstallationID != nil {
+		legacy.InstallationID = *payload.InstallationID
+	}
+	if payload.PaymentMethod != nil {
+		legacy.PaymentMethod = *payload.PaymentMethod
+	}
+	if payload.PaymentMethodType != nil {
+		legacy.PaymentMethodType = *payload.PaymentMethodType
+	}
+	if payload.LegacyLabel != nil {
+		legacy.LegacyLabel = *payload.LegacyLabel
+	}
+	if payload.Version != nil {
+		legacy.Version = *payload.Version
+	}
+	return []paymentMethodAssignmentRequest{legacy}, true, true
+}
+
+func (s *Server) preparePaymentMethodAssignment(w http.ResponseWriter, r *http.Request, request paymentMethodAssignmentRequest) (store.UpsertPaymentMethodAssignmentInput, bool) {
 	request.InstallationID = strings.TrimSpace(request.InstallationID)
 	request.PaymentMethodCode = strings.ToLower(strings.TrimSpace(request.PaymentMethodCode))
 	request.PaymentMethod = strings.ToLower(strings.TrimSpace(request.PaymentMethod))
@@ -1119,29 +1201,29 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 	}
 	if request.InstallationID == "" || !paymentMethodPattern.MatchString(request.PaymentMethodCode) || request.Version < 0 {
 		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "installation_id, payment_method_code, and non-negative version are required")
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
 	installation, err := s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
 	if err != nil {
 		s.storeError(w, r, err)
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
 	if installation.Status != model.InstallationActive {
 		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active")
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
 	capability, err := s.store.GetProviderPaymentMethodCapability(r.Context(), installation.ProviderCode, request.PaymentMethodCode)
 	if errors.Is(err, store.ErrNotFound) {
 		problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", "the selected gateway does not document support for this master payment method")
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
 	if err != nil {
 		s.internal(w, r, err)
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
 	if !assignablePaymentMethodCapability(capability.SupportStatus) {
 		problem(w, http.StatusConflict, "PAYMENT_METHOD_DISABLED", "the selected gateway payment method is disabled")
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
 	request.PaymentMethod = capability.ProviderMethod
 	request.PaymentMethodType = capability.ProviderMethodType
@@ -1151,26 +1233,17 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 		ProviderMethodType: request.PaymentMethodType,
 	}); err != nil {
 		problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", err.Error())
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
 	id, ok := s.newID(w, r, "pmo")
 	if !ok {
-		return
+		return store.UpsertPaymentMethodAssignmentInput{}, false
 	}
-	item, created, err := s.store.UpsertPaymentMethodAssignment(r.Context(), store.UpsertPaymentMethodAssignmentInput{
+	return store.UpsertPaymentMethodAssignmentInput{
 		ID: id, TenantID: tenant(r), Environment: installation.Environment, PaymentMethodCode: request.PaymentMethodCode, PaymentMethod: request.PaymentMethod,
 		PaymentMethodType: request.PaymentMethodType, InstallationID: request.InstallationID,
 		ExpectedVersion: request.Version, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
-	})
-	if err != nil {
-		s.storeError(w, r, err)
-		return
-	}
-	status := http.StatusOK
-	if created {
-		status = http.StatusCreated
-	}
-	writeData(w, status, item)
+	}, true
 }
 
 func (s *Server) deactivatePaymentMethodAssignment(w http.ResponseWriter, r *http.Request) {

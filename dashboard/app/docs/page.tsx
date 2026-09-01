@@ -706,18 +706,19 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
         note: "DOCUMENTED dapat di-assign tetapi belum mempunyai sandbox evidence lengkap. CERTIFIED/VERIFIED menandai conformance telah lulus; DISABLED tidak dapat di-assign.",
       },
       {
-        method: "GET", path: "/api/v1/payment-method-assignments?environment=sandbox", title: "List method assignments", description: "Mengembalikan assignment tenant termasuk yang inactive. Query environment bersifat opsional; tanpa query, sandbox dan live dikembalikan bersama.",
-        response: `{ "data": [${assignmentBase}] }`,
+        method: "GET", path: "/api/v1/payment-method-assignments?environment=sandbox", title: "List method assignments", description: "Mengembalikan semua assignment tenant, baik ACTIVE maupun INACTIVE. Query environment bersifat opsional; tanpa query, sandbox dan live dikembalikan bersama.",
+        response: `{ "data": [${assignmentBase}, ${assignmentBase.replace('"id": "pmo_01k3..."', '"id": "pmo_01k4..."').replace('"payment_method_code": "qris"', '"payment_method_code": "va_bca"').replace('"payment_method": "real_time_payment"', '"payment_method": "bank_transfer"').replace('"payment_method_type": "qris"', '"payment_method_type": "bca"').replace('"label": "QRIS"', '"label": "BCA Virtual Account"').replace('"status": "ACTIVE"', '"status": "INACTIVE"').replace('"version": 1', '"version": 2')}] }`,
       },
       {
-        method: "PUT", path: "/api/v1/payment-method-assignments", title: "Assign gateway", description: "Mengikat payment method DOCUMENTED atau CERTIFIED ke installation ACTIVE pada environment yang sama. Hanya DISABLED yang ditolak. Label checkout otomatis memakai name dari master catalog. Version 0 membuat assignment baru; update wajib memakai version terakhir.",
+        method: "PUT", path: "/api/v1/payment-method-assignments", title: "Bulk assign gateways", description: "Mengikat hingga 50 payment method DOCUMENTED atau CERTIFIED dalam satu transaksi atomic. Seluruh item berhasil atau tidak ada perubahan yang disimpan. Hanya DISABLED yang ditolak.",
         body: `{
-  "installation_id": "ins_...",
-  "payment_method_code": "qris",
-  "version": 0
+  "assignments": [
+    { "installation_id": "ins_...", "payment_method_code": "qris", "version": 0 },
+    { "installation_id": "ins_...", "payment_method_code": "va_bca", "version": 0 }
+  ]
 }`,
-        response: `{ "data": ${assignmentBase} }`,
-        note: "Jangan kirim label. Response dan payment-options mengambil label canonical dari field name pada GET /payment-methods. Mengganti assignment hanya memengaruhi payment berikutnya.",
+        response: `{ "data": [${assignmentBase}] }`,
+        note: "Jangan kirim label. Item yang tidak dikirim tidak dihapus atau dinonaktifkan. Payload single-object lama masih diterima sementara; integrasi baru wajib memakai assignments array.",
       },
       {
         method: "POST", path: "/api/v1/payment-method-assignments/{id}/deactivate", title: "Deactivate checkout method", description: "Menyembunyikan option dari checkout baru menggunakan optimistic version.",

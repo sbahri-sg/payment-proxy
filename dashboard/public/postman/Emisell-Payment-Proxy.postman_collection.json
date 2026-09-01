@@ -2252,18 +2252,21 @@
               ]
             },
             {
-              "name": "2. Assign master method to active gateway",
+              "name": "2. Bulk assign master methods to active gateways",
               "event": [
                 {
                   "listen": "test",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test('Payment method assigned', () => pm.expect([200, 201]).to.include(pm.response.code));",
-                      "if ([200, 201].includes(pm.response.code)) {",
-                      "  const data = pm.response.json().data;",
-                      "  pm.collectionVariables.set('payment_option_id', data.id);",
-                      "  pm.collectionVariables.set('payment_option_version', String(data.version));",
+                      "pm.test('Payment methods assigned atomically', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code === 200) {",
+                      "  const items = pm.response.json().data || [];",
+                      "  const selected = items.find((item) => item.payment_method_code === pm.collectionVariables.get('payment_method_code')) || items[0];",
+                      "  if (selected) {",
+                      "    pm.collectionVariables.set('payment_option_id', selected.id);",
+                      "    pm.collectionVariables.set('payment_option_version', String(selected.version));",
+                      "  }",
                       "}"
                     ]
                   }
@@ -2285,7 +2288,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"payment_method_code\": \"{{payment_method_code}}\",\n  \"version\": {{payment_option_version}}\n}",
+                  "raw": "{\n  \"assignments\": [\n    {\n      \"installation_id\": \"{{installation_id}}\",\n      \"payment_method_code\": \"{{payment_method_code}}\",\n      \"version\": {{payment_option_version}}\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2303,13 +2306,13 @@
                     "payment-method-assignments"
                   ]
                 },
-                "description": "Membuat atau memindahkan payment method DOCUMENTED atau CERTIFIED ke satu gateway aktif pada environment merchant. DISABLED tetap ditolak. Label checkout otomatis memakai name dari master catalog. Kirim version terakhir untuk optimistic concurrency."
+                "description": "Membuat atau memindahkan 1-50 payment method DOCUMENTED atau CERTIFIED secara atomic. DISABLED tetap ditolak dan satu item gagal membatalkan seluruh batch."
               },
               "response": [
                 {
-                  "name": "201 Assigned",
-                  "status": "Created",
-                  "code": 201,
+                  "name": "200 Assigned atomically",
+                  "status": "OK",
+                  "code": 200,
                   "_postman_previewlanguage": "json",
                   "header": [
                     {
@@ -2318,7 +2321,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"id\": \"pmo_01k3...\",\n    \"environment\": \"sandbox\",\n    \"payment_method_code\": \"qris\",\n    \"payment_method\": \"real_time_payment\",\n    \"payment_method_type\": \"qris\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"provider_name\": \"Xendit\",\n    \"label\": \"QRIS\",\n    \"status\": \"ACTIVE\",\n    \"version\": 1\n  }\n}"
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"pmo_01k3...\",\n      \"environment\": \"sandbox\",\n      \"payment_method_code\": \"qris\",\n      \"payment_method\": \"real_time_payment\",\n      \"payment_method_type\": \"qris\",\n      \"installation_id\": \"ins_01k3...\",\n      \"provider_code\": \"xendit\",\n      \"provider_name\": \"Xendit\",\n      \"label\": \"QRIS\",\n      \"status\": \"ACTIVE\",\n      \"version\": 1\n    }\n  ]\n}"
                 }
               ]
             },
@@ -2365,7 +2368,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"payment_method\": \"real_time_payment\",\n      \"payment_method_type\": \"qris\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"QRIS\",\n      \"status\": \"ACTIVE\",\n      \"version\": 1\n    }\n  ]\n}"
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"payment_method\": \"real_time_payment\",\n      \"payment_method_type\": \"qris\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"QRIS\",\n      \"status\": \"ACTIVE\",\n      \"version\": 1\n    },\n    {\n      \"id\": \"pmo_01k4...\",\n      \"payment_method_code\": \"va_bca\",\n      \"payment_method\": \"bank_transfer\",\n      \"payment_method_type\": \"bca\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"BCA Virtual Account\",\n      \"status\": \"INACTIVE\",\n      \"version\": 2\n    }\n  ]\n}"
                 }
               ]
             },

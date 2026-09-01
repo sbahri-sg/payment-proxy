@@ -4,27 +4,27 @@ request:
   method: PUT
   headers:
     X-Emisell-Merchant-ID: "{{merchant_id}}"
-    X-Emisell-Execution-Mode: "{{execution_mode}}"
     Content-Type: application/json
   body:
     type: json
     content: |-
       {
-        "installation_id": "{{installation_id}}",
-        "payment_method_code": "{{payment_method_code}}",
-        "label": "QRIS",
-        "version": {{payment_option_version}}
+        "assignments": [{
+          "installation_id": "{{installation_id}}",
+          "payment_method_code": "{{payment_method_code}}",
+          "version": {{payment_option_version}}
+        }]
       }
 response:
-  statusCode: 201
-  statusText: Created
+  statusCode: 200
+  statusText: OK
   headers:
     Content-Type: application/json
   body:
     type: json
     content: |-
       {
-        "data": {
+        "data": [{
           "id": "pmo_01k3...",
           "environment": "sandbox",
           "payment_method_code": "qris",
@@ -36,6 +36,6 @@ response:
           "label": "QRIS",
           "status": "ACTIVE",
           "version": 1
-        }
+        }]
       }
 order: 1000

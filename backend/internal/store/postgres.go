@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -1304,24 +1305,94 @@ func (s *Postgres) GetPaymentMethodAssignment(ctx context.Context, tenantID, id 
 }
 
 func (s *Postgres) UpsertPaymentMethodAssignment(ctx context.Context, in UpsertPaymentMethodAssignmentInput) (model.PaymentMethodAssignment, bool, error) {
-	tx, err := s.pool.Begin(ctx)
+	items, created, err := s.UpsertPaymentMethodAssignments(ctx, []UpsertPaymentMethodAssignmentInput{in})
 	if err != nil {
 		return model.PaymentMethodAssignment{}, false, err
 	}
+	return items[0], created == 1, nil
+}
+
+func (s *Postgres) UpsertPaymentMethodAssignments(ctx context.Context, inputs []UpsertPaymentMethodAssignmentInput) ([]model.PaymentMethodAssignment, int, error) {
+	if len(inputs) == 0 {
+		return []model.PaymentMethodAssignment{}, 0, nil
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
 	defer tx.Rollback(ctx)
-	var installationEnvironment, installationStatus string
-	if err = tx.QueryRow(ctx, `
+	tenantID := inputs[0].TenantID
+	installationIDs := make([]string, 0, len(inputs))
+	seenInstallations := make(map[string]struct{}, len(inputs))
+	seenAssignments := make(map[string]struct{}, len(inputs))
+	for _, in := range inputs {
+		if in.TenantID != tenantID {
+			return nil, 0, ErrInvalidState
+		}
+		assignmentKey := in.Environment + "\x00" + in.PaymentMethodCode
+		if _, exists := seenAssignments[assignmentKey]; exists {
+			return nil, 0, ErrConflict
+		}
+		seenAssignments[assignmentKey] = struct{}{}
+		if _, exists := seenInstallations[in.InstallationID]; !exists {
+			seenInstallations[in.InstallationID] = struct{}{}
+			installationIDs = append(installationIDs, in.InstallationID)
+		}
+	}
+	sort.Strings(installationIDs)
+	type installationState struct {
+		environment string
+		status      string
+	}
+	installations := make(map[string]installationState, len(installationIDs))
+	for _, installationID := range installationIDs {
+		var state installationState
+		if err = tx.QueryRow(ctx, `
 		SELECT environment,status FROM provider_installations
 		WHERE tenant_id=$1 AND id=$2 FOR UPDATE
-	`, in.TenantID, in.InstallationID).Scan(&installationEnvironment, &installationStatus); err != nil {
-		return model.PaymentMethodAssignment{}, false, translateNotFound(err)
+	`, tenantID, installationID).Scan(&state.environment, &state.status); err != nil {
+			return nil, 0, translateNotFound(err)
+		}
+		installations[installationID] = state
 	}
-	if installationEnvironment != in.Environment || installationStatus != model.InstallationActive {
-		return model.PaymentMethodAssignment{}, false, ErrInvalidState
+	order := make([]int, len(inputs))
+	for index := range inputs {
+		order[index] = index
 	}
+	sort.Slice(order, func(left, right int) bool {
+		leftInput, rightInput := inputs[order[left]], inputs[order[right]]
+		if leftInput.Environment != rightInput.Environment {
+			return leftInput.Environment < rightInput.Environment
+		}
+		return leftInput.PaymentMethodCode < rightInput.PaymentMethodCode
+	})
+	items := make([]model.PaymentMethodAssignment, len(inputs))
+	createdCount := 0
+	for _, index := range order {
+		in := inputs[index]
+		state := installations[in.InstallationID]
+		if state.environment != in.Environment || state.status != model.InstallationActive {
+			return nil, 0, ErrInvalidState
+		}
+		item, created, upsertErr := upsertPaymentMethodAssignmentTx(ctx, tx, in)
+		if upsertErr != nil {
+			return nil, 0, upsertErr
+		}
+		items[index] = item
+		if created {
+			createdCount++
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, 0, err
+	}
+	return items, createdCount, nil
+}
+
+func upsertPaymentMethodAssignmentTx(ctx context.Context, tx pgx.Tx, in UpsertPaymentMethodAssignmentInput) (model.PaymentMethodAssignment, bool, error) {
 	var id string
 	var version int64
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT id,version FROM payment_method_assignments
 		WHERE tenant_id=$1 AND environment=$2 AND payment_method_code=$3
 		FOR UPDATE
@@ -1362,10 +1433,7 @@ func (s *Postgres) UpsertPaymentMethodAssignment(ctx context.Context, in UpsertP
 	}); err != nil {
 		return model.PaymentMethodAssignment{}, false, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return model.PaymentMethodAssignment{}, false, err
-	}
-	item, err := s.GetPaymentMethodAssignment(ctx, in.TenantID, id)
+	item, err := scanPaymentMethodAssignment(tx.QueryRow(ctx, paymentMethodAssignmentSelect+` WHERE a.tenant_id=$1 AND a.id=$2`, in.TenantID, id))
 	return item, created, err
 }
 

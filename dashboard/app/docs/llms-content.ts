@@ -36,7 +36,7 @@ Preferred request fields: installation_id, checkout_mode=provider_hosted, mercha
 
 For provider_hosted checkout, do not send payment_option_id or payment_method_code. Payment Proxy creates a Xendit Payment Session or Midtrans Snap transaction and returns payment.checkout_url plus next_action.redirect_url. Redirect the customer to that provider-owned URL. Emisell must not render its own payment-method page or collect PAN, CVV, OTP, VA, QR, or wallet authorization details.
 
-payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout. Use GET /api/v1/payment-options?environment=sandbox|live. PUT /api/v1/payment-method-assignments derives environment from installation_id and must not send X-Emisell-Execution-Mode.
+payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout. GET /api/v1/payment-method-assignments returns both ACTIVE and INACTIVE records. PUT /api/v1/payment-method-assignments accepts {"assignments":[...]} with 1-50 items, applies the batch atomically, derives environment from each installation_id, and must not send X-Emisell-Execution-Mode. Use GET /api/v1/payment-options?environment=sandbox|live for active checkout options only.
 
 GET /api/v1/payment-sessions/{id}
 Returns the canonical payment projection and may synchronize with the same pinned provider installation.

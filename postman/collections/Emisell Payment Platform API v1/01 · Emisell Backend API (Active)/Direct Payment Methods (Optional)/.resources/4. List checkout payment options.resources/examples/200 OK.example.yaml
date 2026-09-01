@@ -1,10 +1,9 @@
 $kind: http-example
 request:
-  url: "{{base_url}}/api/v1/payment-options"
+  url: "{{base_url}}/api/v1/payment-options?environment={{execution_mode}}"
   method: GET
   headers:
     X-Emisell-Merchant-ID: "{{merchant_id}}"
-    X-Emisell-Execution-Mode: "{{execution_mode}}"
 response:
   statusCode: 200
   statusText: OK

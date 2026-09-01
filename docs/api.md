@@ -588,9 +588,10 @@ Mengembalikan katalog canonical serta matriks `DOCUMENTED`, `CERTIFIED`, atau `D
 
 ### `GET /payment-method-assignments`
 
-List assignment termasuk yang inactive. Gunakan query `?environment=sandbox`
-atau `?environment=live` sebagai filter opsional. Tanpa query, kedua environment
-dikembalikan.
+List semua assignment, termasuk status `ACTIVE` dan `INACTIVE`. Gunakan query
+`?environment=sandbox` atau `?environment=live` sebagai filter opsional. Tanpa
+query, kedua environment dikembalikan. Hanya `/payment-options` yang membatasi
+hasil pada assignment aktif untuk checkout.
 
 ### `PUT /payment-method-assignments`
 
@@ -598,34 +599,46 @@ Installation harus `ACTIVE` pada environment yang sama. Capability berstatus
 `DOCUMENTED` maupun `CERTIFIED` dapat di-assign; hanya `DISABLED` yang ditolak.
 `DOCUMENTED` berarti mapping didukung connector tetapi belum mempunyai bukti
 sandbox lengkap. Environment diambil dari `installation_id`; header
-`X-Emisell-Execution-Mode` tidak digunakan.
+`X-Emisell-Execution-Mode` tidak digunakan. Request menerima 1–50 item dan
+diproses secara atomic: jika satu item gagal, seluruh batch dibatalkan.
 
 ```json
 {
-  "installation_id": "ins_01k3...",
-  "payment_method_code": "qris",
-  "version": 0
+  "assignments": [
+    {
+      "installation_id": "ins_01k3...",
+      "payment_method_code": "qris",
+      "version": 0
+    },
+    {
+      "installation_id": "ins_01k3...",
+      "payment_method_code": "va_bca",
+      "version": 0
+    }
+  ]
 }
 ```
 
 ```json
 {
-  "data": {
-    "id": "pmo_01k3...",
-    "environment": "sandbox",
-    "payment_method_code": "qris",
-    "installation_id": "ins_01k3...",
-    "provider_code": "xendit",
-    "label": "QRIS",
-    "status": "ACTIVE",
-    "version": 1
-  }
+  "data": [{
+      "id": "pmo_01k3...",
+      "environment": "sandbox",
+      "payment_method_code": "qris",
+      "installation_id": "ins_01k3...",
+      "provider_code": "xendit",
+      "label": "QRIS",
+      "status": "ACTIVE",
+      "version": 1
+  }]
 }
 ```
 
 `label` tidak dikirim. Payment Proxy selalu memakai `name` dari master catalog
 sebagai label checkout. `version=0` membuat assignment; update wajib memakai
-version terakhir.
+version terakhir. Payment method yang tidak disertakan tidak otomatis dihapus
+atau dinonaktifkan. Payload single-object lama masih diterima selama masa
+kompatibilitas, tetapi integrasi baru wajib memakai `assignments` array.
 
 ### `POST /payment-method-assignments/{id}/deactivate`
 
