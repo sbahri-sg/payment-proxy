@@ -1069,7 +1069,11 @@ func (s *Server) uninstallInstallation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listPaymentMethodAssignments(w http.ResponseWriter, r *http.Request) {
-	items, err := s.store.ListPaymentMethodAssignments(r.Context(), tenant(r), optionalMode(r))
+	environment, ok := optionalEnvironmentQuery(w, r)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListPaymentMethodAssignments(r.Context(), tenant(r), environment)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -1078,11 +1082,11 @@ func (s *Server) listPaymentMethodAssignments(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) listPaymentOptions(w http.ResponseWriter, r *http.Request) {
-	mode, ok := requireMode(w, r)
+	environment, ok := requireEnvironmentQuery(w, r)
 	if !ok {
 		return
 	}
-	items, err := s.store.ListPaymentOptions(r.Context(), tenant(r), mode)
+	items, err := s.store.ListPaymentOptions(r.Context(), tenant(r), environment)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -1102,10 +1106,6 @@ type paymentMethodAssignmentRequest struct {
 }
 
 func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Request) {
-	mode, ok := requireMode(w, r)
-	if !ok {
-		return
-	}
 	var request paymentMethodAssignmentRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		return
@@ -1126,8 +1126,8 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 		s.storeError(w, r, err)
 		return
 	}
-	if installation.Environment != mode || installation.Status != model.InstallationActive {
-		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active in the requested execution mode")
+	if installation.Status != model.InstallationActive {
+		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active")
 		return
 	}
 	capability, err := s.store.GetProviderPaymentMethodCapability(r.Context(), installation.ProviderCode, request.PaymentMethodCode)
@@ -1158,7 +1158,7 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 		return
 	}
 	item, created, err := s.store.UpsertPaymentMethodAssignment(r.Context(), store.UpsertPaymentMethodAssignmentInput{
-		ID: id, TenantID: tenant(r), Environment: mode, PaymentMethodCode: request.PaymentMethodCode, PaymentMethod: request.PaymentMethod,
+		ID: id, TenantID: tenant(r), Environment: installation.Environment, PaymentMethodCode: request.PaymentMethodCode, PaymentMethod: request.PaymentMethod,
 		PaymentMethodType: request.PaymentMethodType, InstallationID: request.InstallationID,
 		ExpectedVersion: request.Version, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
 	})
@@ -2612,6 +2612,30 @@ func requireMode(w http.ResponseWriter, r *http.Request) (string, bool) {
 	value := optionalMode(r)
 	if value == "" {
 		problem(w, http.StatusBadRequest, "INVALID_EXECUTION_MODE", "X-Emisell-Execution-Mode must be sandbox or live")
+		return "", false
+	}
+	return value, true
+}
+
+func optionalEnvironmentQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
+	value := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("environment")))
+	if value == "" {
+		return "", true
+	}
+	if !validMode(value) {
+		problem(w, http.StatusBadRequest, "INVALID_ENVIRONMENT", "environment query must be sandbox or live")
+		return "", false
+	}
+	return value, true
+}
+
+func requireEnvironmentQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
+	value, ok := optionalEnvironmentQuery(w, r)
+	if !ok {
+		return "", false
+	}
+	if value == "" {
+		problem(w, http.StatusBadRequest, "INVALID_ENVIRONMENT", "environment query must be sandbox or live")
 		return "", false
 	}
 	return value, true

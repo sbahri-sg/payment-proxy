@@ -80,7 +80,7 @@ Base path: `/api/v1`. API ini adalah kontrak canonical antara Emisell Backend da
 |---|---:|---|
 | `Authorization: Bearer <SERVICE_API_KEY>` | endpoint merchant/service | service authentication |
 | `X-Emisell-Merchant-ID` | endpoint merchant/service | tenant isolation |
-| `X-Emisell-Execution-Mode` | filter/install/assignment/payment | `sandbox` atau `live` |
+| `X-Emisell-Execution-Mode` | readiness, diagnostics, dan payment | `sandbox` atau `live`; tidak dipakai oleh Payment Methods |
 | `Idempotency-Key` | create/cancel payment dan create refund | ID logical operation, 8–128 karakter |
 
 Error selalu stabil:
@@ -588,14 +588,17 @@ Mengembalikan katalog canonical serta matriks `DOCUMENTED`, `CERTIFIED`, atau `D
 
 ### `GET /payment-method-assignments`
 
-List assignment termasuk yang inactive. Header execution mode opsional.
+List assignment termasuk yang inactive. Gunakan query `?environment=sandbox`
+atau `?environment=live` sebagai filter opsional. Tanpa query, kedua environment
+dikembalikan.
 
 ### `PUT /payment-method-assignments`
 
 Installation harus `ACTIVE` pada environment yang sama. Capability berstatus
 `DOCUMENTED` maupun `CERTIFIED` dapat di-assign; hanya `DISABLED` yang ditolak.
 `DOCUMENTED` berarti mapping didukung connector tetapi belum mempunyai bukti
-sandbox lengkap.
+sandbox lengkap. Environment diambil dari `installation_id`; header
+`X-Emisell-Execution-Mode` tidak digunakan.
 
 ```json
 {
@@ -632,7 +635,7 @@ version terakhir.
 
 ### `GET /payment-options`
 
-Wajib execution mode. Endpoint ini hanya dipakai oleh flow `direct` lanjutan
+Wajib query `?environment=sandbox` atau `?environment=live`. Endpoint ini hanya dipakai oleh flow `direct` lanjutan
 yang memilih channel sebelum memanggil provider. Flow utama
 `provider_hosted` tidak memerlukannya karena channel dipilih pelanggan di
 halaman checkout provider.

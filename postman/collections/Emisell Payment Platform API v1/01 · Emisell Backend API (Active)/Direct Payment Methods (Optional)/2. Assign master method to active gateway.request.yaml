@@ -4,7 +4,6 @@ url: "{{base_url}}/api/v1/payment-method-assignments"
 method: PUT
 headers:
   X-Emisell-Merchant-ID: "{{merchant_id}}"
-  X-Emisell-Execution-Mode: "{{execution_mode}}"
   Content-Type: application/json
 body:
   type: json

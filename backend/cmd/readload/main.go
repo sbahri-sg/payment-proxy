@@ -88,6 +88,11 @@ func run(baseURL, path string, total, concurrency int, timeout, p95Target time.D
 	results := make(chan result, total)
 	var workers sync.WaitGroup
 	workers.Add(concurrency)
+	if requested.Path == "/api/v1/payment-options" {
+		query := requested.Query()
+		query.Set("environment", mode)
+		requested.RawQuery = query.Encode()
+	}
 	target := base.ResolveReference(requested).String()
 	for worker := 0; worker < concurrency; worker++ {
 		go func() {
@@ -98,7 +103,6 @@ func run(baseURL, path string, total, concurrency int, timeout, p95Target time.D
 				if requestErr == nil && strings.HasPrefix(requested.Path, "/api/v1/") {
 					request.Header.Set("Authorization", "Bearer "+serviceKey)
 					request.Header.Set("X-Emisell-Merchant-ID", merchantID)
-					request.Header.Set("X-Emisell-Execution-Mode", mode)
 				}
 				if requestErr != nil {
 					results <- result{duration: time.Since(started), err: requestErr}

@@ -10,7 +10,7 @@ import (
 func TestReadOnlyLoadRunner(t *testing.T) {
 	t.Setenv("SERVICE_API_KEY", "test-service-key")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.Header.Get("Authorization") != "Bearer test-service-key" || r.Header.Get("X-Emisell-Execution-Mode") != "sandbox" {
+		if r.Method != http.MethodGet || r.Header.Get("Authorization") != "Bearer test-service-key" || r.Header.Get("X-Emisell-Execution-Mode") != "" || r.URL.Query().Get("environment") != "sandbox" {
 			t.Errorf("unsafe or unauthenticated load request: %s %#v", r.Method, r.Header)
 			w.WriteHeader(http.StatusBadRequest)
 			return

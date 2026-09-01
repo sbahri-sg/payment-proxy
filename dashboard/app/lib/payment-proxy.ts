@@ -554,7 +554,8 @@ export function uninstallInstallation(actor: string, id: string) {
 }
 
 export function listPaymentMethodAssignments(actor: string, environment?: string) {
-  return proxyRequest<PaymentMethodAssignment[]>("/api/v1/payment-method-assignments", actor, environment ? { headers: { "X-Emisell-Execution-Mode": environment } } : undefined);
+  const suffix = environment ? `?environment=${encodeURIComponent(environment)}` : "";
+  return proxyRequest<PaymentMethodAssignment[]>(`/api/v1/payment-method-assignments${suffix}`, actor);
 }
 
 export function listPaymentMethods(actor: string) {
@@ -562,13 +563,12 @@ export function listPaymentMethods(actor: string) {
 }
 
 export function listPaymentOptions(actor: string, environment: "sandbox" | "live") {
-  return proxyRequest<PaymentOption[]>("/api/v1/payment-options", actor, { headers: { "X-Emisell-Execution-Mode": environment } });
+  return proxyRequest<PaymentOption[]>(`/api/v1/payment-options?environment=${encodeURIComponent(environment)}`, actor);
 }
 
-export function upsertPaymentMethodAssignment(actor: string, environment: "sandbox" | "live", input: { installation_id: string; payment_method_code: string; version: number }) {
+export function upsertPaymentMethodAssignment(actor: string, input: { installation_id: string; payment_method_code: string; version: number }) {
   return proxyRequest<PaymentMethodAssignment>("/api/v1/payment-method-assignments", actor, {
     method: "PUT",
-    headers: { "X-Emisell-Execution-Mode": environment },
     body: JSON.stringify(input),
   });
 }

@@ -148,6 +148,10 @@ export PAYMENT_PROXY_EXECUTION_MODE=sandbox
   -max-error-rate 0.001
 ```
 
+Untuk `payment-options`, runner mengirim `PAYMENT_PROXY_EXECUTION_MODE` sebagai
+query `environment`; header execution mode tidak dipakai oleh kontrak Payment
+Methods.
+
 Endpoint yang diizinkan hanya health, provider catalog, payment-method catalog,
 dan payment options. Runner gagal apabila path mutation dipilih, error rate
 melewati threshold, atau p95 melewati target.

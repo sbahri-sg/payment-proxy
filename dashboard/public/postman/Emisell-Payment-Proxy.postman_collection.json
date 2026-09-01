@@ -2274,11 +2274,6 @@
                     "type": "text"
                   },
                   {
-                    "key": "X-Emisell-Execution-Mode",
-                    "value": "{{execution_mode}}",
-                    "type": "text"
-                  },
-                  {
                     "key": "Content-Type",
                     "value": "application/json",
                     "type": "text"
@@ -2332,15 +2327,10 @@
                     "key": "X-Emisell-Merchant-ID",
                     "value": "{{merchant_id}}",
                     "type": "text"
-                  },
-                  {
-                    "key": "X-Emisell-Execution-Mode",
-                    "value": "{{execution_mode}}",
-                    "type": "text"
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/payment-method-assignments",
+                  "raw": "{{base_url}}/api/v1/payment-method-assignments?environment={{execution_mode}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -2348,6 +2338,12 @@
                     "api",
                     "v1",
                     "payment-method-assignments"
+                  ],
+                  "query": [
+                    {
+                      "key": "environment",
+                      "value": "{{execution_mode}}"
+                    }
                   ]
                 },
                 "description": "Daftar konfigurasi metode pembayaran merchant, termasuk assignment yang sedang inactive."
@@ -2394,15 +2390,10 @@
                     "key": "X-Emisell-Merchant-ID",
                     "value": "{{merchant_id}}",
                     "type": "text"
-                  },
-                  {
-                    "key": "X-Emisell-Execution-Mode",
-                    "value": "{{execution_mode}}",
-                    "type": "text"
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/payment-options",
+                  "raw": "{{base_url}}/api/v1/payment-options?environment={{execution_mode}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -2410,6 +2401,12 @@
                     "api",
                     "v1",
                     "payment-options"
+                  ],
+                  "query": [
+                    {
+                      "key": "environment",
+                      "value": "{{execution_mode}}"
+                    }
                   ]
                 },
                 "description": "Endpoint checkout. Hanya mengembalikan opsi aktif yang terhubung ke installation aktif. Checkout menyimpan id yang opaque, bukan provider_code."

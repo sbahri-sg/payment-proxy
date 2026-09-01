@@ -8,12 +8,13 @@ Canonical documentation: /docs?contract=backend
 
 Payment Proxy exposes one provider-neutral API. Emisell Backend must not call Xendit, Midtrans, DOKU, Duitku, or connector runtime endpoints directly. Provider credentials are accepted only by the installation credential endpoint and are never returned.
 
-## Required headers
+## Common headers
 
 Authorization: Bearer <SERVICE_API_KEY>
 X-Emisell-Merchant-ID: <merchant_id>
-X-Emisell-Execution-Mode: sandbox | live
 Content-Type: application/json
+
+X-Emisell-Execution-Mode: sandbox | live is required only by endpoints that explicitly document it, such as payments and integration-readiness. Payment Methods does not use this header: assignment mutations derive environment from installation_id, while list endpoints use the environment query when filtering is needed.
 
 Every mutation that represents a business operation must use a stable Idempotency-Key. Retry the same operation with the same key and identical body. Never generate a new key merely because a request timed out.
 
@@ -35,7 +36,7 @@ Preferred request fields: installation_id, checkout_mode=provider_hosted, mercha
 
 For provider_hosted checkout, do not send payment_option_id or payment_method_code. Payment Proxy creates a Xendit Payment Session or Midtrans Snap transaction and returns payment.checkout_url plus next_action.redirect_url. Redirect the customer to that provider-owned URL. Emisell must not render its own payment-method page or collect PAN, CVV, OTP, VA, QR, or wallet authorization details.
 
-payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout.
+payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout. Use GET /api/v1/payment-options?environment=sandbox|live. PUT /api/v1/payment-method-assignments derives environment from installation_id and must not send X-Emisell-Execution-Mode.
 
 GET /api/v1/payment-sessions/{id}
 Returns the canonical payment projection and may synchronize with the same pinned provider installation.

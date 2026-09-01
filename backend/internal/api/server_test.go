@@ -237,6 +237,31 @@ func TestPaymentOptionContract(t *testing.T) {
 	}
 }
 
+func TestPaymentMethodEnvironmentQuery(t *testing.T) {
+	optional := httptest.NewRequest(http.MethodGet, "/api/v1/payment-method-assignments", nil)
+	if value, ok := optionalEnvironmentQuery(httptest.NewRecorder(), optional); !ok || value != "" {
+		t.Fatalf("optional environment without query = %q, %v; want empty, true", value, ok)
+	}
+
+	filtered := httptest.NewRequest(http.MethodGet, "/api/v1/payment-method-assignments?environment=LIVE", nil)
+	if value, ok := optionalEnvironmentQuery(httptest.NewRecorder(), filtered); !ok || value != "live" {
+		t.Fatalf("filtered environment = %q, %v; want live, true", value, ok)
+	}
+
+	missingRecorder := httptest.NewRecorder()
+	if value, ok := requireEnvironmentQuery(missingRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/payment-options", nil)); ok || value != "" || missingRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("missing required environment = %q, %v, status %d", value, ok, missingRecorder.Code)
+	}
+	if !strings.Contains(missingRecorder.Body.String(), "INVALID_ENVIRONMENT") {
+		t.Fatalf("missing environment returned unexpected problem: %s", missingRecorder.Body.String())
+	}
+
+	invalidRecorder := httptest.NewRecorder()
+	if value, ok := optionalEnvironmentQuery(invalidRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/payment-method-assignments?environment=staging", nil)); ok || value != "" || invalidRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid optional environment = %q, %v, status %d", value, ok, invalidRecorder.Code)
+	}
+}
+
 func TestProviderRegistryStatusAllowlist(t *testing.T) {
 	for _, status := range []string{"DRAFT", "ACTIVE", "DISABLED"} {
 		if !validProviderRegistryStatus(status) {

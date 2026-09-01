@@ -706,13 +706,11 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
         note: "DOCUMENTED dapat di-assign tetapi belum mempunyai sandbox evidence lengkap. CERTIFIED/VERIFIED menandai conformance telah lulus; DISABLED tidak dapat di-assign.",
       },
       {
-        method: "GET", path: "/api/v1/payment-method-assignments", title: "List method assignments", description: "Mengembalikan assignment tenant termasuk yang inactive. Execution mode dapat digunakan sebagai filter.",
-        headers: ["X-Emisell-Execution-Mode: sandbox (optional)"],
+        method: "GET", path: "/api/v1/payment-method-assignments?environment=sandbox", title: "List method assignments", description: "Mengembalikan assignment tenant termasuk yang inactive. Query environment bersifat opsional; tanpa query, sandbox dan live dikembalikan bersama.",
         response: `{ "data": [${assignmentBase}] }`,
       },
       {
         method: "PUT", path: "/api/v1/payment-method-assignments", title: "Assign gateway", description: "Mengikat payment method DOCUMENTED atau CERTIFIED ke installation ACTIVE pada environment yang sama. Hanya DISABLED yang ditolak. Label checkout otomatis memakai name dari master catalog. Version 0 membuat assignment baru; update wajib memakai version terakhir.",
-        headers: ["X-Emisell-Execution-Mode: sandbox"],
         body: `{
   "installation_id": "ins_...",
   "payment_method_code": "qris",
@@ -727,8 +725,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
         response: `{ "data": ${assignmentBase.replace('"status": "ACTIVE"', '"status": "INACTIVE"').replace('"version": 1', '"version": 2')} }`,
       },
       {
-        method: "GET", path: "/api/v1/payment-options", title: "List direct-channel options", description: "Mengembalikan opaque option ID untuk flow direct yang memilih channel sebelum membuka provider.",
-        headers: ["X-Emisell-Execution-Mode: sandbox"],
+        method: "GET", path: "/api/v1/payment-options?environment=sandbox", title: "List direct-channel options", description: "Mengembalikan opaque option ID untuk flow direct yang memilih channel sebelum membuka provider. Query environment wajib karena satu merchant dapat memiliki installation sandbox dan live.",
         response: `{
   "data": [{
     "id": "pmo_01k3...",
@@ -1636,7 +1633,7 @@ midtrans_server_key = <Midtrans Sandbox Server Key>`;
 6. POST /payment-sessions (ulang request yang sama dengan Idempotency-Key yang sama)
 7. GET  /payment-sessions/{id} → terima signed payment.updated
 8. GET  /integration-readiness → READY`}</Code>
-                <div className="callout">Selalu kirim Authorization, X-Emisell-Merchant-ID, dan X-Emisell-Execution-Mode. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
+                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Environment Payment Methods berasal dari installation_id atau query environment; endpoint payment yang masih mensyaratkannya tetap memakai X-Emisell-Execution-Mode. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
                 <div className="postman-card"><div><strong>AI-readable contract</strong><span>Gunakan kontrak ringkas ini untuk coding assistant. Isinya hanya API Emisell Backend dan guardrail keamanan, bukan endpoint admin atau secret provider.</span></div><a className="download-link" href="/docs/llms.txt">Open llms.txt <span>→</span></a></div>
               </section>}
               <section className="doc-section" id="engine-contract">
