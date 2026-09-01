@@ -135,3 +135,4 @@
 .method-patch{background:#eee9ff;color:#5d45b8}
 .docs-contract-selector{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.docs-scope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:18px}.docs-scope-grid article{padding:14px 15px;border:1px solid #e3e1ef;border-radius:10px;background:#faf9ff}.docs-scope-grid strong{display:block;color:#4f46a8;font-size:10px}.docs-scope-grid p{margin:6px 0 0;color:#777d89;font-size:9px;line-height:1.55}
 @media(max-width:620px){.docs-scope-grid{grid-template-columns:1fr}}
+.provider-app-transition-direct{grid-template-columns:1fr}.provider-app-transition-direct>button{justify-self:end}

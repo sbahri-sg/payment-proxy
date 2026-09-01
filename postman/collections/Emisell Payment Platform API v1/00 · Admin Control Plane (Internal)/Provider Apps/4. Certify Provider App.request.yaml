@@ -1,4 +1,5 @@
 $kind: http-request
+description: Menjalankan verifikasi backend otomatis terhadap artifact, exact shared runtime, credential schema, test profile, dan canonical method mapping. Dashboard menampilkan hasil internal CERTIFIED sebagai VERIFIED.
 url: "{{base_url}}/api/v1/admin/provider-apps/{{provider_app_id}}/transition"
 method: POST
 headers:
@@ -9,8 +10,7 @@ body:
   content: |-
     {
       "expected_status": "VALIDATED",
-      "status": "CERTIFIED",
-      "review_note": "Sandbox conformance and security review passed."
+      "status": "CERTIFIED"
     }
 auth:
   type: noauth

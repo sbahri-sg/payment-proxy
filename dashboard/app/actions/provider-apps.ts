@@ -69,15 +69,15 @@ export async function transitionProviderAppAction(_: ProviderAppActionState, for
   const id = String(form.get("id") ?? "").trim();
   const expectedStatus = String(form.get("expected_status") ?? "").trim().toUpperCase() as ProviderAppVersion["status"];
   const status = String(form.get("status") ?? "").trim().toUpperCase() as ProviderAppVersion["status"];
-  const reviewNote = String(form.get("review_note") ?? "").trim().slice(0, 2000);
   if (!/^papp_[A-Za-z0-9]+$/.test(id)) return { status: "error", message: "Provider App ID tidak valid." };
   try {
-    const providerApp = await transitionProviderApp(session.subject, id, expectedStatus, status, reviewNote);
+    const providerApp = await transitionProviderApp(session.subject, id, expectedStatus, status);
     revalidatePath("/provider-apps");
     revalidatePath(`/provider-apps/${providerApp.provider_code}`);
     revalidatePath("/providers");
     revalidatePath(`/providers/${providerApp.provider_code}`);
-    return { status: "success", message: `${providerApp.provider_name} ${providerApp.version} sekarang berstatus ${providerApp.status}.`, providerApp };
+    const displayStatus = providerApp.status === "CERTIFIED" ? "VERIFIED" : providerApp.status;
+    return { status: "success", message: `${providerApp.provider_name} ${providerApp.version} sekarang berstatus ${displayStatus}.`, providerApp };
   } catch (error) {
     return actionError(error);
   }

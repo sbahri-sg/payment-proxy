@@ -37,13 +37,13 @@ export function PaymentMethodCatalog({ methods }: { methods: PaymentMethodCatalo
           <p>{method.description}</p>
           <div className="method-provider-list">{method.providers.map((provider) => {
             const engineBlocked = provider.metadata?.engine_support === "UNSUPPORTED";
-            return <a href={provider.source_url} target="_blank" rel="noreferrer" className={`method-provider-badge ${engineBlocked ? "blocked" : provider.support_status.toLowerCase()}`} title={`${provider.provider_name}: ${engineBlocked ? provider.metadata.blocker_code : provider.provider_channel_code || "documented"}`} key={provider.provider_code}><BrandLogo code={provider.provider_code} label={provider.provider_name} className="provider-badge-logo"/>{provider.provider_name}<small>{provider.support_status === "CERTIFIED" ? "Certified" : engineBlocked ? "Engine blocked" : "Supported"}</small></a>;
+            return <a href={provider.source_url} target="_blank" rel="noreferrer" className={`method-provider-badge ${engineBlocked ? "blocked" : provider.support_status.toLowerCase()}`} title={`${provider.provider_name}: ${engineBlocked ? provider.metadata.blocker_code : provider.provider_channel_code || "documented"}`} key={provider.provider_code}><BrandLogo code={provider.provider_code} label={provider.provider_name} className="provider-badge-logo"/>{provider.provider_name}<small>{provider.support_status === "CERTIFIED" ? "Verified" : engineBlocked ? "Engine blocked" : "Supported"}</small></a>;
           })}</div>
           <footer><span>{method.currencies.join(" · ")}</span><span>{method.providers.length} gateways</span></footer>
         </article>)}
         {filtered.length === 0 && <div className="management-empty master-method-empty"><h3>No matching payment method</h3><p>Try another method, category, or gateway name.</p></div>}
       </div>
-      <div className="catalog-legend"><span><i className="certified"/>Certified connector — dapat dipetakan sekarang</span><span><i className="documented"/>Supported gateway — menunggu connector conformance</span><span><i className="blocked"/>Engine blocked — membutuhkan partner connector</span></div>
+      <div className="catalog-legend"><span><i className="certified"/>Verified connector — dapat dipetakan sekarang</span><span><i className="documented"/>Supported gateway — menunggu verifikasi backend</span><span><i className="blocked"/>Engine blocked — membutuhkan partner connector</span></div>
     </section>
   );
 }

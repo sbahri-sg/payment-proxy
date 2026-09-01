@@ -59,7 +59,7 @@ const contracts: Contract[] = [
     audience: "Dashboard/operator → Payment Proxy",
     basePath: "/api/v1/admin/* + operational routes",
     authentication: "Admin key; service key untuk tenant operations",
-    description: "Operasi release provider, API key, observability, certification, delivery, dan reconciliation. Emisell Backend tidak perlu mengimplementasikan alur ini.",
+    description: "Operasi release provider, verifikasi backend, API key, observability, delivery, dan reconciliation. Emisell Backend tidak perlu mengimplementasikan alur ini.",
   },
   {
     id: "partner",
@@ -320,7 +320,7 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
   {
     id: "provider-apps",
     title: "Provider Apps",
-    summary: "Provider-first control plane: daftarkan identitas provider, lalu upload, validasi, sertifikasi, dan publish versi connector miliknya.",
+    summary: "Provider-first control plane: daftarkan identitas provider, lalu upload, validasi, verifikasi otomatis, dan publish versi connector miliknya.",
     endpoints: [
       {
         method: "POST", path: "/api/v1/admin/provider-app-providers", title: "Create provider identity", description: "Mendaftarkan provider terlebih dahulu. Provider code menjadi identitas permanen dan nama/code di setiap manifest ZIP berikutnya wajib sama.",
@@ -360,19 +360,20 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
       },
       {
         method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Validate Provider App", description: "Membaca ulang artifact immutable dari database, memverifikasi digest, keamanan ZIP, manifest, OpenAPI, dan secret scan, lalu memindahkan UPLOADED menjadi VALIDATED.",
-        body: `{ "expected_status": "UPLOADED", "status": "VALIDATED", "review_note": "" }`,
+        body: `{ "expected_status": "UPLOADED", "status": "VALIDATED" }`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "VALIDATED" } }`,
       },
       {
-        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Certify Provider App", description: "Mencatat approval operator setelah conformance/security evidence diperiksa. Review note minimum delapan karakter dan seluruh perubahan diaudit.",
-        body: `{ "expected_status": "VALIDATED", "status": "CERTIFIED", "review_note": "Sandbox conformance and security review passed." }`,
-        response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "CERTIFIED" } }`,
+        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Run backend release verification", description: "Backend membaca ulang ZIP immutable lalu mencocokkan provider/version, runtime digest, operations, credential schema, automated test profiles, dan seluruh canonical method mapping. Tidak memakai credential merchant atau review note manual.",
+        body: `{ "expected_status": "VALIDATED", "status": "CERTIFIED" }`,
+        response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "CERTIFIED", "verification_report": { "passed": true, "source": "automated_backend_verification", "verified_capabilities": ["qris", "va_bca"] } } }`,
+        note: "CERTIFIED adalah nilai status internal untuk kompatibilitas. Dashboard menampilkannya sebagai VERIFIED. Transisi gagal tertutup bila bundle, shared runtime, schema, profile, atau mapping berbeda.",
       },
       {
-        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Publish Provider App", description: "Mempromosikan CERTIFIED menjadi PUBLISHED hanya ketika shared runtime memuat provider code dan exact manifest version yang sama. Digest executable runtime disimpan terpisah dari digest ZIP submission.",
-        body: `{ "expected_status": "CERTIFIED", "status": "PUBLISHED", "review_note": "Isolated runtime 0.1.0 deployed and health checked." }`,
+        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Publish Provider App", description: "Mempromosikan release internal CERTIFIED/VERIFIED menjadi PUBLISHED hanya ketika shared runtime tetap memuat provider code, exact manifest version, dan digest yang sama.",
+        body: `{ "expected_status": "CERTIFIED", "status": "PUBLISHED" }`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "PUBLISHED", "published_at": "2026-08-28T15:00:00Z" } }`,
-        note: "Jika runtime belum tersedia, response 409 CONNECTOR_RUNTIME_NOT_READY. Guard ini mencegah merchant meng-install connector yang belum dapat mengeksekusi transaksi.",
+        note: "Tidak ada SHA-256 atau deployment note yang diisi manual. Backend membaca digest shared runtime, mencocokkannya dengan verification report, dan menulis audit note otomatis. Jika runtime belum tersedia, response 409 CONNECTOR_RUNTIME_NOT_READY.",
       },
     ],
   },
@@ -429,7 +430,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     summary: "Bukti kesiapan integrasi Emisell Backend per merchant dan environment, dihitung otomatis dari aktivitas nyata.",
     endpoints: [
       {
-        method: "GET", path: "/api/v1/integration-readiness", title: "Get merchant integration readiness", description: "Mengembalikan checklist evidence-based untuk connection, payment method, create/read payment, idempotency, dan delivery webhook. Tidak sama dengan certification connector milik admin.",
+        method: "GET", path: "/api/v1/integration-readiness", title: "Get merchant integration readiness", description: "Mengembalikan checklist evidence-based untuk connection, payment method, create/read payment, idempotency, dan delivery webhook. Tidak sama dengan diagnostic sandbox internal milik admin.",
         headers: ["X-Emisell-Execution-Mode: sandbox"],
         response: `{
   "data": {
@@ -653,23 +654,23 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
   },
   {
     id: "certifications",
-    title: "Connector Certification",
-    summary: "Menjalankan release-gate sandbox dan menyimpan bukti capability tanpa pernah menguji live credential.",
+    title: "Internal Sandbox Diagnostics",
+    summary: "Endpoint legacy untuk CI/diagnostik backend pada tenant sandbox. Bukan tahap installation merchant dan bukan release gate utama.",
     endpoints: [
       {
-        method: "GET", path: "/api/v1/connector-certifications?provider=xendit&limit=25", title: "List certification runs", description: "Mengembalikan bukti run tenant-scoped, hasil check, payment sandbox terkait, dan blocker connector.",
-        headers: ["X-Emisell-Execution-Mode: sandbox (optional)"],
+        method: "GET", path: "/api/v1/admin/connector-certifications?provider=xendit&limit=25", title: "List internal sandbox runs", description: "Mengembalikan bukti run tenant-scoped untuk CI atau troubleshooting internal. Endpoint tidak ditampilkan sebagai aksi pada detail provider.",
+        headers: ["X-Emisell-Merchant-ID: test_tenant", "X-Emisell-Execution-Mode: sandbox (optional)"],
         response: `{ "data": [${certificationBase}] }`,
       },
       {
-        method: "POST", path: "/api/v1/connector-certifications/run", title: "Run or resume sandbox certification", description: "Menjalankan create, next-action, retrieve, simulator atau customer authorization, dan pemeriksaan webhook pada connector sandbox aktif. Kirim payment_id untuk memverifikasi ulang payment redirect/mobile yang sama.",
-        headers: ["X-Emisell-Execution-Mode: sandbox"],
+        method: "POST", path: "/api/v1/admin/connector-certifications/run", title: "Run or resume internal sandbox diagnostic", description: "Menjalankan create, retrieve, simulator/customer authorization, dan pemeriksaan webhook memakai installation sandbox pada tenant pengujian. Kirim payment_id untuk melanjutkan transaksi redirect/mobile yang sama.",
+        headers: ["X-Emisell-Merchant-ID: test_tenant", "X-Emisell-Execution-Mode: sandbox"],
         body: `{
   "installation_id": "ins_01k3...",
   "payment_method_code": "qris"
 }`,
         response: `{ "data": ${certificationBase} }`,
-        note: "Endpoint hanya menerima sandbox. PASS mempromosikan DOCUMENTED menjadi CERTIFIED dengan audit evidence. E-wallet mengembalikan BLOCKED sampai aksi pelanggan selesai, lalu di-resume memakai payment_id yang sama.",
+        note: "Endpoint ini dipertahankan sementara untuk CI dan diagnostik kompatibilitas. Merchant tidak menjalankannya saat Install → Configure → Verify → Activate, dan Emisell Backend tidak perlu mengintegrasikannya.",
       },
     ],
   },
@@ -702,16 +703,15 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
         response: `{ "data": [${assignmentBase}] }`,
       },
       {
-        method: "PUT", path: "/api/v1/payment-method-assignments", title: "Assign gateway", description: "Mengikat payment method ke installation ACTIVE pada environment yang sama. Version 0 membuat assignment baru; update wajib memakai version terakhir.",
+        method: "PUT", path: "/api/v1/payment-method-assignments", title: "Assign gateway", description: "Mengikat payment method ke installation ACTIVE pada environment yang sama. Label checkout otomatis memakai name dari master catalog. Version 0 membuat assignment baru; update wajib memakai version terakhir.",
         headers: ["X-Emisell-Execution-Mode: sandbox"],
         body: `{
   "installation_id": "ins_...",
   "payment_method_code": "qris",
-  "label": "QRIS",
   "version": 0
 }`,
         response: `{ "data": ${assignmentBase} }`,
-        note: "Mengganti assignment hanya memengaruhi payment berikutnya. Payment existing tetap menyimpan installation dan provider binding awal.",
+        note: "Jangan kirim label. Response dan payment-options mengambil label canonical dari field name pada GET /payment-methods. Mengganti assignment hanya memengaruhi payment berikutnya.",
       },
       {
         method: "POST", path: "/api/v1/payment-method-assignments/{id}/deactivate", title: "Deactivate checkout method", description: "Menyembunyikan option dari checkout baru menggunakan optimistic version.",
@@ -1236,7 +1236,7 @@ const partnerGroups: Group[] = [
         method: "GET",
         path: "/partner/v1/capabilities",
         title: "List runtime capabilities",
-        description: "Mengembalikan manifest operation, schema credential, dan certification profile connector yang dimuat runtime tersebut.",
+        description: "Mengembalikan manifest operation, schema credential, dan automated verification profile connector yang dimuat runtime tersebut.",
         response: `{
   "data": {
     "contract_version": "v1",
@@ -1251,7 +1251,7 @@ const partnerGroups: Group[] = [
     ]
   }
 }`,
-        note: "Xendit dan Midtrans memakai base URL serta bearer token terpisah. Capability yang diumumkan tetap harus lulus Certification Emisell sebelum dapat dipetakan ke checkout.",
+        note: "Xendit dan Midtrans memakai base URL serta bearer token terpisah. Capability yang diumumkan harus termasuk dalam release yang telah diverifikasi backend sebelum dapat dipetakan ke checkout.",
       },
     ],
   },
@@ -1378,13 +1378,13 @@ const partnerGroups: Group[] = [
   {
     id: "partner-refunds",
     title: "Refund Operations",
-    summary: "Refund dipisahkan dari payment dan hanya dibuka untuk capability provider yang telah disertifikasi.",
+    summary: "Refund dipisahkan dari payment dan hanya dibuka untuk capability provider yang telah diverifikasi dan dipublikasikan.",
     endpoints: [
       {
         method: "POST",
         path: "/partner/v1/refunds/create",
         title: "Refund",
-        description: "Membuat refund return-to-source terhadap provider payment ID yang sama hanya bila operation connector sudah lulus certification dan dipublikasikan.",
+        description: "Membuat refund return-to-source terhadap provider payment ID yang sama hanya bila operation connector sudah lolos backend verification dan dipublikasikan.",
         body: `{
   "provider_code": "xendit",
   "environment": "sandbox",
@@ -1710,7 +1710,7 @@ HandleWebhook()`}</Code>
                 <p className="label">API SCOPE</p>
                 <h2>Endpoint yang sengaja tidak dibuat</h2>
                 <p>Kontrak backend dijaga kecil. Perbedaan provider, mode credential, runtime, dan webhook native diselesaikan di dalam Payment Proxy, bukan ditambahkan sebagai endpoint baru.</p>
-                <div className="callout">Mencari Provider Apps, certification, observability, atau webhook delivery? Buka <a href="/docs?contract=admin">Admin Control Plane</a>; endpoint tersebut bukan kontrak Emisell Backend.</div>
+                <div className="callout">Mencari Provider Apps, backend verification, observability, atau webhook delivery? Buka <a href="/docs?contract=admin">Admin Control Plane</a>; endpoint tersebut bukan kontrak Emisell Backend.</div>
                 <div className="docs-scope-grid">
                   {omittedEndpointDecisions.map(([title, reason]) => (
                     <article key={title}>
@@ -1727,7 +1727,7 @@ HandleWebhook()`}</Code>
                 <p>{contractID === "backend"
                   ? "Endpoint merchant hanya dipanggil Emisell Backend. Service key dan credential provider tidak boleh dikirim ke checkout atau browser."
                   : contractID === "admin"
-                    ? "Endpoint /api/v1/admin/* memakai admin key. Read model tenant untuk certification dan troubleshooting tetap memakai service key serta Merchant ID."
+                    ? "Endpoint /api/v1/admin/* memakai admin key. Operasi internal yang membaca tenant tertentu juga wajib membawa Merchant ID."
                     : "Partner API adalah southbound contract. Browser, checkout, dan Emisell Backend tidak memanggil connector vendor secara langsung."}</p>
                 <Code>{activeHeaders.join("\n")}</Code>
                 <div className="callout">{contractID === "backend"
@@ -1812,46 +1812,18 @@ HandleWebhook()`}</Code>
               ))}
 
               {contractID === "admin" && <section className="doc-section" id="conformance">
-                <p className="label">SANDBOX CONFORMANCE</p>
-                <h2>Provider end-to-end test</h2>
-                <p>Gunakan tab Certification pada detail Xendit atau Midtrans untuk menjalankan create, retrieve, simulator/customer action, provider webhook, dan delivery ke Emisell Backend melalui Connector Runner terisolasi.</p>
-                <h3>Run certification</h3>
-                <Code>{`POST /api/v1/connector-certifications/run
-{
-  "installation_id": "{{installation_id}}",
-  "payment_method_code": "qris"
-}`}</Code>
-                <h3>Configure Midtrans sandbox</h3>
-                <Code>{`PUT /api/v1/provider-installations/{{midtrans_installation_id}}/credentials
-{
-  "credentials": {
-    "server_key": "{{midtrans_server_key}}",
-    "pop_id": "{{optional_midtrans_pop_id}}"
-  },
-  "payment_methods": []
-}
+                <p className="label">BACKEND VERIFICATION</p>
+                <h2>Release verification, tanpa tahap manual merchant</h2>
+                <p>Saat operator memilih Run backend verification pada release VALIDATED, Payment Proxy mencocokkan artifact immutable dengan shared runtime versi yang sama, operation, credential schema, automated test profile, dan semua canonical method mapping. Hasilnya disimpan sebagai read-only verification report.</p>
+                <Code>{`POST /api/v1/admin/provider-apps/{{provider_app_id}}/transition
+X-Admin-API-Key: {{admin_api_key}}
 
-Response 200
 {
-  "data": {
-    "provider_code": "midtrans",
-    "provider_version": "emisell-midtrans-v1.1.0",
-    "status": "READY",
-    "credential_metadata": {
-      "configured_fields": [{ "code": "server_key", "configured": true }],
-      "webhook_ready": true
-    }
-  }
+  "expected_status": "VALIDATED",
+  "status": "CERTIFIED"
 }`}</Code>
-                <h3>Resume setelah sandbox customer authorization</h3>
-                <Code>{`POST /api/v1/connector-certifications/run
-{
-  "installation_id": "{{installation_id}}",
-  "payment_method_code": "qris",
-  "payment_id": "{{payment_id}}"
-}`}</Code>
-                <div className="callout warning">Gunakan development Secret API Key Xendit. Saat ini 15 dari 20 capability Xendit telah certified: QRIS, 8 VA, 5 e-wallet, dan card melalui hosted Payment Session. Card telah lulus jalur frictionless dan 3DS challenge. Danamon VA, Kredivo, Akulaku, Indodana, dan Jenius Pay tetap tertutup sampai channel provider tersedia. PAN/CVV hanya dimasukkan pada halaman Xendit dan tidak pernah dikirim ke Emisell.</div>
-                <div className="callout warning">Midtrans sudah tersedia sebagai connector kedua. BCA, BNI, dan Permata VA telah lulus create, retrieve, simulator, webhook terminal settlement, dan delivery ke Emisell Backend. QRIS/GoPay pada merchant sandbox ini masih memerlukan PoP/channel provisioning; BRI VA, CIMB VA, dan ShopeePay ditolak Midtrans sebagai channel yang belum aktif. Connector tetap fail-closed dan tidak membuat payment palsu. Metode tetap DOCUMENTED sampai payment yang sama menghasilkan webhook terminal dan delivery Emisell. Cancel dan refund tetap ditutup pada manifest sampai sandbox evidence terpisah tersedia.</div>
+                <div className="callout">Nilai CERTIFIED tetap dipakai pada kontrak storage lama, tetapi UI menyebutnya VERIFIED. Tidak ada tombol per-method certification, pemilihan sandbox/live, atau credential merchant pada release verification.</div>
+                <div className="callout warning">Endpoint /api/v1/admin/connector-certifications* masih tersedia hanya untuk CI/diagnostik sandbox lama pada test tenant. Endpoint tersebut bukan bagian dari lifecycle merchant dan bukan kewajiban integrasi Emisell Backend.</div>
               </section>}
 
               <section className="doc-section" id="errors">

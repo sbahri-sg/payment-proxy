@@ -47,25 +47,26 @@ type Provider struct {
 }
 
 type ProviderAppVersion struct {
-	ID             string          `json:"id"`
-	ProviderCode   string          `json:"provider_code"`
-	ProviderName   string          `json:"provider_name"`
-	Version        string          `json:"version"`
-	Status         string          `json:"status"`
-	Runtime        string          `json:"runtime"`
-	SDKVersion     string          `json:"sdk_version"`
-	FileName       string          `json:"file_name"`
-	ContentType    string          `json:"content_type"`
-	ArtifactSize   int64           `json:"artifact_size"`
-	ArtifactSHA256 string          `json:"artifact_sha256"`
-	Manifest       json.RawMessage `json:"manifest"`
-	ScanReport     json.RawMessage `json:"scan_report"`
-	ReviewNote     string          `json:"review_note,omitempty"`
-	SubmittedBy    string          `json:"submitted_by"`
-	ReviewedBy     string          `json:"reviewed_by,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	PublishedAt    *time.Time      `json:"published_at,omitempty"`
+	ID                 string          `json:"id"`
+	ProviderCode       string          `json:"provider_code"`
+	ProviderName       string          `json:"provider_name"`
+	Version            string          `json:"version"`
+	Status             string          `json:"status"`
+	Runtime            string          `json:"runtime"`
+	SDKVersion         string          `json:"sdk_version"`
+	FileName           string          `json:"file_name"`
+	ContentType        string          `json:"content_type"`
+	ArtifactSize       int64           `json:"artifact_size"`
+	ArtifactSHA256     string          `json:"artifact_sha256"`
+	Manifest           json.RawMessage `json:"manifest"`
+	ScanReport         json.RawMessage `json:"scan_report"`
+	VerificationReport json.RawMessage `json:"verification_report"`
+	ReviewNote         string          `json:"review_note,omitempty"`
+	SubmittedBy        string          `json:"submitted_by"`
+	ReviewedBy         string          `json:"reviewed_by,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	PublishedAt        *time.Time      `json:"published_at,omitempty"`
 }
 
 type ProviderAppProvider struct {

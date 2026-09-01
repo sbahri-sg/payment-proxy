@@ -175,15 +175,26 @@ func TestMidtransProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
 }
 
 func TestXenditSubmissionMatchesRuntimeRelease(t *testing.T) {
-	paths := []string{"emisell-extension.yaml", "openapi.yaml", "README.md", "SECURITY.md", "contract-tests/README.md"}
+	files := []struct {
+		archivePath string
+		sourcePath  string
+	}{
+		{archivePath: "emisell-extension.yaml", sourcePath: "../../../provider-apps/xendit/emisell-extension.yaml"},
+		{archivePath: "openapi.yaml", sourcePath: "../../../provider-apps/xendit/openapi.yaml"},
+		{archivePath: "README.md", sourcePath: "../../../provider-apps/xendit/README.md"},
+		{archivePath: "SECURITY.md", sourcePath: "../../../provider-apps/xendit/SECURITY.md"},
+		{archivePath: "contract-tests/README.md", sourcePath: "../../../provider-apps/xendit/contract-tests/README.md"},
+		{archivePath: "src/xendit/client.go", sourcePath: "../xendit/client.go"},
+		{archivePath: "src/xendit/manifest.go", sourcePath: "../xendit/manifest.go"},
+	}
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
-	for _, name := range paths {
-		content, err := os.ReadFile("../../../provider-apps/xendit/" + name)
+	for _, item := range files {
+		content, err := os.ReadFile(item.sourcePath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		file, err := writer.Create(name)
+		file, err := writer.Create(item.archivePath)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -203,7 +214,7 @@ func TestXenditSubmissionMatchesRuntimeRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtimeManifest := client.Manifest()
-	if result.Manifest.Code != runtimeManifest.Code || result.Manifest.Name != runtimeManifest.Name || result.Manifest.Version != runtimeManifest.Version || result.Manifest.Runtime != runtimeManifest.Runtime {
+	if !result.Report.Passed || result.Report.FileCount != len(files) || result.Manifest.Code != runtimeManifest.Code || result.Manifest.Name != runtimeManifest.Name || result.Manifest.Version != runtimeManifest.Version || result.Manifest.Runtime != runtimeManifest.Runtime {
 		t.Fatalf("Xendit submission diverged from runtime release: submission=%#v runtime=%#v", result.Manifest, runtimeManifest)
 	}
 }

@@ -23,12 +23,12 @@ export default async function ProvidersPage() {
         <AppTopbar healthy={healthy} searchPlaceholder="Search providers and capabilities..."/>
         <main className="dashboard-content management-content">
           <section className="dashboard-heading">
-            <div><p className="breadcrumb">Control plane / Providers</p><h1>Providers</h1><p>Kelola catalog, shared runtime, payment capability, certification, dan release provider yang tersedia untuk merchant.</p></div>
+            <div><p className="breadcrumb">Control plane / Providers</p><h1>Providers</h1><p>Kelola catalog, shared runtime, payment capability, verifikasi backend, dan release provider yang tersedia untuk merchant.</p></div>
           </section>
           {dataError && <div className="dashboard-alert error"><strong>Provider registry belum dapat dimuat.</strong><span>Periksa koneksi server dashboard ke Payment Proxy.</span></div>}
           <section className="management-metrics">
             <article><span>PROVIDERS</span><strong>{providers.length}</strong><small>payment connectors</small></article>
-            <article><span>AVAILABLE</span><strong>{providers.filter((provider) => provider.available).length}</strong><small>certified for use</small></article>
+            <article><span>AVAILABLE</span><strong>{providers.filter((provider) => provider.available).length}</strong><small>verified for use</small></article>
             <article><span>PAYMENT METHODS</span><strong>{paymentMethods.size}</strong><small>canonical capabilities</small></article>
             <article><span>SETUP FIELDS</span><strong>{providers.reduce((total, provider) => total + provider.credential_schema.length, 0)}</strong><small>merchant credential schema</small></article>
           </section>
@@ -39,7 +39,7 @@ export default async function ProvidersPage() {
                 <p>{provider.description}</p>
                 <div className="catalog-section"><span>PAYMENT METHODS · {provider.payment_methods.length}</span><div>{provider.payment_methods.slice(0, 6).map((method) => <b key={method}>{method.replaceAll("_", " ").toUpperCase()}</b>)}{provider.payment_methods.length > 6 && <b>+{provider.payment_methods.length - 6} MORE</b>}</div></div>
                 <div className="catalog-details"><span><small>Connector</small><strong>{provider.connector_code || provider.code}</strong></span><span><small>Merchant setup schema</small><strong>{provider.credential_schema.length} fields</strong></span><span><small>Catalog status</small><strong>{provider.available ? "Installable" : "Not published"}</strong></span></div>
-                <div className="catalog-certification"><Icon name={provider.available ? "check" : "activity"} size={15}/><span><strong>{provider.available ? "Certified scope" : "Certification pending"}</strong><small>{provider.available ? "Conformance evidence and release gates are available in provider detail" : "Unavailable until connector conformance passes"}</small></span>{provider.available && <Link href={`/providers/${provider.code}?tab=certification`}>Evidence →</Link>}</div>
+                <div className="catalog-certification"><Icon name={provider.available ? "check" : "activity"} size={15}/><span><strong>{provider.available ? "Verified capabilities" : "Verification pending"}</strong><small>{provider.available ? "Backend verification evidence is available in provider detail" : "Unavailable until the provider release passes backend verification"}</small></span>{provider.available && <Link href={`/providers/${provider.code}?tab=methods`}>Capabilities →</Link>}</div>
                 <Link className="catalog-action" href={`/providers/${encodeURIComponent(provider.code)}`}>{provider.available ? "Manage provider" : "View provider roadmap"}<Icon name="arrow" size={15}/></Link>
               </article>;
             })}

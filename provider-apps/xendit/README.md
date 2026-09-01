@@ -11,12 +11,15 @@ real Xendit sandbox conformance and verified `refund.succeeded`/
 `refund.failed` webhook evidence. The connector does not claim an undocumented
 provider-side refund lookup operation.
 
-The ZIP built from this directory is not a runtime bundle. It contains no
-native executable and is never started by the Payment Kernel. The Xendit
-connector is built as a separate OCI image, scanned, deployed once per provider
-version, and reached through the Runtime Dispatcher. Merchant installations
-only select a released provider version and supply encrypted credentials.
+The ZIP built from this directory is not a runtime bundle. It contains the
+reviewable Go implementation snapshot under `src/xendit`, but no native
+executable and is never started by the Payment Kernel. The same Xendit source is
+built separately as an OCI image, scanned, deployed once per provider version,
+and reached through the Runtime Dispatcher. Merchant installations only select
+a released provider version and supply encrypted credentials.
 
-Lifecycle: upload and validate the submission, certify it, deploy the matching
-runtime version, then publish the release. Publishing a new version does not
-silently upgrade existing merchant installations.
+Lifecycle: upload the submission, validate its static contract, run backend
+verification against the exact shared runtime version and digest, then publish
+the release. The internal storage status `CERTIFIED` is displayed as `VERIFIED`
+in the dashboard. Publishing a new version does not silently upgrade existing
+merchant installations.

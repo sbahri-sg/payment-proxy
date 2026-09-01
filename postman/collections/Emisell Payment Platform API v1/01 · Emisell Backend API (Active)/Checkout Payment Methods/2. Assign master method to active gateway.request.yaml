@@ -1,5 +1,5 @@
 $kind: http-request
-description: Membuat atau memindahkan QRIS ke satu gateway aktif pada environment merchant. Kirim version terakhir untuk optimistic concurrency.
+description: Membuat atau memindahkan payment method ke satu gateway aktif pada environment merchant. Label checkout otomatis memakai name dari master catalog. Kirim version terakhir untuk optimistic concurrency.
 url: "{{base_url}}/api/v1/payment-method-assignments"
 method: PUT
 headers:
@@ -12,7 +12,6 @@ body:
     {
       "installation_id": "{{installation_id}}",
       "payment_method_code": "{{payment_method_code}}",
-      "label": "QRIS",
       "version": {{payment_option_version}}
     }
 scripts:

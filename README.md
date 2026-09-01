@@ -238,9 +238,8 @@ Docker lokal memakai `emisell-receiver` sebagai contract-test receiver. Status `
 2. Masukkan API key dan webhook verification token.
 3. Engine memverifikasi key langsung ke provider dan menyimpan ciphertext.
 4. Aktifkan installation.
-5. Jalankan Certification untuk metode Xendit yang dipilih. Flow redirect/mobile diselesaikan di halaman sandbox provider lalu diverifikasi dengan payment yang sama.
-6. Assign master payment method ke installation aktif.
-7. Checkout meminta `payment-options`, lalu membuat payment dengan `payment_option_id`.
+5. Assign master payment method yang sudah diverifikasi backend ke installation aktif.
+6. Checkout meminta `payment-options`, lalu membuat payment dengan `payment_option_id`.
 
 Semua amount API menggunakan minor unit integer. Untuk IDR, `1000000` berarti Rp10.000.
 

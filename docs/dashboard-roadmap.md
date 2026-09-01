@@ -8,7 +8,7 @@ Dashboard mengikuti domain Emisell Payment Engine. Halaman tidak boleh memanggil
 |---|---|---|---|
 | Workspace | Overview | Available | KPI 24 jam, grafik volume 7 hari, status distribution, provider health, recent payments, operational backlog |
 | Workspace | Payments | Available | List/filter, detail payment, QRIS next action, durable timeline, sync dan cancel terkontrol |
-| Connections | Providers | Available | Registry, capability, certified version, health dan install entry point |
+| Connections | Providers | Available | Registry, verified capability, release, health dan install entry point |
 | Connections | Installations | Available | Sandbox/live lifecycle, configure, verify, activate, deactivate, uninstall |
 | Operations | Reconciliation | Available | Queue exception tenant-scoped, lookup langsung ke provider, optimistic counter, idempotency dan audited resolution |
 | Operations | Webhooks | Available | Provider inbox dan Emisell Backend outbox dipisahkan; destination aktif, contract version, legacy payload, delivery attempts, deduplication dan replay DEAD ditampilkan |
@@ -26,7 +26,7 @@ Overview membaca data nyata melalui `GET /api/v1/admin/dashboard/overview`. Endp
 
 ## Delivery phases
 
-1. Foundation: Overview analytics, health, provider certification, API docs, operator session.
+1. Foundation: Overview analytics, health, backend provider verification, API docs, operator session.
 2. Operations: Providers, Installations, Payments, Webhooks, dan Reconciliation.
 3. Extensions: Midtrans, DOKU, Duitku, lalu penambahan capability per connector berdasarkan conformance.
 

@@ -10,3 +10,7 @@ and final refund status normalization.
 
 This directory is intentionally source-only. Runtime binaries and credentials
 must not be copied into the submission ZIP.
+
+During release verification, Payment Proxy compares this submission with the
+loaded shared runtime: provider/version identity, operations, credential schema,
+automated profiles, and every canonical payment-method mapping must match.

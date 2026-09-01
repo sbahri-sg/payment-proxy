@@ -37,7 +37,7 @@ func (s *Postgres) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 const providerAppSelect = `
 	SELECT id,provider_code,provider_name,version,status,runtime,sdk_version,
 	       file_name,content_type,artifact_size,artifact_sha256,manifest,scan_report,
-	       review_note,submitted_by,reviewed_by,created_at,updated_at,published_at
+	       verification_report,review_note,submitted_by,reviewed_by,created_at,updated_at,published_at
 	FROM provider_app_versions
 `
 
@@ -258,7 +258,8 @@ func (s *Postgres) GetProviderAppArtifact(ctx context.Context, id string) ([]byt
 }
 
 type ProviderAppTransitionInput struct {
-	ID, ExpectedStatus, Status, ReviewNote, RuntimeDigest, Actor, RequestID string
+	ID, ExpectedStatus, Status, ReviewNote, RuntimeDigest, VerificationReport, Actor, RequestID string
+	VerifiedCapabilities                                                                        []string
 }
 
 func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTransitionInput) (model.ProviderAppVersion, error) {
@@ -289,7 +290,7 @@ func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTran
 		}
 		if _, err = tx.Exec(ctx, `
 			INSERT INTO providers(code,name,description,available,engine_connector,credential_schema,environments,payment_methods)
-			SELECT provider_code,provider_name,'Connector published from a certified Emisell Provider App.',true,provider_code,
+			SELECT provider_code,provider_name,'Connector published from a backend-verified Emisell Provider App.',true,provider_code,
 			       manifest->'credential_fields',manifest->'environments',manifest->'payment_methods'
 			FROM provider_app_versions WHERE id=$1
 			ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,
@@ -313,12 +314,22 @@ func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTran
 		`, in.ID, in.RuntimeDigest); err != nil {
 			return model.ProviderAppVersion{}, err
 		}
+		if len(in.VerifiedCapabilities) > 0 {
+			if _, err = tx.Exec(ctx, `
+				UPDATE provider_payment_method_capabilities
+				SET support_status='CERTIFIED',updated_at=now()
+				WHERE provider_code=$1 AND payment_method_code=ANY($2) AND support_status<>'DISABLED'
+			`, providerCode, in.VerifiedCapabilities); err != nil {
+				return model.ProviderAppVersion{}, err
+			}
+		}
 	}
 	_, err = tx.Exec(ctx, `
 		UPDATE provider_app_versions SET status=$2,review_note=$3,reviewed_by=$4,
+		verification_report=CASE WHEN $2='CERTIFIED' THEN $5::jsonb ELSE verification_report END,
 		updated_at=now(),published_at=CASE WHEN $2='PUBLISHED' THEN now() ELSE published_at END
 		WHERE id=$1
-	`, in.ID, in.Status, in.ReviewNote, in.Actor)
+	`, in.ID, in.Status, in.ReviewNote, in.Actor, in.VerificationReport)
 	if err != nil {
 		return model.ProviderAppVersion{}, err
 	}
@@ -329,9 +340,14 @@ func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTran
 	`, providerCode, in.Status, in.Actor); err != nil {
 		return model.ProviderAppVersion{}, err
 	}
-	if err = audit(ctx, tx, "", in.Actor, "provider_app.transition", "provider_app_version", in.ID, in.RequestID, map[string]any{
+	auditMetadata := map[string]any{
 		"provider_code": providerCode, "previous_status": previousStatus, "status": in.Status, "review_note": in.ReviewNote, "runtime_digest": in.RuntimeDigest,
-	}); err != nil {
+		"verified_capabilities": in.VerifiedCapabilities,
+	}
+	if in.Status == "CERTIFIED" {
+		auditMetadata["verification_report"] = json.RawMessage(in.VerificationReport)
+	}
+	if err = audit(ctx, tx, "", in.Actor, "provider_app.transition", "provider_app_version", in.ID, in.RequestID, auditMetadata); err != nil {
 		return model.ProviderAppVersion{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -365,7 +381,7 @@ func scanProviderApp(row providerAppScanner) (model.ProviderAppVersion, error) {
 	var item model.ProviderAppVersion
 	err := row.Scan(&item.ID, &item.ProviderCode, &item.ProviderName, &item.Version, &item.Status,
 		&item.Runtime, &item.SDKVersion, &item.FileName, &item.ContentType, &item.ArtifactSize,
-		&item.ArtifactSHA256, &item.Manifest, &item.ScanReport, &item.ReviewNote,
+		&item.ArtifactSHA256, &item.Manifest, &item.ScanReport, &item.VerificationReport, &item.ReviewNote,
 		&item.SubmittedBy, &item.ReviewedBy, &item.CreatedAt, &item.UpdatedAt, &item.PublishedAt)
 	return item, err
 }
@@ -1114,8 +1130,8 @@ func (s *Postgres) MarkUninstalled(ctx context.Context, tenantID, id, actor, req
 }
 
 type UpsertPaymentMethodAssignmentInput struct {
-	ID, TenantID, Environment, PaymentMethodCode, PaymentMethod, PaymentMethodType, InstallationID, Label, Actor, RequestID string
-	ExpectedVersion                                                                                                         int64
+	ID, TenantID, Environment, PaymentMethodCode, PaymentMethod, PaymentMethodType, InstallationID, Actor, RequestID string
+	ExpectedVersion                                                                                                  int64
 }
 
 func (s *Postgres) ListPaymentMethodAssignments(ctx context.Context, tenantID, environment string) ([]model.PaymentMethodAssignment, error) {
@@ -1219,8 +1235,8 @@ func (s *Postgres) UpsertPaymentMethodAssignment(ctx context.Context, in UpsertP
 		_, err = tx.Exec(ctx, `
 			INSERT INTO payment_method_assignments
 			(id,tenant_id,environment,payment_method_code,payment_method,payment_method_type,installation_id,label,status,created_by,updated_by)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE',$9,$9)
-		`, id, in.TenantID, in.Environment, in.PaymentMethodCode, in.PaymentMethod, in.PaymentMethodType, in.InstallationID, in.Label, in.Actor)
+			VALUES($1,$2,$3,$4,$5,$6,$7,(SELECT name FROM payment_methods WHERE code=$4),'ACTIVE',$8,$8)
+		`, id, in.TenantID, in.Environment, in.PaymentMethodCode, in.PaymentMethod, in.PaymentMethodType, in.InstallationID, in.Actor)
 		created = true
 	} else if err != nil {
 		return model.PaymentMethodAssignment{}, false, err
@@ -1229,9 +1245,10 @@ func (s *Postgres) UpsertPaymentMethodAssignment(ctx context.Context, in UpsertP
 			return model.PaymentMethodAssignment{}, false, ErrVersionConflict
 		}
 		_, err = tx.Exec(ctx, `
-			UPDATE payment_method_assignments SET installation_id=$3,payment_method=$4,payment_method_type=$5,label=$6,status='ACTIVE',updated_by=$7,
+			UPDATE payment_method_assignments SET installation_id=$3,payment_method=$4,payment_method_type=$5,
+				label=(SELECT name FROM payment_methods WHERE code=payment_method_assignments.payment_method_code),status='ACTIVE',updated_by=$6,
 				updated_at=now(),version=version+1 WHERE tenant_id=$1 AND id=$2
-		`, in.TenantID, id, in.InstallationID, in.PaymentMethod, in.PaymentMethodType, in.Label, in.Actor)
+		`, in.TenantID, id, in.InstallationID, in.PaymentMethod, in.PaymentMethodType, in.Actor)
 		action = "payment_method.reassign"
 	}
 	if err != nil {

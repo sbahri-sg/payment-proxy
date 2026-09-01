@@ -16,7 +16,7 @@ Emisell Backend hanya mengintegrasikan kontrak canonical berikut:
 | Refund | `POST /api/v1/refunds`, `GET /api/v1/refunds/{id}` |
 | Status event | satu receiver canonical milik Emisell Backend |
 
-Endpoint observability, Provider App release, service API key, certification,
+Endpoint observability, Provider App release/verification, service API key, sandbox diagnostics,
 payment timeline, webhook inbox/delivery, reconciliation, health, dan Partner
 API bukan kewajiban integrasi Emisell Backend. Semuanya merupakan control
 plane, operasi internal, infrastructure probe, atau southbound connector
@@ -59,7 +59,11 @@ pembagian audience yang sama.
 Connector baru dimulai dengan membuat identitas provider melalui
 `POST /api/v1/admin/provider-app-providers`. Setelah itu versi ZIP dikirim ke
 `POST /api/v1/admin/provider-app-providers/{providerCode}/versions`, kemudian
-melewati lifecycle `UPLOADED → VALIDATED → CERTIFIED → PUBLISHED`.
+melewati lifecycle storage `UPLOADED → VALIDATED → CERTIFIED → PUBLISHED`.
+Status `CERTIFIED` dihasilkan verifikasi backend otomatis dan ditampilkan
+sebagai `VERIFIED` di dashboard. Pemeriksaan mencocokkan bundle dengan shared
+runtime exact version, digest, operations, credential schema, automated test
+profile, dan canonical method mapping; tidak memakai credential merchant.
 Request menggunakan `multipart/form-data` dengan field file `bundle` dan header
 `X-Admin-API-Key`. Publish ditolak dengan `CONNECTOR_RUNTIME_NOT_READY` sampai
 isolated runtime memuat provider code dan exact manifest version yang sama.
@@ -521,15 +525,17 @@ configure/verify pada versi baru hingga `READY`, baru kemudian boleh activate.
 
 Installation aktif harus dideaktivasi dahulu. Uninstall menghapus credential ciphertext dan mempertahankan transaksi serta audit.
 
-## Admin/operator: Connector certification
+## Internal CI/operator: Sandbox diagnostics
 
-### `GET /connector-certifications?provider=xendit&limit=25`
+### `GET /admin/connector-certifications?provider=xendit&limit=25`
 
-Mengembalikan bukti certification run per merchant.
+Mengembalikan bukti diagnostic run pada tenant pengujian. Endpoint ini bukan
+kontrak Emisell Backend dan tidak menjadi tahap installation merchant.
 
-### `POST /connector-certifications/run`
+### `POST /admin/connector-certifications/run`
 
-Wajib `X-Emisell-Execution-Mode: sandbox`.
+Wajib admin authentication, `X-Emisell-Merchant-ID`, dan
+`X-Emisell-Execution-Mode: sandbox`.
 
 ```json
 {
@@ -559,7 +565,11 @@ Wajib `X-Emisell-Execution-Mode: sandbox`.
 }
 ```
 
-Run `PASSED` otomatis mempromosikan capability `DOCUMENTED` menjadi `CERTIFIED` dan menulis audit evidence. Kelulusan wajib memiliki webhook provider terminal `SUCCEEDED` serta delivery outbox Emisell dengan status canonical yang sama; webhook `PENDING` tidak cukup walaupun GET Status provider sudah menunjukkan sukses. QRIS serta delapan Virtual Account memakai simulator provider. Lima e-wallet dan card memakai flow dua tahap: run pertama membuat payment dan mengembalikan `BLOCKED` dengan `payment_id`; selesaikan redirect/mobile authorization provider, lalu kirim ulang endpoint yang sama dengan payment tersebut:
+Fasilitas legacy ini dipertahankan untuk CI/diagnostik sandbox dan audit evidence.
+Kelulusan membutuhkan webhook provider terminal `SUCCEEDED` serta delivery
+outbox Emisell dengan status canonical yang sama. QRIS dan Virtual Account dapat
+memakai simulator provider; flow redirect/mobile dilanjutkan memakai
+`payment_id` yang sama:
 
 ```json
 {
@@ -589,7 +599,6 @@ Installation harus `ACTIVE` pada environment yang sama.
 {
   "installation_id": "ins_01k3...",
   "payment_method_code": "qris",
-  "label": "QRIS",
   "version": 0
 }
 ```
@@ -609,7 +618,9 @@ Installation harus `ACTIVE` pada environment yang sama.
 }
 ```
 
-`version=0` membuat assignment. Update wajib memakai version terakhir.
+`label` tidak dikirim. Payment Proxy selalu memakai `name` dari master catalog
+sebagai label checkout. `version=0` membuat assignment; update wajib memakai
+version terakhir.
 
 ### `POST /payment-method-assignments/{id}/deactivate`
 

@@ -1,2 +1,3 @@
 $kind: collection
+description: Legacy sandbox diagnostics untuk CI/operator internal. Bukan tahap merchant installation atau release verification utama.
 order: 6000

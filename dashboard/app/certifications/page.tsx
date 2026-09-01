@@ -10,6 +10,5 @@ export default async function CertificationsRedirect({
   const query = await searchParams;
   const requestedProvider = query.provider?.toLowerCase().trim() ?? "xendit";
   const provider = /^[a-z0-9_-]{2,48}$/.test(requestedProvider) ? requestedProvider : "xendit";
-  const environment = query.environment === "live" ? "live" : "sandbox";
-  redirect(`/providers/${encodeURIComponent(provider)}?tab=certification&environment=${environment}`);
+  redirect(`/providers/${encodeURIComponent(provider)}?tab=methods`);
 }

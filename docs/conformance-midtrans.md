@@ -49,7 +49,7 @@ Referensi resmi: [Core API bank transfer](https://docs.midtrans.com/docs/coreapi
 [QRIS Charge API](https://docs.midtrans.com/reference/qris), dan
 [notification signature](https://docs.midtrans.com/reference/receiving-notifications).
 
-## Release gate sandbox
+## Historical sandbox evidence
 
 1. Buat installation Midtrans environment `sandbox` memakai Merchant ID Emisell.
 2. Isi Server Key sandbox. Plaintext hanya melewati request, lalu disimpan
@@ -58,10 +58,10 @@ Referensi resmi: [Core API bank transfer](https://docs.midtrans.com/docs/coreapi
    mengirim `X-Override-Notification` per transaksi ke endpoint installation di
    atas, sehingga testing tidak bergantung pada satu URL global dashboard.
 4. Activate installation.
-5. Dari tab **Certification** pada detail provider Midtrans, jalankan satu metode.
+5. Jalankan diagnostic endpoint internal dari CI/operator pada tenant sandbox.
 6. Buka payment detail dan selesaikan QR, VA, atau redirect pada simulator
    Midtrans. Run awal tetap `BLOCKED`; jangan membuat payment pengganti.
-7. Resume certification dengan `payment_id` yang sama.
+7. Resume diagnostic dengan `payment_id` yang sama.
 8. Capability baru menjadi `CERTIFIED` hanya jika status provider sukses,
    signature webhook valid, inbox terproses, dan signed outbox ke Emisell Backend
    berstatus delivered.

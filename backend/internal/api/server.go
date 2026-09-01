@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -121,8 +122,6 @@ func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *sec
 			r.Put("/payment-method-assignments", s.upsertPaymentMethodAssignment)
 			r.Post("/payment-method-assignments/{id}/deactivate", s.deactivatePaymentMethodAssignment)
 			r.Get("/payment-options", s.listPaymentOptions)
-			r.Get("/connector-certifications", s.listConnectorCertifications)
-			r.Post("/connector-certifications/run", s.runConnectorCertification)
 			r.Get("/payment-sessions", s.listPayments)
 			r.Post("/payment-sessions", s.createPayment)
 			r.Get("/payment-sessions/{id}", s.getPayment)
@@ -155,6 +154,8 @@ func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Get("/provider-app-providers/{providerCode}", s.getProviderAppProvider)
 	r.Get("/provider-app-providers/{providerCode}/versions", s.listProviderAppVersions)
 	r.Post("/provider-app-providers/{providerCode}/versions", s.uploadProviderAppVersion)
+	r.Get("/connector-certifications", s.listConnectorCertifications)
+	r.Post("/connector-certifications/run", s.runConnectorCertification)
 	r.Get("/emisell-webhook", s.getEmisellWebhookSettings)
 	r.Put("/emisell-webhook", s.updateEmisellWebhookSettings)
 	r.Post("/emisell-webhook/secret", s.generateEmisellWebhookSecret)
@@ -576,9 +577,9 @@ func (s *Server) uploadProviderAppForProvider(w http.ResponseWriter, r *http.Req
 }
 
 type providerAppTransitionRequest struct {
-	ExpectedStatus string `json:"expected_status"`
-	Status         string `json:"status"`
-	ReviewNote     string `json:"review_note"`
+	ExpectedStatus   string `json:"expected_status"`
+	Status           string `json:"status"`
+	LegacyReviewNote string `json:"review_note,omitempty"` // accepted for older admin clients; ignored
 }
 
 func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
@@ -588,11 +589,6 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 	}
 	request.ExpectedStatus = strings.ToUpper(strings.TrimSpace(request.ExpectedStatus))
 	request.Status = strings.ToUpper(strings.TrimSpace(request.Status))
-	request.ReviewNote = strings.Join(strings.Fields(request.ReviewNote), " ")
-	if len(request.ReviewNote) > 2000 {
-		problem(w, http.StatusUnprocessableEntity, "INVALID_REVIEW_NOTE", "review_note must contain at most 2000 characters")
-		return
-	}
 	item, err := s.store.GetProviderApp(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
 		s.storeError(w, r, err)
@@ -603,6 +599,9 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	runtimeDigest := ""
+	verificationReport := "{}"
+	verifiedCapabilities := []string(nil)
+	reviewNote := ""
 	switch request.Status {
 	case "VALIDATED":
 		artifact, artifactErr := s.store.GetProviderAppArtifact(r.Context(), item.ID)
@@ -617,23 +616,39 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "CERTIFIED":
-		if len(request.ReviewNote) < 8 {
-			problem(w, http.StatusUnprocessableEntity, "CERTIFICATION_NOTE_REQUIRED", "certification requires a review note of at least 8 characters")
+		report, verificationErr := s.verifyProviderAppRelease(r.Context(), item)
+		if verificationErr != nil {
+			problem(w, http.StatusConflict, "PROVIDER_APP_VERIFICATION_FAILED", verificationErr.Error())
 			return
 		}
+		report.VerifiedAt = time.Now().UTC().Format(time.RFC3339)
+		payload, marshalErr := json.Marshal(report)
+		if marshalErr != nil {
+			s.internal(w, r, marshalErr)
+			return
+		}
+		verificationReport = string(payload)
+		reviewNote = fmt.Sprintf("Automated backend verification passed for %d capabilities on runtime %s.", len(report.VerifiedCapabilities), report.RuntimeVersion)
 	case "PUBLISHED":
-		if len(request.ReviewNote) < 8 {
-			problem(w, http.StatusUnprocessableEntity, "PUBLISH_NOTE_REQUIRED", "publish requires a deployment review note")
-			return
-		}
 		runtimeManifest, manifestErr := s.engine.ManifestVersion(item.ProviderCode, item.Version)
 		if manifestErr != nil {
 			problem(w, http.StatusConflict, "CONNECTOR_RUNTIME_NOT_READY", "deploy the isolated connector runtime with this exact manifest version before publish")
 			return
 		}
+		var storedVerification providerapps.ReleaseVerificationReport
+		if err := json.Unmarshal(item.VerificationReport, &storedVerification); err != nil || !storedVerification.Passed {
+			problem(w, http.StatusConflict, "PROVIDER_APP_NOT_VERIFIED", "run backend release verification before publish")
+			return
+		}
+		if storedVerification.Source == "automated_backend_verification" &&
+			(storedVerification.RuntimeVersion != runtimeManifest.Version || storedVerification.RuntimeDigest != runtimeManifest.ExecutableSHA256) {
+			problem(w, http.StatusConflict, "PROVIDER_APP_VERIFICATION_STALE", "shared runtime identity changed after verification; restore the verified digest or submit a new version")
+			return
+		}
+		verifiedCapabilities = append(verifiedCapabilities, storedVerification.VerifiedCapabilities...)
 		var scanReport providerapps.ScanReport
 		if err := json.Unmarshal(item.ScanReport, &scanReport); err != nil || runtimeManifest.ExecutableSHA256 == "" {
-			problem(w, http.StatusConflict, "CONNECTOR_ARTIFACT_MISMATCH", "the deployed connector executable does not match the certified Provider App artifact")
+			problem(w, http.StatusConflict, "CONNECTOR_ARTIFACT_MISMATCH", "the deployed connector executable does not match the verified Provider App artifact")
 			return
 		}
 		switch scanReport.PackageFormat {
@@ -642,7 +657,7 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 			// runtime identity is pinned in provider_versions at publish time.
 		case "", providerapps.PackageFormatLegacyBundle:
 			if scanReport.EntrypointSHA256 == "" || !hmac.Equal([]byte(scanReport.EntrypointSHA256), []byte(runtimeManifest.ExecutableSHA256)) {
-				problem(w, http.StatusConflict, "CONNECTOR_ARTIFACT_MISMATCH", "the deployed connector executable does not match the certified legacy Provider App artifact")
+				problem(w, http.StatusConflict, "CONNECTOR_ARTIFACT_MISMATCH", "the deployed connector executable does not match the verified legacy Provider App artifact")
 				return
 			}
 		default:
@@ -650,6 +665,7 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		runtimeDigest = runtimeManifest.ExecutableSHA256
+		reviewNote = fmt.Sprintf("Automated publish of verified runtime %s with immutable digest %s.", runtimeManifest.Version, runtimeDigest)
 	case "DEPRECATED", "DISABLED":
 	default:
 		problem(w, http.StatusUnprocessableEntity, "INVALID_PROVIDER_APP_STATUS", "unsupported provider app transition")
@@ -657,13 +673,54 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := s.store.TransitionProviderApp(r.Context(), store.ProviderAppTransitionInput{
 		ID: item.ID, ExpectedStatus: request.ExpectedStatus, Status: request.Status,
-		ReviewNote: request.ReviewNote, RuntimeDigest: runtimeDigest, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+		ReviewNote: reviewNote, RuntimeDigest: runtimeDigest, VerificationReport: verificationReport,
+		VerifiedCapabilities: verifiedCapabilities, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
 	})
 	if err != nil {
 		s.storeError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusOK, updated)
+}
+
+func (s *Server) verifyProviderAppRelease(ctx context.Context, item model.ProviderAppVersion) (providerapps.ReleaseVerificationReport, error) {
+	artifact, err := s.store.GetProviderAppArtifact(ctx, item.ID)
+	if err != nil {
+		return providerapps.ReleaseVerificationReport{}, fmt.Errorf("stored provider release artifact is unavailable")
+	}
+	validation, err := providerapps.ValidateBundle(artifact)
+	clear(artifact)
+	if err != nil || validation.ArtifactSHA256 != item.ArtifactSHA256 || validation.Manifest.Code != item.ProviderCode || validation.Manifest.Version != item.Version {
+		return providerapps.ReleaseVerificationReport{}, fmt.Errorf("stored provider release no longer matches its validated bundle")
+	}
+	runtimeManifest, err := s.engine.ManifestVersion(item.ProviderCode, item.Version)
+	if err != nil {
+		return providerapps.ReleaseVerificationReport{}, fmt.Errorf("shared runtime %s@%s is not loaded", item.ProviderCode, item.Version)
+	}
+	report := providerapps.VerifyRuntimeContract(validation.Manifest, runtimeManifest)
+	for _, paymentMethodCode := range validation.Manifest.PaymentMethods {
+		capability, capabilityErr := s.store.GetProviderPaymentMethodCapability(ctx, item.ProviderCode, paymentMethodCode)
+		if capabilityErr != nil {
+			report.AddCheck("mapping:"+paymentMethodCode, false, "canonical catalog mapping is missing")
+			continue
+		}
+		mappingErr := s.engine.ValidatePaymentMethodVersion(item.ProviderCode, item.Version, connector.PaymentMethodMapping{
+			PaymentMethodCode:  capability.PaymentMethodCode,
+			ProviderMethod:     capability.ProviderMethod,
+			ProviderMethodType: capability.ProviderMethodType,
+		})
+		if mappingErr != nil {
+			report.AddCheck("mapping:"+paymentMethodCode, false, mappingErr.Error())
+			continue
+		}
+		report.AddCheck("mapping:"+paymentMethodCode, true, capability.ProviderMethod+"/"+capability.ProviderMethodType)
+		report.VerifiedCapabilities = append(report.VerifiedCapabilities, paymentMethodCode)
+	}
+	if !report.Passed {
+		return report, fmt.Errorf("backend verification found a release/runtime contract mismatch")
+	}
+	sort.Strings(report.VerifiedCapabilities)
+	return report, nil
 }
 
 func (s *Server) getEmisellWebhookSettings(w http.ResponseWriter, r *http.Request) {
@@ -909,8 +966,10 @@ type paymentMethodAssignmentRequest struct {
 	InstallationID    string `json:"installation_id"`
 	PaymentMethod     string `json:"payment_method"`
 	PaymentMethodType string `json:"payment_method_type"`
-	Label             string `json:"label"`
-	Version           int64  `json:"version"`
+	// LegacyLabel is accepted during the v1 compatibility window but ignored.
+	// Checkout labels always come from the canonical payment-method catalog.
+	LegacyLabel string `json:"label"`
+	Version     int64  `json:"version"`
 }
 
 func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Request) {
@@ -926,15 +985,11 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 	request.PaymentMethodCode = strings.ToLower(strings.TrimSpace(request.PaymentMethodCode))
 	request.PaymentMethod = strings.ToLower(strings.TrimSpace(request.PaymentMethod))
 	request.PaymentMethodType = strings.ToLower(strings.TrimSpace(request.PaymentMethodType))
-	request.Label = strings.TrimSpace(request.Label)
 	if request.PaymentMethodCode == "" && request.PaymentMethod == "real_time_payment" && request.PaymentMethodType == "qris" {
 		request.PaymentMethodCode = "qris"
 	}
-	if request.Label == "" {
-		request.Label = defaultPaymentOptionLabel(request.PaymentMethodCode)
-	}
-	if request.InstallationID == "" || !paymentMethodPattern.MatchString(request.PaymentMethodCode) || len(request.Label) > 96 || request.Version < 0 {
-		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "installation_id, payment_method_code, label, and non-negative version are required")
+	if request.InstallationID == "" || !paymentMethodPattern.MatchString(request.PaymentMethodCode) || request.Version < 0 {
+		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "installation_id, payment_method_code, and non-negative version are required")
 		return
 	}
 	installation, err := s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
@@ -976,7 +1031,7 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 	item, created, err := s.store.UpsertPaymentMethodAssignment(r.Context(), store.UpsertPaymentMethodAssignmentInput{
 		ID: id, TenantID: tenant(r), Environment: mode, PaymentMethodCode: request.PaymentMethodCode, PaymentMethod: request.PaymentMethod,
 		PaymentMethodType: request.PaymentMethodType, InstallationID: request.InstallationID,
-		Label: request.Label, ExpectedVersion: request.Version, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+		ExpectedVersion: request.Version, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
 	})
 	if err != nil {
 		s.storeError(w, r, err)
@@ -1013,6 +1068,9 @@ type connectorCertificationRequest struct {
 }
 
 func (s *Server) listConnectorCertifications(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenantContext(w, r); !ok {
+		return
+	}
 	environment := optionalMode(r)
 	providerCode := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("provider")))
 	if len(providerCode) > 64 || (providerCode != "" && !regexp.MustCompile(`^[a-z0-9_-]+$`).MatchString(providerCode)) {
@@ -1033,6 +1091,9 @@ func (s *Server) listConnectorCertifications(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenantContext(w, r); !ok {
+		return
+	}
 	mode, ok := requireMode(w, r)
 	if !ok {
 		return
@@ -2371,6 +2432,15 @@ func problem(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
 func tenant(r *http.Request) string { return strings.TrimSpace(r.Header.Get("X-Emisell-Merchant-ID")) }
+
+func requireTenantContext(w http.ResponseWriter, r *http.Request) (string, bool) {
+	value := tenant(r)
+	if !tenantPattern.MatchString(value) {
+		problem(w, http.StatusBadRequest, "INVALID_TENANT", "X-Emisell-Merchant-ID is required for the internal verification tenant")
+		return "", false
+	}
+	return value, true
+}
 func actor(r *http.Request) string {
 	if strings.HasPrefix(r.URL.Path, "/api/v1/admin/") {
 		return "payment-proxy-admin"
@@ -2394,14 +2464,6 @@ func requireMode(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 func validMode(value string) bool {
 	return value == model.EnvironmentLive || value == model.EnvironmentSandbox
-}
-
-func defaultPaymentOptionLabel(paymentMethodType string) string {
-	value := strings.TrimSpace(strings.ReplaceAll(paymentMethodType, "_", " "))
-	if value == "" {
-		return "PAYMENT METHOD"
-	}
-	return strings.ToUpper(value)
 }
 
 func validPaymentStatus(value string) bool {

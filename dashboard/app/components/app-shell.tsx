@@ -37,7 +37,7 @@ const navigation: { label: string; items: { name: string; icon: IconName; href?:
   ]},
   { label: "Payment setup", items: [
     { name: "Providers", icon: "provider", href: "/providers", page: "providers" },
-    { name: "Checkout methods", icon: "wallet", href: "/payment-methods", page: "payment-methods" },
+    { name: "Payment methods", icon: "wallet", href: "/payment-methods", page: "payment-methods" },
   ]},
   { label: "Operations", items: [
     { name: "Webhooks", icon: "webhook", href: "/webhooks", page: "webhooks" },

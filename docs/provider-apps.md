@@ -1,6 +1,6 @@
 # Provider Apps
 
-Provider Apps adalah control plane untuk mengirim, memvalidasi, mensertifikasi,
+Provider Apps adalah control plane untuk mengirim, memvalidasi, memverifikasi,
 dan menerbitkan versi connector baru. Konsep lifecycle mengikuti API Kurir:
 ZIP adalah paket submission untuk review, bukan runtime yang dieksekusi.
 
@@ -20,7 +20,7 @@ Provider Registry
 Version Registry ── immutable artifact + SHA-256 + audit
         │
         ├── static validation
-        ├── conformance/security approval
+        ├── automated backend runtime verification
         └── publish gate ── exact runtime manifest version + digest required
                                 │
                                 ▼
@@ -117,7 +117,9 @@ UPLOADED → VALIDATED → CERTIFIED → PUBLISHED → DEPRECATED
 
 - `UPLOADED`: ZIP aman untuk disimpan dan manifest dapat dibaca.
 - `VALIDATED`: artifact dibaca ulang dari database dan digest/contract cocok.
-- `CERTIFIED`: operator mencatat conformance dan security approval.
+- `CERTIFIED`: status storage kompatibel untuk release yang otomatis lolos
+  verifikasi backend. Dashboard menampilkannya sebagai `VERIFIED`; operator
+  tidak mengisi hasil uji per metode secara manual.
 - `PUBLISHED`: hanya dapat dicapai jika shared runtime memuat provider dan versi
   yang sama persis serta melaporkan digest executable immutable. Digest runtime
   disimpan di release registry, terpisah dari digest ZIP submission.
@@ -194,30 +196,36 @@ Validate:
 ```json
 {
   "expected_status": "UPLOADED",
-  "status": "VALIDATED",
-  "review_note": ""
+  "status": "VALIDATED"
 }
 ```
 
-Certify:
+Backend verify:
 
 ```json
 {
   "expected_status": "VALIDATED",
-  "status": "CERTIFIED",
-  "review_note": "Sandbox conformance and security review passed."
+  "status": "CERTIFIED"
 }
 ```
+
+Pada transisi ini backend membaca ulang ZIP dan mencocokkannya dengan shared
+runtime exact version: provider identity, immutable runtime digest, operations,
+credential schema, automated test profiles, dan canonical payment-method
+mapping. Hasilnya disimpan pada `verification_report` sebagai evidence
+read-only. Credential merchant tidak dipakai.
 
 Publish:
 
 ```json
 {
   "expected_status": "CERTIFIED",
-  "status": "PUBLISHED",
-  "review_note": "Isolated runtime emisell-midtrans-v1.1.0 deployed and health checked."
+  "status": "PUBLISHED"
 }
 ```
+
+SHA-256 tidak diketik operator. Backend membacanya dari shared runtime,
+mencocokkannya dengan verification report, lalu membuat audit note otomatis.
 
 Publish sebelum runtime siap menghasilkan:
 
@@ -238,7 +246,8 @@ Publish sebelum runtime siap menghasilkan:
 - SHA-256 immutable untuk archive submission dan digest terpisah untuk runtime.
 - Artifact immutable; list API tidak mengembalikan binary.
 - Unique provider/version dan storage quota 250 MB per provider.
-- Audit actor, request ID, digest, transition, dan review note.
+- Audit actor, request ID, digest, transition, automated verification report,
+  dan automated publish note.
 - Credential schema only; tidak ada credential value pada bundle.
 - Publish memerlukan exact runtime version dan digest executable runtime.
 - Legacy bundle tetap memerlukan SHA-256 runtime sama dengan entrypoint ZIP;

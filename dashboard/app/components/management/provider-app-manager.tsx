@@ -9,7 +9,7 @@ import {
   uploadProviderAppAction,
   type ProviderAppActionState,
 } from "../../actions/provider-apps";
-import type { Provider, ProviderAppProvider, ProviderAppVersion, RuntimeConnector } from "../../lib/payment-proxy";
+import type { Provider, ProviderAppProvider, ProviderAppVersion, ProviderReleaseVerificationReport, RuntimeConnector } from "../../lib/payment-proxy";
 
 const idle: ProviderAppActionState = { status: "idle", message: "" };
 
@@ -30,10 +30,14 @@ function formatTime(value: string) {
 }
 
 function nextAction(item: ProviderAppVersion) {
-  if (item.status === "UPLOADED") return { status: "VALIDATED" as const, label: "Validate bundle", note: false };
-  if (item.status === "VALIDATED") return { status: "CERTIFIED" as const, label: "Approve certification", note: true };
-  if (item.status === "CERTIFIED") return { status: "PUBLISHED" as const, label: "Publish release", note: true };
+  if (item.status === "UPLOADED") return { status: "VALIDATED" as const, label: "Validate bundle" };
+  if (item.status === "VALIDATED") return { status: "CERTIFIED" as const, label: "Run backend verification" };
+  if (item.status === "CERTIFIED") return { status: "PUBLISHED" as const, label: "Publish release" };
   return null;
+}
+
+function releaseStatusLabel(status: ProviderAppVersion["status"]) {
+  return status === "CERTIFIED" ? "VERIFIED" : status;
 }
 
 export function ProviderAppRegistry({ initialProviders, catalogProviders, runtimeConnectors }: { initialProviders: ProviderAppProvider[]; catalogProviders: Provider[]; runtimeConnectors: RuntimeConnector[] }) {
@@ -133,7 +137,7 @@ export function ProviderAppVersionManager({ provider, initialApps }: { provider:
     <section className="provider-app-summary">
       <article><span>VERSIONS</span><strong>{apps.length}</strong><small>immutable artifacts</small></article>
       <article><span>VALIDATED</span><strong>{apps.filter((item) => ["VALIDATED", "CERTIFIED", "PUBLISHED", "DEPRECATED"].includes(item.status)).length}</strong><small>contract checks passed</small></article>
-      <article><span>CERTIFIED</span><strong>{apps.filter((item) => ["CERTIFIED", "PUBLISHED", "DEPRECATED"].includes(item.status)).length}</strong><small>review approved</small></article>
+      <article><span>BACKEND VERIFIED</span><strong>{apps.filter((item) => ["CERTIFIED", "PUBLISHED", "DEPRECATED"].includes(item.status)).length}</strong><small>runtime contract passed</small></article>
       <article><span>PUBLISHED RELEASE</span><strong>{provider.active_version || "—"}</strong><small>release registry only</small></article>
     </section>
 
@@ -148,7 +152,7 @@ export function ProviderAppVersionManager({ provider, initialApps }: { provider:
       </form>
       <aside className="dashboard-panel provider-app-guidance">
         <p>SUBMISSION FLOW</p><h2>Release checklist</h2>
-        <ol><li><b>1</b><span><strong>Upload</strong><small>Submission dan manifest diterima immutable.</small></span></li><li><b>2</b><span><strong>Validate</strong><small>Schema, OpenAPI, secret, dan keamanan ZIP diperiksa.</small></span></li><li><b>3</b><span><strong>Certify</strong><small>Evidence conformance dan keamanan disetujui.</small></span></li><li><b>4</b><span><strong>Publish</strong><small>Runtime versi yang sama harus sudah dideploy.</small></span></li></ol>
+        <ol><li><b>1</b><span><strong>Upload</strong><small>Submission dan manifest diterima immutable.</small></span></li><li><b>2</b><span><strong>Validate</strong><small>Schema, OpenAPI, secret, dan keamanan ZIP diperiksa.</small></span></li><li><b>3</b><span><strong>Verify</strong><small>Backend mencocokkan bundle, runtime, credential schema, dan seluruh method mapping.</small></span></li><li><b>4</b><span><strong>Publish</strong><small>Hanya release yang sudah verified dapat diaktifkan.</small></span></li></ol>
       </aside>
     </section>
 
@@ -159,21 +163,23 @@ export function ProviderAppVersionManager({ provider, initialApps }: { provider:
       <div className="provider-app-version-list">
         {apps.map((item, index) => {
           const transition = nextAction(item);
+          const verification = (item.verification_report ?? {}) as Partial<ProviderReleaseVerificationReport>;
           return <details className="provider-app-version" key={item.id} open={item.status === "PUBLISHED" || index === 0}>
             <summary>
               <div className="provider-app-version-title"><b>v{item.version}</b><span><strong>{item.file_name}</strong><small>{item.runtime.replaceAll("_", " ")} · {formatBytes(item.artifact_size)} · {formatTime(item.created_at)}</small></span></div>
-              <span className={`provider-app-status ${item.status.toLowerCase()}`}><i/>{item.status}</span><em>⌄</em>
+              <span className={`provider-app-status ${item.status.toLowerCase()}`}><i/>{releaseStatusLabel(item.status)}</span><em>⌄</em>
             </summary>
             <article className="provider-app-version-body">
               <div className="provider-app-contract"><div><small>OPERATIONS · {item.manifest.operations.length}</small><p>{item.manifest.operations.map((operation) => <b key={operation}>{operation.replaceAll("_", " ")}</b>)}</p></div><div><small>PAYMENT METHODS · {item.manifest.payment_methods.length}</small><p>{item.manifest.payment_methods.map((method) => <b key={method}>{method.replaceAll("_", " ")}</b>)}</p></div></div>
               <div className="provider-app-scan"><span>✓</span><div><strong>{item.scan_report.checks.length} static checks passed</strong><small>{item.scan_report.file_count} files · {item.manifest.outbound_hosts.join(", ")} · ZIP {item.artifact_sha256.slice(0, 12)}… · {item.scan_report.package_format === "provider_submission_v1" ? "review package" : `legacy binary ${item.scan_report.entrypoint_sha256 ? `${item.scan_report.entrypoint_sha256.slice(0, 12)}…` : "unknown"}`}</small></div></div>
+              {verification.passed && <div className="provider-app-scan"><span>✓</span><div><strong>Backend runtime verification passed</strong><small>{verification.verified_capabilities?.length ?? 0} capabilities · runtime {verification.runtime_version || item.version} · immutable digest {verification.runtime_digest?.slice(0, 12) || "legacy"}…</small></div></div>}
               {item.scan_report.warnings.map((warning) => <p className="provider-app-warning" key={warning}>{warning}</p>)}
-              {item.review_note && <p className="provider-app-review"><strong>Review:</strong> {item.review_note}</p>}
-              {transition && <form className="provider-app-transition" action={transitionAction}>
+              {item.review_note && <p className="provider-app-review"><strong>Audit:</strong> {item.review_note}</p>}
+              {transition && <form className="provider-app-transition provider-app-transition-direct" action={transitionAction}>
                 <input type="hidden" name="id" value={item.id}/><input type="hidden" name="expected_status" value={item.status}/><input type="hidden" name="status" value={transition.status}/>
-                {transition.note && <input name="review_note" minLength={8} maxLength={2000} placeholder={transition.status === "CERTIFIED" ? "Evidence/review certification…" : "Deployment evidence and runtime version…"} required/>}
                 <button className={transition.status === "PUBLISHED" ? "secondary-button" : "dashboard-primary-button"} type="submit" disabled={transitionPending}>{transitionPending ? "Processing…" : transition.label}</button>
-                {transition.status === "PUBLISHED" && <small>Publish hanya berhasil setelah shared runtime memuat provider-version yang sama dan melaporkan digest immutable.</small>}
+                {transition.status === "CERTIFIED" && <small>Tidak memakai credential merchant. Semua check dijalankan oleh backend terhadap shared runtime versi ini.</small>}
+                {transition.status === "PUBLISHED" && <small>Publish hanya berhasil setelah backend verification PASS dan shared runtime tetap memuat digest immutable yang sama.</small>}
               </form>}
             </article>
           </details>;

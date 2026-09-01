@@ -1,12 +1,15 @@
 $kind: http-request
-description: List bukti certification tenant-scoped dan blocker execution engine.
-url: "{{base_url}}/api/v1/connector-certifications?provider=xendit&limit=25"
+description: List bukti diagnostic run tenant-scoped untuk CI/troubleshooting internal.
+url: "{{base_url}}/api/v1/admin/connector-certifications?provider=xendit&limit=25"
 method: GET
 headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
   X-Emisell-Merchant-ID: "{{merchant_id}}"
   X-Emisell-Execution-Mode: "{{execution_mode}}"
 queryParams:
   provider: xendit
   limit: "25"
+auth:
+  type: noauth
 examples: ./.resources/1. List certification runs.resources/examples
 order: 1000

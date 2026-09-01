@@ -1,8 +1,9 @@
 $kind: http-request
-description: Setelah redirect atau mobile authorization sandbox selesai, verifikasi provider status, provider webhook, dan signed Emisell delivery untuk payment yang sama. Endpoint ini tidak membuat payment baru.
-url: "{{base_url}}/api/v1/connector-certifications/run"
+description: Resume diagnostic internal setelah redirect/mobile authorization sandbox. Endpoint ini tidak membuat payment baru.
+url: "{{base_url}}/api/v1/admin/connector-certifications/run"
 method: POST
 headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
   X-Emisell-Merchant-ID: "{{merchant_id}}"
   X-Emisell-Execution-Mode: sandbox
   Content-Type: application/json
@@ -14,5 +15,7 @@ body:
       "payment_method_code": "{{payment_method_code}}",
       "payment_id": "{{payment_id}}"
     }
+auth:
+  type: noauth
 examples: ./.resources/3. Resume customer-authorized certification.resources/examples
 order: 3000

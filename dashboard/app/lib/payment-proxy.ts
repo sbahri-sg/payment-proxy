@@ -48,6 +48,16 @@ export type ProviderAppScanReport = {
   warnings: string[];
 };
 
+export type ProviderReleaseVerificationReport = {
+  passed: boolean;
+  source: "automated_backend_verification" | "legacy_operator_review";
+  runtime_version?: string;
+  runtime_digest?: string;
+  verified_at?: string;
+  verified_capabilities: string[];
+  checks: { code: string; status: "PASSED" | "FAILED"; detail: string }[];
+};
+
 export type ProviderAppVersion = {
   id: string;
   provider_code: string;
@@ -62,6 +72,7 @@ export type ProviderAppVersion = {
   artifact_sha256: string;
   manifest: ProviderAppManifest;
   scan_report: ProviderAppScanReport;
+  verification_report: ProviderReleaseVerificationReport | Record<string, never>;
   review_note?: string;
   submitted_by: string;
   reviewed_by?: string;
@@ -250,30 +261,6 @@ export type PaymentList = {
   has_more: boolean;
 };
 
-export type ConnectorCertificationCheck = {
-  code: string;
-  label: string;
-  status: "PASSED" | "FAILED" | "BLOCKED";
-  detail?: string;
-};
-
-export type ConnectorCertificationRun = {
-  id: string;
-  installation_id: string;
-  provider_code: string;
-  provider_name: string;
-  payment_method_code: string;
-  payment_method_name: string;
-  environment: "sandbox" | "live";
-  status: "PASSED" | "FAILED" | "BLOCKED";
-  checks: ConnectorCertificationCheck[];
-  payment_id?: string;
-  message?: string;
-  initiated_by: string;
-  started_at: string;
-  completed_at: string;
-};
-
 export type PaymentStatusEvent = {
   id: number;
   payment_id: string;
@@ -405,12 +392,14 @@ async function proxyRequest<T>(path: string, _actor: string, init?: RequestInit)
 async function adminRequest<T>(path: string, _actor: string, init?: RequestInit): Promise<T> {
   const baseURL = process.env.BACKEND_API_URL?.trim();
   const adminKey = process.env.ADMIN_API_KEY?.trim();
+  const merchantID = process.env.DASHBOARD_MERCHANT_ID?.trim();
   if (!baseURL || !adminKey) throw new Error("dashboard admin API configuration is incomplete");
   const response = await fetch(`${baseURL.replace(/\/$/, "")}${path}`, {
     ...init,
     cache: "no-store",
     headers: {
       "X-Admin-API-Key": adminKey,
+      ...(merchantID ? { "X-Emisell-Merchant-ID": merchantID } : {}),
       ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
@@ -493,10 +482,10 @@ export function uploadProviderApp(actor: string, providerCode: string, bundle: F
   return adminRequest<ProviderAppVersion>(`/api/v1/admin/provider-app-providers/${encodeURIComponent(providerCode)}/versions`, actor, { method: "POST", body: form });
 }
 
-export function transitionProviderApp(actor: string, id: string, expectedStatus: ProviderAppVersion["status"], status: ProviderAppVersion["status"], reviewNote: string) {
+export function transitionProviderApp(actor: string, id: string, expectedStatus: ProviderAppVersion["status"], status: ProviderAppVersion["status"]) {
   return adminRequest<ProviderAppVersion>(`/api/v1/admin/provider-apps/${encodeURIComponent(id)}/transition`, actor, {
     method: "POST",
-    body: JSON.stringify({ expected_status: expectedStatus, status, review_note: reviewNote }),
+    body: JSON.stringify({ expected_status: expectedStatus, status }),
   });
 }
 
@@ -557,7 +546,7 @@ export function listPaymentOptions(actor: string, environment: "sandbox" | "live
   return proxyRequest<PaymentOption[]>("/api/v1/payment-options", actor, { headers: { "X-Emisell-Execution-Mode": environment } });
 }
 
-export function upsertPaymentMethodAssignment(actor: string, environment: "sandbox" | "live", input: { installation_id: string; payment_method_code: string; label: string; version: number }) {
+export function upsertPaymentMethodAssignment(actor: string, environment: "sandbox" | "live", input: { installation_id: string; payment_method_code: string; version: number }) {
   return proxyRequest<PaymentMethodAssignment>("/api/v1/payment-method-assignments", actor, {
     method: "PUT",
     headers: { "X-Emisell-Execution-Mode": environment },
@@ -569,21 +558,6 @@ export function deactivatePaymentMethodAssignment(actor: string, id: string, ver
   return proxyRequest<PaymentMethodAssignment>(`/api/v1/payment-method-assignments/${encodeURIComponent(id)}/deactivate`, actor, {
     method: "POST",
     body: JSON.stringify({ version }),
-  });
-}
-
-export function listConnectorCertifications(actor: string, filters: { environment?: string; provider?: string; limit?: number } = {}) {
-  const query = new URLSearchParams();
-  if (filters.provider) query.set("provider", filters.provider);
-  if (filters.limit) query.set("limit", String(filters.limit));
-  return proxyRequest<ConnectorCertificationRun[]>(`/api/v1/connector-certifications${query.size ? `?${query}` : ""}`, actor, filters.environment ? { headers: { "X-Emisell-Execution-Mode": filters.environment } } : undefined);
-}
-
-export function runConnectorCertification(actor: string, environment: "sandbox" | "live", input: { installation_id: string; payment_method_code: string; payment_id?: string }) {
-  return proxyRequest<ConnectorCertificationRun>("/api/v1/connector-certifications/run", actor, {
-    method: "POST",
-    headers: { "X-Emisell-Execution-Mode": environment },
-    body: JSON.stringify(input),
   });
 }
 

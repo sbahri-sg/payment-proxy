@@ -54,7 +54,7 @@ environments:
     description: Transaksi diteruskan ke Xendit production.
   - code: sandbox
     label: Sandbox
-    description: Alur sertifikasi dan simulasi Emisell tanpa transaksi production.
+    description: Pengujian credential dan transaksi Xendit tanpa transaksi production.
 payment_methods:
   - qris
   - card

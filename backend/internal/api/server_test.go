@@ -88,7 +88,7 @@ func TestActorIsDerivedByServerAndIgnoresRequestHeader(t *testing.T) {
 
 func TestAdminRoutesUseCanonicalNamespace(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	handler := New(config.Config{AdminAPIKey: "test-admin-key"}, nil, nil, nil, nil, nil, logger)
+	handler := New(config.Config{AdminAPIKey: "test-admin-key", ServiceAPIKey: "test-service-key"}, nil, nil, nil, nil, nil, logger)
 
 	canonical := httptest.NewRecorder()
 	handler.ServeHTTP(canonical, httptest.NewRequest(http.MethodGet, "/api/v1/admin/provider-app-providers", nil))
@@ -110,6 +110,23 @@ func TestAdminRoutesUseCanonicalNamespace(t *testing.T) {
 	handler.ServeHTTP(genericUpload, genericUploadRequest)
 	if genericUpload.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("removed generic Provider App upload returned %d, want 405", genericUpload.Code)
+	}
+
+	internalDiagnostic := httptest.NewRecorder()
+	internalDiagnosticRequest := httptest.NewRequest(http.MethodGet, "/api/v1/admin/connector-certifications", nil)
+	internalDiagnosticRequest.Header.Set("X-Admin-API-Key", "test-admin-key")
+	handler.ServeHTTP(internalDiagnostic, internalDiagnosticRequest)
+	if internalDiagnostic.Code != http.StatusBadRequest || !strings.Contains(internalDiagnostic.Body.String(), "INVALID_TENANT") {
+		t.Fatalf("internal diagnostic route did not require an explicit test tenant: %d %s", internalDiagnostic.Code, internalDiagnostic.Body.String())
+	}
+
+	removedServiceDiagnostic := httptest.NewRecorder()
+	removedServiceDiagnosticRequest := httptest.NewRequest(http.MethodGet, "/api/v1/connector-certifications", nil)
+	removedServiceDiagnosticRequest.Header.Set("Authorization", "Bearer test-service-key")
+	removedServiceDiagnosticRequest.Header.Set("X-Emisell-Merchant-ID", "merchant_test")
+	handler.ServeHTTP(removedServiceDiagnostic, removedServiceDiagnosticRequest)
+	if removedServiceDiagnostic.Code != http.StatusNotFound {
+		t.Fatalf("removed service diagnostic route returned %d, want 404", removedServiceDiagnostic.Code)
 	}
 }
 
@@ -176,9 +193,6 @@ func TestManualCertificationAction(t *testing.T) {
 }
 
 func TestPaymentOptionContract(t *testing.T) {
-	if got := defaultPaymentOptionLabel("virtual_account"); got != "VIRTUAL ACCOUNT" {
-		t.Fatalf("unexpected default label %q", got)
-	}
 	if !paymentMethodPattern.MatchString("real_time_payment") || paymentMethodPattern.MatchString("QRIS / Xendit") {
 		t.Fatal("payment method identifier validation is incorrect")
 	}

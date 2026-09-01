@@ -38,7 +38,8 @@ dianggap sebagai kewajiban integrasi Main Service.
 | Service keys | `/api/v1/admin/service-api-keys` | Admin Control Plane |
 | Observability | `/api/v1/admin/observability`, metrics, readiness | Operator/infrastructure |
 | Runtime discovery | `/api/v1/engine/capabilities` | Payment Kernel/deployment diagnostic |
-| Certification | `/api/v1/connector-certifications*` | Operator/provider release workflow |
+| Release verification | `/api/v1/admin/provider-apps/*/transition` | Admin Control Plane/backend release gate |
+| Sandbox diagnostics | `/api/v1/admin/connector-certifications*` | Internal CI/troubleshooting only |
 | Operational payment views | list payment dan timeline | Dashboard operator |
 | Webhook operations | settings, inbox, deliveries, replay | Dashboard operator/worker |
 | Reconciliation | `/api/v1/reconciliation/*` | Operator workflow |
@@ -46,10 +47,9 @@ dianggap sebagai kewajiban integrasi Main Service.
 | Provider ingress | `/webhooks/v1/providers/*` | Payment provider → Payment Proxy |
 | Connector contract | `/partner/v1/*` | Payment Proxy → isolated runtime |
 
-Endpoint operational yang saat ini masih memakai namespace service diperlakukan
-sebagai API internal dashboard. Jangan tambahkan pemanggilan baru dari Emisell
-Backend. Pemindahan path/auth ke `/api/v1/admin/*` dilakukan sebagai refactor
-terpisah agar tidak memutus dashboard yang sedang berjalan.
+Endpoint sandbox diagnostics sudah berada di namespace admin dan tetap
+tenant-scoped. Jangan tambahkan pemanggilan dari Emisell Backend; lifecycle
+merchant hanya Install → Configure/Verify credential → Activate.
 
 ## Endpoint yang tidak perlu dibuat
 

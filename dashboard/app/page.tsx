@@ -232,7 +232,7 @@ export default async function Home() {
           </section>
 
           <section className="dashboard-panel provider-panel">
-            <div className="panel-heading"><div><p className="panel-kicker">CONNECTIONS</p><h2>Provider health</h2><p>Certification scope and payment activity by connector.</p></div><Link className="secondary-button" href="/providers">Manage providers <Icon name="arrow" size={15}/></Link></div>
+            <div className="panel-heading"><div><p className="panel-kicker">CONNECTIONS</p><h2>Provider health</h2><p>Verified capability scope and payment activity by connector.</p></div><Link className="secondary-button" href="/providers">Manage providers <Icon name="arrow" size={15}/></Link></div>
             <div className="provider-grid">{(overview?.providers ?? []).map((provider) => {
               const terminalPayments = provider.succeeded_24h + provider.failed_24h;
               const rate = terminalPayments ? Math.round((provider.succeeded_24h / terminalPayments) * 100) : 0;

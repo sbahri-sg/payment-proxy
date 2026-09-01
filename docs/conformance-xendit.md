@@ -70,20 +70,15 @@ Receiver pada run ini adalah receiver Emisell lokal untuk development. Sebelum l
 https://<payment-domain>/webhooks/v1/providers/xendit/<installation-id>
 ```
 
-## Menjalankan
+## Menjalankan diagnostik internal
 
-Dashboard:
-
-```text
-Connections → Certification → Run certification
-```
-
-API:
+Tidak ada tombol certification pada dashboard provider. Evidence baru dijalankan
+oleh CI/operator internal pada tenant sandbox bila diperlukan:
 
 ```http
-POST /api/v1/connector-certifications/run
-Authorization: Bearer <service-key>
-X-Emisell-Merchant-ID: <merchant>
+POST /api/v1/admin/connector-certifications/run
+X-Admin-API-Key: <admin-key>
+X-Emisell-Merchant-ID: <test-tenant>
 X-Emisell-Execution-Mode: sandbox
 Content-Type: application/json
 
@@ -105,7 +100,10 @@ Run memeriksa:
 8. direct provider webhook payment yang sama benar-benar diterima dan diproses.
 9. signed canonical event untuk payment yang sama benar-benar berstatus `DELIVERED` ke Emisell Backend.
 
-Jika channel membutuhkan customer authorization, run pertama menghasilkan `BLOCKED` dengan `payment_id`. Setelah halaman sandbox provider selesai, tekan **Verify completed payment** atau POST kembali request dengan tambahan `payment_id`. Resume mengambil resource yang sama dan tidak membuat payment kedua.
+Jika channel membutuhkan customer authorization, run pertama menghasilkan
+`BLOCKED` dengan `payment_id`. Setelah halaman sandbox provider selesai,
+CI/operator mengirim kembali request dengan tambahan `payment_id`. Resume
+mengambil resource yang sama dan tidak membuat payment kedua.
 
 Card selalu memakai hosted Xendit Payment Session. Nomor kartu, expiry, dan CVV dimasukkan hanya pada domain checkout Xendit; data tersebut dilarang dalam request Emisell, metadata, log, database, dan Postman collection. Certification card memakai test card Xendit pada halaman hosted, kemudian mewajibkan status session `COMPLETED` serta webhook `payment_session.completed` untuk payment yang sama.
 

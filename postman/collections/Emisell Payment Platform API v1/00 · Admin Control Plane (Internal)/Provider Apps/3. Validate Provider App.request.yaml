@@ -10,8 +10,7 @@ body:
   content: |-
     {
       "expected_status": "UPLOADED",
-      "status": "VALIDATED",
-      "review_note": ""
+      "status": "VALIDATED"
     }
 auth:
   type: noauth

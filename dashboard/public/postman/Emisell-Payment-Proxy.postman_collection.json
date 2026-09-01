@@ -432,7 +432,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"expected_status\": \"UPLOADED\",\n  \"status\": \"VALIDATED\",\n  \"review_note\": \"\"\n}",
+                  "raw": "{\n  \"expected_status\": \"UPLOADED\",\n  \"status\": \"VALIDATED\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -452,7 +452,7 @@
               ]
             },
             {
-              "name": "4. Certify Provider App",
+              "name": "4. Run Backend Verification",
               "request": {
                 "auth": {
                   "type": "noauth"
@@ -472,7 +472,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"expected_status\": \"VALIDATED\",\n  \"status\": \"CERTIFIED\",\n  \"review_note\": \"Sandbox conformance and security review passed.\"\n}",
+                  "raw": "{\n  \"expected_status\": \"VALIDATED\",\n  \"status\": \"CERTIFIED\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -511,7 +511,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"expected_status\": \"CERTIFIED\",\n  \"status\": \"PUBLISHED\",\n  \"review_note\": \"Isolated runtime 0.1.0 deployed and health checked.\"\n}",
+                  "raw": "{\n  \"expected_status\": \"CERTIFIED\",\n  \"status\": \"PUBLISHED\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -771,13 +771,18 @@
           ]
         },
         {
-          "name": "Connector Certification",
+          "name": "Internal Sandbox Diagnostics",
           "item": [
             {
-              "name": "1. List certification runs",
+              "name": "1. List diagnostic runs",
               "request": {
                 "method": "GET",
                 "header": [
+                  {
+                    "key": "X-Admin-API-Key",
+                    "value": "{{admin_api_key}}",
+                    "type": "text"
+                  },
                   {
                     "key": "X-Emisell-Merchant-ID",
                     "value": "{{merchant_id}}",
@@ -790,13 +795,14 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/connector-certifications?provider=xendit&limit=25",
+                  "raw": "{{base_url}}/api/v1/admin/connector-certifications?provider=xendit&limit=25",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "api",
                     "v1",
+                    "admin",
                     "connector-certifications"
                   ],
                   "query": [
@@ -810,7 +816,7 @@
                     }
                   ]
                 },
-                "description": "List bukti certification tenant-scoped dan blocker execution engine."
+                "description": "List bukti diagnostic run tenant-scoped untuk CI/troubleshooting internal."
               },
               "response": [
                 {
@@ -830,10 +836,15 @@
               ]
             },
             {
-              "name": "2. Run sandbox certification",
+              "name": "2. Run sandbox diagnostic",
               "request": {
                 "method": "POST",
                 "header": [
+                  {
+                    "key": "X-Admin-API-Key",
+                    "value": "{{admin_api_key}}",
+                    "type": "text"
+                  },
                   {
                     "key": "X-Emisell-Merchant-ID",
                     "value": "{{merchant_id}}",
@@ -860,18 +871,19 @@
                   }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/connector-certifications/run",
+                  "raw": "{{base_url}}/api/v1/admin/connector-certifications/run",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "api",
                     "v1",
+                    "admin",
                     "connector-certifications",
                     "run"
                   ]
                 },
-                "description": "Menjalankan create, next action, retrieve, simulator atau customer authorization, direct provider webhook, dan signed delivery ke Emisell Backend. E-wallet dapat mengembalikan BLOCKED sampai halaman sandbox provider diselesaikan."
+                "description": "Diagnostic CI/internal pada test tenant. Bukan tahap installation merchant atau release verification utama."
               },
               "response": [
                 {
@@ -905,10 +917,15 @@
               ]
             },
             {
-              "name": "3. Resume customer-authorized certification",
+              "name": "3. Resume customer-authorized diagnostic",
               "request": {
                 "method": "POST",
                 "header": [
+                  {
+                    "key": "X-Admin-API-Key",
+                    "value": "{{admin_api_key}}",
+                    "type": "text"
+                  },
                   {
                     "key": "X-Emisell-Merchant-ID",
                     "value": "{{merchant_id}}",
@@ -935,18 +952,19 @@
                   }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/connector-certifications/run",
+                  "raw": "{{base_url}}/api/v1/admin/connector-certifications/run",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "api",
                     "v1",
+                    "admin",
                     "connector-certifications",
                     "run"
                   ]
                 },
-                "description": "Setelah redirect atau mobile authorization sandbox selesai, verifikasi provider status, provider webhook, dan signed Emisell delivery untuk payment yang sama. Endpoint ini tidak membuat payment baru."
+                "description": "Resume diagnostic internal setelah redirect/mobile authorization sandbox. Endpoint ini tidak membuat payment baru."
               },
               "response": [
                 {
@@ -2236,7 +2254,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"payment_method_code\": \"{{payment_method_code}}\",\n  \"label\": \"QRIS\",\n  \"version\": {{payment_option_version}}\n}",
+                  "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"payment_method_code\": \"{{payment_method_code}}\",\n  \"version\": {{payment_option_version}}\n}",
                   "options": {
                     "raw": {
                       "language": "json"

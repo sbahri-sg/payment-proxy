@@ -10,8 +10,7 @@ body:
   content: |-
     {
       "expected_status": "CERTIFIED",
-      "status": "PUBLISHED",
-      "review_note": "Isolated runtime 0.1.0 deployed and health checked."
+      "status": "PUBLISHED"
     }
 auth:
   type: noauth
