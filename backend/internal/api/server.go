@@ -1082,11 +1082,7 @@ func (s *Server) uninstallInstallation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listPaymentMethodAssignments(w http.ResponseWriter, r *http.Request) {
-	environment, ok := optionalEnvironmentQuery(w, r)
-	if !ok {
-		return
-	}
-	items, err := s.store.ListPaymentMethodAssignments(r.Context(), tenant(r), environment)
+	items, err := s.store.ListPaymentMethodAssignments(r.Context(), tenant(r))
 	if err != nil {
 		s.internal(w, r, err)
 		return

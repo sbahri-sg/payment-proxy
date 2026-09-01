@@ -572,9 +572,8 @@ export function uninstallInstallation(actor: string, id: string) {
   return proxyRequest<Installation>(`/api/v1/provider-installations/${encodeURIComponent(id)}`, actor, { method: "DELETE" });
 }
 
-export function listPaymentMethodAssignments(actor: string, environment?: string) {
-  const suffix = environment ? `?environment=${encodeURIComponent(environment)}` : "";
-  return proxyRequest<PaymentMethodAssignment[]>(`/api/v1/payment-method-assignments${suffix}`, actor);
+export function listPaymentMethodAssignments(actor: string) {
+  return proxyRequest<PaymentMethodAssignment[]>("/api/v1/payment-method-assignments", actor);
 }
 
 export function listPaymentMethods(actor: string, search?: string) {

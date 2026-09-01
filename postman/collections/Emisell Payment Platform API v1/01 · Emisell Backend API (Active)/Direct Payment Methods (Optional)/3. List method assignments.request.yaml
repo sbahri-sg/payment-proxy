@@ -1,6 +1,6 @@
 $kind: http-request
-description: Daftar konfigurasi metode pembayaran merchant, termasuk assignment yang sedang inactive.
-url: "{{base_url}}/api/v1/payment-method-assignments?environment={{execution_mode}}"
+description: Daftar seluruh konfigurasi metode pembayaran merchant untuk sandbox dan live, termasuk assignment yang sedang inactive.
+url: "{{base_url}}/api/v1/payment-method-assignments"
 method: GET
 headers:
   X-Emisell-Merchant-ID: "{{merchant_id}}"

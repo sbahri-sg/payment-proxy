@@ -263,13 +263,13 @@ func TestProviderOptionLogoPaths(t *testing.T) {
 	}
 }
 
-func TestPaymentMethodEnvironmentQuery(t *testing.T) {
-	optional := httptest.NewRequest(http.MethodGet, "/api/v1/payment-method-assignments", nil)
+func TestEnvironmentQueries(t *testing.T) {
+	optional := httptest.NewRequest(http.MethodGet, "/api/v1/payment-sessions", nil)
 	if value, ok := optionalEnvironmentQuery(httptest.NewRecorder(), optional); !ok || value != "" {
 		t.Fatalf("optional environment without query = %q, %v; want empty, true", value, ok)
 	}
 
-	filtered := httptest.NewRequest(http.MethodGet, "/api/v1/payment-method-assignments?environment=LIVE", nil)
+	filtered := httptest.NewRequest(http.MethodGet, "/api/v1/payment-sessions?environment=LIVE", nil)
 	if value, ok := optionalEnvironmentQuery(httptest.NewRecorder(), filtered); !ok || value != "live" {
 		t.Fatalf("filtered environment = %q, %v; want live, true", value, ok)
 	}
@@ -285,7 +285,7 @@ func TestPaymentMethodEnvironmentQuery(t *testing.T) {
 	}
 
 	invalidRecorder := httptest.NewRecorder()
-	if value, ok := optionalEnvironmentQuery(invalidRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/payment-method-assignments?environment=staging", nil)); ok || value != "" || invalidRecorder.Code != http.StatusBadRequest {
+	if value, ok := optionalEnvironmentQuery(invalidRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/payment-sessions?environment=staging", nil)); ok || value != "" || invalidRecorder.Code != http.StatusBadRequest {
 		t.Fatalf("invalid optional environment = %q, %v, status %d", value, ok, invalidRecorder.Code)
 	}
 }

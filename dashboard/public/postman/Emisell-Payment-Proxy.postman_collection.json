@@ -2359,7 +2359,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/payment-method-assignments?environment={{execution_mode}}",
+                  "raw": "{{base_url}}/api/v1/payment-method-assignments",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -2367,15 +2367,9 @@
                     "api",
                     "v1",
                     "payment-method-assignments"
-                  ],
-                  "query": [
-                    {
-                      "key": "environment",
-                      "value": "{{execution_mode}}"
-                    }
                   ]
                 },
-                "description": "Daftar konfigurasi metode pembayaran merchant, termasuk assignment yang sedang inactive."
+                "description": "Daftar seluruh konfigurasi metode pembayaran merchant untuk sandbox dan live, termasuk assignment yang sedang inactive."
               },
               "response": [
                 {
@@ -2390,7 +2384,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"payment_method\": \"real_time_payment\",\n      \"payment_method_type\": \"qris\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"QRIS\",\n      \"status\": \"ACTIVE\",\n      \"version\": 1\n    },\n    {\n      \"id\": \"pmo_01k4...\",\n      \"payment_method_code\": \"va_bca\",\n      \"payment_method\": \"bank_transfer\",\n      \"payment_method_type\": \"bca\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"BCA Virtual Account\",\n      \"status\": \"INACTIVE\",\n      \"version\": 2\n    }\n  ]\n}"
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"pmo_01k3...\",\n      \"environment\": \"sandbox\",\n      \"payment_method_code\": \"qris\",\n      \"payment_method\": \"real_time_payment\",\n      \"payment_method_type\": \"qris\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"QRIS\",\n      \"status\": \"ACTIVE\",\n      \"version\": 1\n    },\n    {\n      \"id\": \"pmo_01k4...\",\n      \"environment\": \"live\",\n      \"payment_method_code\": \"va_bca\",\n      \"payment_method\": \"bank_transfer\",\n      \"payment_method_type\": \"bca\",\n      \"installation_id\": \"ins_01k3...\",\n      \"label\": \"BCA Virtual Account\",\n      \"status\": \"INACTIVE\",\n      \"version\": 2\n    }\n  ]\n}"
                 }
               ]
             },

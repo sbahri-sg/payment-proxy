@@ -1239,13 +1239,9 @@ type UpsertPaymentMethodAssignmentInput struct {
 	ExpectedVersion                                                                                                  int64
 }
 
-func (s *Postgres) ListPaymentMethodAssignments(ctx context.Context, tenantID, environment string) ([]model.PaymentMethodAssignment, error) {
+func (s *Postgres) ListPaymentMethodAssignments(ctx context.Context, tenantID string) ([]model.PaymentMethodAssignment, error) {
 	query := paymentMethodAssignmentSelect + ` WHERE a.tenant_id=$1`
 	args := []any{tenantID}
-	if environment != "" {
-		query += ` AND a.environment=$2`
-		args = append(args, environment)
-	}
 	query += ` ORDER BY a.environment,a.payment_method_code`
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {

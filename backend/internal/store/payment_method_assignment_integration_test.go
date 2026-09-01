@@ -31,6 +31,7 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	tenantID := "itest.assignment." + suffix
 	installationID := "ins_assignment_" + suffix
+	liveInstallationID := "ins_assignment_live_" + suffix
 	var providerVersion string
 	if err = pool.QueryRow(ctx, `
 		SELECT version FROM provider_versions
@@ -50,9 +51,10 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 		INSERT INTO provider_installations(
 			id,tenant_id,provider_code,provider_version,environment,engine_profile_id,
 			engine_connector_id,status,credential_metadata,created_by,updated_by
-		) VALUES($1,$2,'xendit',$3,'sandbox','integration',
-		         NULL,'ACTIVE','{}'::jsonb,'integration','integration')
-	`, installationID, tenantID, providerVersion)
+		) VALUES
+		($1,$2,'xendit',$3,'sandbox','integration',NULL,'ACTIVE','{}'::jsonb,'integration','integration'),
+		($4,$2,'xendit',$3,'live','integration',NULL,'ACTIVE','{}'::jsonb,'integration','integration')
+	`, installationID, tenantID, providerVersion, liveInstallationID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,16 +75,26 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listed, err := repository.ListPaymentMethodAssignments(ctx, tenantID, model.EnvironmentSandbox)
+	if _, _, err = repository.UpsertPaymentMethodAssignments(ctx, []UpsertPaymentMethodAssignmentInput{
+		{ID: "pmo_card_live_" + suffix, TenantID: tenantID, Environment: model.EnvironmentLive, PaymentMethodCode: "card", PaymentMethod: "card", PaymentMethodType: "card", InstallationID: liveInstallationID, ExpectedVersion: 0, Actor: "integration", RequestID: "req-live-create"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := repository.ListPaymentMethodAssignments(ctx, tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	statuses := make(map[string]string, len(listed))
+	environments := make(map[string]string, len(listed))
 	for _, item := range listed {
 		statuses[item.PaymentMethodCode] = item.Status
+		environments[item.PaymentMethodCode] = item.Environment
 	}
 	if statuses["qris"] != model.PaymentMethodAssignmentInactive || statuses["va_bca"] != model.PaymentMethodAssignmentActive {
 		t.Fatalf("list omitted an assignment status: %#v", statuses)
+	}
+	if statuses["card"] != model.PaymentMethodAssignmentActive || environments["card"] != model.EnvironmentLive || environments["qris"] != model.EnvironmentSandbox {
+		t.Fatalf("merchant assignment list did not include both environments: statuses=%#v environments=%#v", statuses, environments)
 	}
 	activeMappings, err := repository.ListActivePaymentMethodMappings(ctx, tenantID, installationID)
 	if err != nil {

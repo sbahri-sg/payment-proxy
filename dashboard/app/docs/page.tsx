@@ -727,7 +727,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
         note: "DOCUMENTED dapat di-assign tetapi belum mempunyai sandbox evidence lengkap. CERTIFIED/VERIFIED menandai conformance telah lulus; DISABLED tidak dapat di-assign. Dashboard Emisell memakai debounce 300–500 ms; hilangkan q untuk seluruh katalog, dengan panjang maksimum q 128 karakter.",
       },
       {
-        method: "GET", path: "/api/v1/payment-method-assignments?environment=sandbox", title: "List method assignments", description: "Mengembalikan semua assignment tenant, baik ACTIVE maupun INACTIVE. Query environment bersifat opsional; tanpa query, sandbox dan live dikembalikan bersama.",
+        method: "GET", path: "/api/v1/payment-method-assignments", title: "List method assignments", description: "Mengembalikan semua assignment merchant berdasarkan X-Emisell-Merchant-ID, termasuk ACTIVE, INACTIVE, sandbox, dan live. Environment dibaca dari field setiap item; endpoint ini tidak memerlukan query environment.",
         response: `{ "data": [${assignmentBase}, ${assignmentBase.replace('"id": "pmo_01k3..."', '"id": "pmo_01k4..."').replace('"payment_method_code": "qris"', '"payment_method_code": "va_bca"').replace('"payment_method": "real_time_payment"', '"payment_method": "bank_transfer"').replace('"payment_method_type": "qris"', '"payment_method_type": "bca"').replace('"label": "QRIS"', '"label": "BCA Virtual Account"').replace('"status": "ACTIVE"', '"status": "INACTIVE"').replace('"version": 1', '"version": 2')}] }`,
       },
       {

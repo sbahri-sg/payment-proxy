@@ -599,10 +599,11 @@ Emisell agar request tidak dikirim pada setiap keypress.
 
 ### `GET /payment-method-assignments`
 
-List semua assignment, termasuk status `ACTIVE` dan `INACTIVE`. Gunakan query
-`?environment=sandbox` atau `?environment=live` sebagai filter opsional. Tanpa
-query, kedua environment dikembalikan. `/payment-options` dan
-`/provider-options` membatasi hasil pada assignment aktif untuk checkout.
+List semua assignment milik `X-Emisell-Merchant-ID`, termasuk status `ACTIVE`
+dan `INACTIVE` serta environment `sandbox` dan `live`. Endpoint ini tidak
+menerima filter `environment`; gunakan field `environment` pada setiap item
+untuk membedakan konfigurasinya. `/payment-options` dan `/provider-options`
+tetap memerlukan environment karena keduanya digunakan untuk memilih checkout.
 
 ### `PUT /payment-method-assignments`
 
