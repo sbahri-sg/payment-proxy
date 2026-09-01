@@ -1,0 +1,58 @@
+schema_version: "1"
+provider:
+  code: midtrans
+  name: Midtrans
+release:
+  version: emisell-midtrans-v1.1.1
+connector:
+  contract_version: v1
+  runtime: isolated_container
+  sdk_version: v1
+operations:
+  - verify_installation
+  - disable_installation
+  - create_payment
+  - get_payment
+  - handle_webhook
+credentials:
+  fields:
+    - code: server_key
+      label: Server key
+      input_type: password
+      secret: true
+      required: true
+    - code: pop_id
+      label: PoP ID (Core API)
+      input_type: password
+      secret: true
+      required: false
+certification_profiles:
+  qris: {code: midtrans-core-v2/qris, automated: true}
+  va_bca: {code: midtrans-core-v2/va_bca, automated: true}
+  va_mandiri: {code: midtrans-core-v2/va_mandiri, automated: true}
+  va_bni: {code: midtrans-core-v2/va_bni, automated: true}
+  va_bri: {code: midtrans-core-v2/va_bri, automated: true}
+  va_permata: {code: midtrans-core-v2/va_permata, automated: true}
+  va_cimb: {code: midtrans-core-v2/va_cimb, automated: true}
+  ewallet_gopay: {code: midtrans-core-v2/ewallet_gopay, automated: true}
+  ewallet_shopeepay: {code: midtrans-core-v2/ewallet_shopeepay, automated: true}
+environments:
+  - code: live
+    label: Live
+    description: Transaksi diteruskan ke Midtrans production.
+  - code: sandbox
+    label: Sandbox
+    description: Pengujian credential dan transaksi Midtrans tanpa transaksi production.
+payment_methods:
+  - qris
+  - va_bca
+  - va_mandiri
+  - va_bni
+  - va_bri
+  - va_permata
+  - va_cimb
+  - ewallet_gopay
+  - ewallet_shopeepay
+outbound_hosts:
+  - api.midtrans.com
+  - api.sandbox.midtrans.com

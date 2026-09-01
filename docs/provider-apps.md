@@ -94,10 +94,11 @@ provider-submission.zip
 └── contract-tests/
 ```
 
-Sumber submission Xendit berada di `provider-apps/xendit` dan dibangun dengan
-`./scripts/build-xendit-provider-app.sh`. Hasilnya kecil dan portable karena
-tidak berisi binary Linux. Runtime Xendit dibangun terpisah sebagai OCI image
-dari `backend/Dockerfile`, lalu dideploy satu kali untuk setiap versi provider.
+Sumber submission Xendit dan Midtrans berada di `provider-apps/<provider>` dan
+dibangun dengan `./scripts/build-<provider>-provider-app.sh`. Hasilnya kecil dan
+portable karena tidak berisi binary Linux. Runtime provider dibangun terpisah
+sebagai OCI image dari `backend/Dockerfile`, lalu dideploy satu kali untuk setiap
+versi provider.
 
 Path absolut, path traversal, symlink, duplicate entry, zip bomb, native binary,
 file `.env`, private key, pola secret, host berupa IP, dan runtime `native_go`

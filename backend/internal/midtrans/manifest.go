@@ -38,7 +38,7 @@ func (c *Client) Manifest() connector.Manifest {
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Midtrans",
-		Version:          "emisell-midtrans-v1.1.0",
+		Version:          "emisell-midtrans-v1.1.1",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{

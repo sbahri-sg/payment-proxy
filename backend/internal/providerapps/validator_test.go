@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,23 +139,30 @@ paths:
 }
 
 func TestMidtransProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
-	manifest, err := os.ReadFile("../../../provider-apps/midtrans/manifest.json")
-	if err != nil {
-		t.Fatal(err)
+	files := []struct {
+		archivePath string
+		sourcePath  string
+	}{
+		{archivePath: "emisell-extension.yaml", sourcePath: "../../../provider-apps/midtrans/emisell-extension.yaml"},
+		{archivePath: "openapi.yaml", sourcePath: "../../../provider-apps/midtrans/openapi.yaml"},
+		{archivePath: "README.md", sourcePath: "../../../provider-apps/midtrans/README.md"},
+		{archivePath: "SECURITY.md", sourcePath: "../../../provider-apps/midtrans/SECURITY.md"},
+		{archivePath: "contract-tests/README.md", sourcePath: "../../../provider-apps/midtrans/contract-tests/README.md"},
+		{archivePath: "src/midtrans/client.go", sourcePath: "../midtrans/client.go"},
+		{archivePath: "src/midtrans/manifest.go", sourcePath: "../midtrans/manifest.go"},
 	}
-	entrypoint := []byte("connector-test-placeholder")
-	manifestHash := sha256.Sum256(manifest)
-	entrypointHash := sha256.Sum256(entrypoint)
-	checksums := []byte(hex.EncodeToString(manifestHash[:]) + "  manifest.json\n" + hex.EncodeToString(entrypointHash[:]) + "  connector\n")
-	files := map[string][]byte{"manifest.json": manifest, "connector": entrypoint, "checksums.txt": checksums}
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
-	for _, name := range []string{"manifest.json", "connector", "checksums.txt"} {
-		file, err := writer.Create(name)
+	for _, item := range files {
+		content, err := os.ReadFile(item.sourcePath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = file.Write(files[name]); err != nil {
+		file, err := writer.Create(item.archivePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = file.Write(content); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -169,8 +177,14 @@ func TestMidtransProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	client.SetExecutableSHA256(strings.Repeat("a", 64))
+	runtimeManifest := client.Manifest()
+	verification := VerifyRuntimeContract(result.Manifest, runtimeManifest)
 	if result.Manifest.Code != "midtrans" || result.Manifest.Version != client.Manifest().Version || len(result.Manifest.CredentialFields) != 2 {
 		t.Fatalf("Midtrans Provider App manifest diverged from runtime release: %#v", result.Manifest)
+	}
+	if !result.Report.Passed || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Report.FileCount != len(files) || !verification.Passed {
+		t.Fatalf("Midtrans submission failed release verification: submission=%#v verification=%#v", result, verification)
 	}
 }
 
