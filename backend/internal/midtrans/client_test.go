@@ -92,7 +92,7 @@ func TestProviderHostedCheckoutUsesMidtransSnapRedirect(t *testing.T) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		callbacks, _ := body["callbacks"].(map[string]any)
-		if body["payment_type"] != nil || body["enabled_payments"] != nil || callbacks["finish"] != "https://shop.example/payments/return" {
+		if body["payment_type"] != nil || body["enabled_payments"] != nil || body["gopay"] != nil || body["shopeepay"] != nil || callbacks["finish"] != "https://shop.example/payments/return" {
 			t.Fatalf("Snap checkout must own payment-method selection: %#v", body)
 		}
 		w.WriteHeader(http.StatusCreated)

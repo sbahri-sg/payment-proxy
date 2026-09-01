@@ -53,7 +53,7 @@ Danamon VA, Kredivo, Akulaku, Indodana, Jenius Pay, dan channel lain tetap
 `DOCUMENTED`. Core tidak perlu berubah ketika capability baru ditambahkan;
 connector dan capability mapping yang diperluas.
 
-Connector Midtrans `emisell-midtrans-v1.2.0` berjalan sebagai Provider App
+Connector Midtrans `emisell-midtrans-v1.2.1` berjalan sebagai Provider App
 container tersendiri, terpisah dari runner Xendit. Ini membuktikan bahwa kontrak
 engine tidak bergantung pada implementasi atau process provider tertentu:
 

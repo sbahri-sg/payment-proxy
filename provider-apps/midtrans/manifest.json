@@ -2,7 +2,7 @@
   "contract_version": "v1",
   "code": "midtrans",
   "name": "Midtrans",
-  "version": "emisell-midtrans-v1.2.0",
+  "version": "emisell-midtrans-v1.2.1",
   "runtime": "isolated_container",
   "sdk_version": "v1",
   "entrypoint": "connector",

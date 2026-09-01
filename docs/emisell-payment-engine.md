@@ -5,7 +5,7 @@ Status: **ACTIVE FOUNDATION**
 Owner: **Emisell**
 
 Runtime: **Go Payment Kernel + isolated Connector Runner**
-Reference connectors: **Xendit `emisell-xendit-v1.1.0` + Midtrans `emisell-midtrans-v1.2.0`**
+Reference connectors: **Xendit `emisell-xendit-v1.1.0` + Midtrans `emisell-midtrans-v1.2.1`**
 
 Dokumen ini mengunci batas arsitektur Payment Proxy. Implementasi, endpoint,
 dashboard, dan connector baru tidak boleh menyimpang dari kontrak di bawah tanpa

@@ -238,8 +238,6 @@ func (c *Client) createSnapCheckout(ctx context.Context, input connector.Payment
 			return connector.PaymentResult{}, errors.New("return_url must be HTTPS for Midtrans hosted checkout")
 		}
 		payload["callbacks"] = map[string]any{"finish": returnURL, "error": returnURL}
-		payload["gopay"] = map[string]any{"enable_callback": true, "callback_url": returnURL}
-		payload["shopeepay"] = map[string]any{"callback_url": returnURL}
 	}
 	headers := make(http.Header)
 	if isHTTPSURL(input.PublicWebhookURL) {

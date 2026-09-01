@@ -346,12 +346,12 @@ logo               File    midtrans.png`,
       },
       {
         method: "GET", path: "/api/v1/admin/provider-app-providers", title: "List registered providers", description: "Menampilkan satu record per provider beserta active version, latest version/status, dan jumlah immutable version. Riwayat versi tidak lagi terlihat sebagai provider duplikat.",
-        response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 3, "active_version": "emisell-midtrans-v1.2.0", "latest_version": "emisell-midtrans-v1.2.0", "latest_status": "PUBLISHED" }] }`,
+        response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 3, "active_version": "emisell-midtrans-v1.2.1", "latest_version": "emisell-midtrans-v1.2.1", "latest_status": "PUBLISHED" }] }`,
       },
       {
         method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/transition", title: "Disable or enable provider", description: "Menonaktifkan provider dari catalog installation baru tanpa menghapus release immutable, installation merchant, transaksi, webhook, atau audit lama. Provider dapat di-enable kembali.",
         body: `{ "expected_status": "ACTIVE", "status": "DISABLED" }`,
-        response: `{ "data": { "provider_code": "midtrans", "provider_name": "Midtrans", "status": "DISABLED", "active_version": "emisell-midtrans-v1.2.0" } }`,
+        response: `{ "data": { "provider_code": "midtrans", "provider_name": "Midtrans", "status": "DISABLED", "active_version": "emisell-midtrans-v1.2.1" } }`,
         note: "Untuk enable, gunakan ACTIVE bila release published tersedia atau DRAFT bila provider belum pernah dipublish. Existing active installations tetap tersimpan dan dapat terus memproses payment.",
       },
       {
@@ -412,7 +412,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
       {
         "code": "midtrans",
         "name": "Midtrans",
-        "version": "emisell-midtrans-v1.2.0",
+        "version": "emisell-midtrans-v1.2.1",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "disable_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"],
         "credential_fields": [
@@ -637,8 +637,8 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
       },
       {
         method: "POST", path: "/api/v1/provider-installations/{id}/upgrade", title: "Upgrade Provider App", description: "Memindahkan installation INACTIVE ke release Provider App yang sudah dimuat oleh runtime.",
-        body: `{ "version": 6, "provider_version": "emisell-midtrans-v1.2.0" }`,
-        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v1.2.0", "status": "CONFIG_REQUIRED", "credential_metadata": { "verification_required": true, "verification_reason": "provider_version_upgrade" }, "version": 7 } }`,
+        body: `{ "version": 6, "provider_version": "emisell-midtrans-v1.2.1" }`,
+        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v1.2.1", "status": "CONFIG_REQUIRED", "credential_metadata": { "verification_required": true, "verification_reason": "provider_version_upgrade" }, "version": 7 } }`,
         note: "Target harus RELEASED dan tersedia pada shared runtime. Credential tetap terenkripsi, tetapi versi baru wajib melewati Save & verify hingga READY sebelum dapat diaktifkan kembali.",
       },
       {
@@ -1664,7 +1664,7 @@ HandleWebhook()`}</Code>
                     <strong>Midtrans · second connector</strong>
                     <span>QRIS, enam VA/Mandiri Bill, GoPay, ShopeePay, credential verification, dan webhook normalization tersedia. BCA, BNI, dan Permata VA sudah lulus sandbox end-to-end; channel lain tetap fail-closed sampai diaktifkan untuk merchant oleh Midtrans.</span>
                   </div>
-                  <span className="version-pill">emisell-midtrans-v1.2.0</span>
+                  <span className="version-pill">emisell-midtrans-v1.2.1</span>
                 </div>
               </section>
 
