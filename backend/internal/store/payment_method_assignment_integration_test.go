@@ -96,6 +96,20 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 	if statuses["card"] != model.PaymentMethodAssignmentActive || environments["card"] != model.EnvironmentLive || environments["qris"] != model.EnvironmentSandbox {
 		t.Fatalf("merchant assignment list did not include both environments: statuses=%#v environments=%#v", statuses, environments)
 	}
+	paymentOptions, err := repository.ListPaymentOptions(ctx, tenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	optionEnvironments := make(map[string]string, len(paymentOptions))
+	for _, item := range paymentOptions {
+		optionEnvironments[item.PaymentMethodCode] = item.Environment
+	}
+	if len(paymentOptions) != 2 || optionEnvironments["va_bca"] != model.EnvironmentSandbox || optionEnvironments["card"] != model.EnvironmentLive {
+		t.Fatalf("active payment options did not include both environments: %#v", paymentOptions)
+	}
+	if _, exists := optionEnvironments["qris"]; exists {
+		t.Fatalf("inactive payment option leaked into checkout list: %#v", paymentOptions)
+	}
 	activeMappings, err := repository.ListActivePaymentMethodMappings(ctx, tenantID, installationID)
 	if err != nil {
 		t.Fatal(err)

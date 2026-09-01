@@ -602,8 +602,9 @@ Emisell agar request tidak dikirim pada setiap keypress.
 List semua assignment milik `X-Emisell-Merchant-ID`, termasuk status `ACTIVE`
 dan `INACTIVE` serta environment `sandbox` dan `live`. Endpoint ini tidak
 menerima filter `environment`; gunakan field `environment` pada setiap item
-untuk membedakan konfigurasinya. `/payment-options` dan `/provider-options`
-tetap memerlukan environment karena keduanya digunakan untuk memilih checkout.
+untuk membedakan konfigurasinya. `/payment-options` juga mengembalikan kedua
+environment, sedangkan `/provider-options` tetap memerlukan environment karena
+dipakai untuk memilih installation hosted checkout.
 
 ### `PUT /payment-method-assignments`
 
@@ -660,8 +661,11 @@ kompatibilitas, tetapi integrasi baru wajib memakai `assignments` array.
 
 ### `GET /payment-options`
 
-Wajib query `?environment=sandbox` atau `?environment=live`. Endpoint ini hanya dipakai oleh flow `direct` lanjutan
-yang memilih channel sebelum memanggil provider. Flow utama
+Endpoint ini tidak menerima filter environment dan mengembalikan seluruh option
+`ACTIVE` milik merchant dari sandbox dan live. Setiap item membawa field
+`environment`; saat option dipilih, Payment Proxy menurunkan environment dari
+`payment_option_id`. Endpoint ini hanya dipakai oleh flow `direct` lanjutan yang
+memilih channel sebelum memanggil provider. Flow utama
 `provider_hosted` tidak mengirim `payment_option_id`; pelanggan tetap memilih
 channel di halaman checkout provider dari daftar assignment `ACTIVE` milik
 installation.

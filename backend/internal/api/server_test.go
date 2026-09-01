@@ -274,7 +274,7 @@ func TestEnvironmentQueries(t *testing.T) {
 		t.Fatalf("filtered environment = %q, %v; want live, true", value, ok)
 	}
 
-	for _, path := range []string{"/api/v1/payment-options", "/api/v1/provider-options"} {
+	for _, path := range []string{"/api/v1/provider-options"} {
 		missingRecorder := httptest.NewRecorder()
 		if value, ok := requireEnvironmentQuery(missingRecorder, httptest.NewRequest(http.MethodGet, path, nil)); ok || value != "" || missingRecorder.Code != http.StatusBadRequest {
 			t.Fatalf("%s missing required environment = %q, %v, status %d", path, value, ok, missingRecorder.Code)

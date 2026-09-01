@@ -1091,11 +1091,7 @@ func (s *Server) listPaymentMethodAssignments(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) listPaymentOptions(w http.ResponseWriter, r *http.Request) {
-	environment, ok := requireEnvironmentQuery(w, r)
-	if !ok {
-		return
-	}
-	items, err := s.store.ListPaymentOptions(r.Context(), tenant(r), environment)
+	items, err := s.store.ListPaymentOptions(r.Context(), tenant(r))
 	if err != nil {
 		s.internal(w, r, err)
 		return

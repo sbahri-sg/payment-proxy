@@ -2416,7 +2416,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/payment-options?environment={{execution_mode}}",
+                  "raw": "{{base_url}}/api/v1/payment-options",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -2424,15 +2424,9 @@
                     "api",
                     "v1",
                     "payment-options"
-                  ],
-                  "query": [
-                    {
-                      "key": "environment",
-                      "value": "{{execution_mode}}"
-                    }
                   ]
                 },
-                "description": "Endpoint checkout. Hanya mengembalikan opsi aktif yang terhubung ke installation aktif. Checkout menyimpan id yang opaque, bukan provider_code."
+                "description": "Endpoint checkout. Mengembalikan opsi aktif sandbox dan live milik merchant yang terhubung ke installation aktif. Checkout menyimpan id yang opaque, bukan provider_code."
               },
               "response": [
                 {

@@ -89,7 +89,7 @@ func run(baseURL, path string, total, concurrency int, timeout, p95Target time.D
 	results := make(chan result, total)
 	var workers sync.WaitGroup
 	workers.Add(concurrency)
-	if requested.Path == "/api/v1/payment-options" || requested.Path == "/api/v1/provider-options" {
+	if requested.Path == "/api/v1/provider-options" {
 		query := requested.Query()
 		query.Set("environment", mode)
 		requested.RawQuery = query.Encode()

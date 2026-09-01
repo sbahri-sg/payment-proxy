@@ -138,7 +138,6 @@ Credential dibaca dari environment agar tidak tampil di process arguments.
 export PAYMENT_PROXY_BASE_URL=http://localhost:18080
 export SERVICE_API_KEY='<secret>'
 export DASHBOARD_MERCHANT_ID=merchant_load_test
-export PAYMENT_PROXY_EXECUTION_MODE=sandbox
 
 ./scripts/load-readonly.sh \
   -path /api/v1/payment-options \
@@ -148,12 +147,12 @@ export PAYMENT_PROXY_EXECUTION_MODE=sandbox
   -max-error-rate 0.001
 ```
 
-Untuk `payment-options`, runner mengirim `PAYMENT_PROXY_EXECUTION_MODE` sebagai
-query `environment`; header execution mode tidak dipakai oleh kontrak Payment
-Methods.
+`payment-options` tidak memakai query environment dan menguji option aktif
+sandbox serta live milik merchant dalam satu respons.
 
-`provider-options` memakai query environment yang sama dan dapat dipilih untuk
-menguji response grouping per installation provider aktif.
+`provider-options` masih memakai query environment. Set
+`PAYMENT_PROXY_EXECUTION_MODE=sandbox|live` ketika endpoint tersebut dipilih
+untuk menguji grouping per installation provider aktif.
 
 Endpoint yang diizinkan hanya health, provider catalog, payment-method catalog,
 payment options, dan provider options. Runner gagal apabila path mutation dipilih, error rate

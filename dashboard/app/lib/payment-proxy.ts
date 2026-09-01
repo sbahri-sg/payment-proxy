@@ -582,8 +582,8 @@ export function listPaymentMethods(actor: string, search?: string) {
   return proxyRequest<PaymentMethodCatalogItem[]>(`/api/v1/payment-methods${suffix}`, actor);
 }
 
-export function listPaymentOptions(actor: string, environment: "sandbox" | "live") {
-  return proxyRequest<PaymentOption[]>(`/api/v1/payment-options?environment=${encodeURIComponent(environment)}`, actor);
+export function listPaymentOptions(actor: string) {
+  return proxyRequest<PaymentOption[]>("/api/v1/payment-options", actor);
 }
 
 export function listProviderOptions(actor: string, environment: "sandbox" | "live") {

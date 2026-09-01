@@ -747,7 +747,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.1.zip`,
         response: `{ "data": ${assignmentBase.replace('"status": "ACTIVE"', '"status": "INACTIVE"').replace('"version": 1', '"version": 2')} }`,
       },
       {
-        method: "GET", path: "/api/v1/payment-options?environment=sandbox", title: "List direct-channel options", description: "Mengembalikan opaque option ID untuk flow direct yang memilih channel sebelum membuka provider. Query environment wajib karena satu merchant dapat memiliki installation sandbox dan live.",
+        method: "GET", path: "/api/v1/payment-options", title: "List direct-channel options", description: "Mengembalikan semua opaque option ID ACTIVE milik merchant dari sandbox dan live. Endpoint tidak memerlukan query environment karena setiap option membawa field environment dan payment session menurunkannya dari payment_option_id.",
         response: `{
   "data": [{
     "id": "pmo_01k3...",
@@ -1679,7 +1679,7 @@ midtrans_server_key = <Midtrans Sandbox Server Key>`;
 6. POST /payment-sessions (ulang request yang sama dengan Idempotency-Key yang sama)
 7. GET  /payment-sessions/{id} → terima signed payment.updated
 8. GET  /integration-readiness → READY`}</Code>
-                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Environment Payment Methods dan Payment Sessions berasal dari installation_id/payment_option_id atau query environment. X-Emisell-Execution-Mode hanya dikirim pada endpoint yang masih mendokumentasikannya secara eksplisit. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
+                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Assignment dan payment-options mengembalikan sandbox/live bersama; environment mutasi berasal dari installation_id atau payment_option_id. Query environment hanya dipakai endpoint yang mendokumentasikannya, seperti provider-options dan filter daftar payment. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
                 <div className="postman-card"><div><strong>AI-readable contract</strong><span>Gunakan kontrak ringkas ini untuk coding assistant. Isinya hanya API Emisell Backend dan guardrail keamanan, bukan endpoint admin atau secret provider.</span></div><a className="download-link" href="/docs/llms.txt">Open llms.txt <span>→</span></a></div>
               </section>}
               <section className="doc-section" id="engine-contract">

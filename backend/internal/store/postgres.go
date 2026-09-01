@@ -1259,7 +1259,7 @@ func (s *Postgres) ListPaymentMethodAssignments(ctx context.Context, tenantID st
 	return result, rows.Err()
 }
 
-func (s *Postgres) ListPaymentOptions(ctx context.Context, tenantID, environment string) ([]model.PaymentOption, error) {
+func (s *Postgres) ListPaymentOptions(ctx context.Context, tenantID string) ([]model.PaymentOption, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT a.id,a.environment,a.payment_method_code,m.category,a.label
 		FROM payment_method_assignments a
@@ -1267,9 +1267,9 @@ func (s *Postgres) ListPaymentOptions(ctx context.Context, tenantID, environment
 		JOIN payment_methods m ON m.code=a.payment_method_code
 		JOIN provider_payment_method_capabilities c ON c.provider_code=i.provider_code
 			AND c.payment_method_code=a.payment_method_code AND c.support_status IN ('DOCUMENTED','CERTIFIED')
-		WHERE a.tenant_id=$1 AND a.environment=$2 AND a.status='ACTIVE' AND i.status='ACTIVE'
-		ORDER BY m.sort_order,m.name
-	`, tenantID, environment)
+		WHERE a.tenant_id=$1 AND a.status='ACTIVE' AND i.status='ACTIVE'
+		ORDER BY a.environment,m.sort_order,m.name
+	`, tenantID)
 	if err != nil {
 		return nil, err
 	}
