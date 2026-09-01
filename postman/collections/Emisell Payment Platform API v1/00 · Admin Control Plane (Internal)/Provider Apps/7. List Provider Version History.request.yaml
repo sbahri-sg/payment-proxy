@@ -1,0 +1,10 @@
+$kind: http-request
+description: Submission history untuk satu provider, termasuk release lama/deprecated.
+url: "{{base_url}}/api/v1/admin/provider-app-providers/{{provider_app_code}}/versions"
+method: GET
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/7. List Provider Version History.resources/examples
+order: 7000

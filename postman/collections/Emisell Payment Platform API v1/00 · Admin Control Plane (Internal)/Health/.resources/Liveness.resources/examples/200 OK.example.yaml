@@ -1,0 +1,17 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/health/live"
+  method: GET
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "service": "payment-proxy",
+        "status": "ok"
+      }
+order: 1000

@@ -1,0 +1,32 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/provider-installations/{{installation_id}}/upgrade"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "version": {{installation_version}},
+        "provider_version": "{{target_provider_version}}"
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "ins_01k3...",
+          "provider_code": "midtrans",
+          "provider_version": "emisell-midtrans-v1.1.0",
+          "status": "READY",
+          "version": 7
+        }
+      }
+order: 1000

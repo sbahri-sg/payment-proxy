@@ -1,0 +1,34 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-sessions/{{payment_id}}/cancel"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Idempotency-Key: cancel-{{$guid}}
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "reason": "requested_by_customer"
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "pay_01k3...",
+          "installation_id": "ins_01k3...",
+          "provider_code": "xendit",
+          "amount": 1000000,
+          "currency": "IDR",
+          "status": "CANCELLED",
+          "provider_payment_id": "pay_engine_..."
+        }
+      }
+order: 1000

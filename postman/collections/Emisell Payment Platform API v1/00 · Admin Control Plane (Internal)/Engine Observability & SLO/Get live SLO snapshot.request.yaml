@@ -1,0 +1,10 @@
+$kind: http-request
+description: Process-local HTTP availability/latency, connector outcomes, dan provider webhook counters. Counter reset saat process restart.
+url: "{{base_url}}/api/v1/admin/observability"
+method: GET
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/Get live SLO snapshot.resources/examples
+order: 1000

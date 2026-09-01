@@ -1,0 +1,38 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/provider-installations"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "provider_code": "xendit",
+        "provider_version": "emisell-xendit-v1",
+        "environment": "{{execution_mode}}"
+      }
+response:
+  statusCode: 201
+  statusText: Created
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "ins_01k3...",
+          "merchant_id": "merchant_123",
+          "provider_code": "xendit",
+          "environment": "sandbox",
+          "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
+          "provider_version": "emisell-xendit-v1",
+          "status": "CONFIG_REQUIRED",
+          "credential_metadata": {},
+          "payment_methods": [],
+          "version": 1
+        }
+      }
+order: 1000

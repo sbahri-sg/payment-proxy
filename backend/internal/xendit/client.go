@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -25,8 +26,15 @@ const (
 )
 
 type Client struct {
-	baseURL    *url.URL
-	httpClient *http.Client
+	baseURL          *url.URL
+	httpClient       *http.Client
+	executableSHA256 string
+}
+
+// SetExecutableSHA256 binds the connector capability handshake to the exact
+// standalone Provider App executable. It is set once during process startup.
+func (c *Client) SetExecutableSHA256(value string) {
+	c.executableSHA256 = strings.ToLower(strings.TrimSpace(value))
 }
 
 func New(baseURL string, timeout time.Duration) (*Client, error) {
@@ -58,6 +66,10 @@ func (c *Client) VerifyInstallation(ctx context.Context, input connector.Install
 	if apiKey == "" {
 		return connector.InstallationResult{}, errors.New("Xendit api_key is required")
 	}
+	environment, err := xenditEnvironment(apiKey)
+	if err != nil {
+		return connector.InstallationResult{}, err
+	}
 	if err := c.do(ctx, http.MethodGet, "/balance?currency=IDR", apiKey, "", nil, nil, false); err != nil {
 		return connector.InstallationResult{}, err
 	}
@@ -68,9 +80,21 @@ func (c *Client) VerifyInstallation(ctx context.Context, input connector.Install
 	stored := map[string]string{"api_key": apiKey, "webhook_verification_token": webhookToken}
 	return connector.InstallationResult{
 		ConnectorID:       "xendit:" + input.InstallationID,
+		Environment:       environment,
 		StoredCredentials: stored,
 		WebhookReady:      strings.TrimSpace(input.PublicWebhookURL) != "",
 	}, nil
+}
+
+func xenditEnvironment(apiKey string) (string, error) {
+	switch {
+	case strings.HasPrefix(apiKey, "xnd_development_"):
+		return "sandbox", nil
+	case strings.HasPrefix(apiKey, "xnd_production_"):
+		return "live", nil
+	default:
+		return "", fmt.Errorf("%w: Xendit Secret API Key must identify a test or live account", connector.ErrInvalidCredential)
+	}
 }
 
 func (c *Client) DisableInstallation(context.Context, connector.InstallationInput) error {
@@ -225,8 +249,50 @@ func (c *Client) SimulatePayment(ctx context.Context, input connector.PaymentLoo
 	return c.do(ctx, http.MethodPost, path, key, "simulate-"+input.PaymentID, map[string]any{"amount": value}, nil, true)
 }
 
-func (c *Client) CreateRefund(context.Context, connector.RefundInput) (connector.RefundResult, error) {
-	return connector.RefundResult{}, connector.ErrNotSupported
+func (c *Client) CreateRefund(ctx context.Context, input connector.RefundInput) (connector.RefundResult, error) {
+	key, err := apiKey(input.Credentials)
+	if err != nil {
+		return connector.RefundResult{}, err
+	}
+	paymentRequestID := strings.TrimSpace(input.PaymentID)
+	if !strings.HasPrefix(paymentRequestID, "pr-") {
+		return connector.RefundResult{}, &connector.APIError{Provider: "xendit", Status: http.StatusUnprocessableEntity, Code: "REFUND_PAYMENT_REQUEST_REQUIRED", Message: "Xendit Unified Refund requires the original payment_request_id"}
+	}
+	referenceID := strings.TrimSpace(input.IdempotencyKey)
+	if referenceID == "" {
+		return connector.RefundResult{}, errors.New("Xendit refund idempotency_key is required")
+	}
+	amount, err := providerAmount(input.Amount, input.Currency)
+	if err != nil {
+		return connector.RefundResult{}, err
+	}
+	reason, err := xenditRefundReason(input.Reason)
+	if err != nil {
+		return connector.RefundResult{}, err
+	}
+	payload := map[string]any{
+		"reference_id":       referenceID,
+		"payment_request_id": paymentRequestID,
+		"amount":             amount,
+		"currency":           strings.ToUpper(strings.TrimSpace(input.Currency)),
+		"reason":             reason,
+	}
+	if len(input.Metadata) > 0 {
+		payload["metadata"] = input.Metadata
+	}
+	var response map[string]any
+	if err = c.do(ctx, http.MethodPost, "/refunds", key, referenceID, payload, &response, true); err != nil {
+		return connector.RefundResult{}, err
+	}
+	refundID := firstString(response, "id", "refund_id")
+	if refundID == "" {
+		return connector.RefundResult{}, &connector.UnknownOutcomeError{Cause: errors.New("Xendit refund response did not contain an ID")}
+	}
+	status := firstString(response, "status")
+	if status == "" {
+		status = "PENDING"
+	}
+	return connector.RefundResult{ID: refundID, Status: status}, nil
 }
 
 func (c *Client) GetRefund(context.Context, connector.RefundLookup) (connector.RefundResult, error) {
@@ -620,6 +686,15 @@ func providerAmount(amount int64, currency string) (any, error) {
 		return amount / 100, nil
 	}
 	return float64(amount) / 100, nil
+}
+
+func xenditRefundReason(value string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "REQUESTED_BY_CUSTOMER", "CANCELLATION", "DUPLICATE", "FRAUDULENT", "OTHERS":
+		return strings.ToUpper(strings.TrimSpace(value)), nil
+	default:
+		return "", errors.New("Xendit refund reason is invalid")
+	}
 }
 
 func webhookStatus(eventType string) string {

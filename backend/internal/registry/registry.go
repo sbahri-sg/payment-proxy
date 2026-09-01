@@ -12,8 +12,14 @@ import (
 // Registry is the only place where provider implementations are bound to the
 // universal connector contract. It is assembled once at process startup.
 type Registry struct {
-	connectors map[string]connector.Connector
-	manifests  map[string]connector.Manifest
+	connectors map[runtimeKey]connector.Connector
+	manifests  map[runtimeKey]connector.Manifest
+	versions   map[string][]string
+}
+
+type runtimeKey struct {
+	providerCode    string
+	providerVersion string
 }
 
 // Pinger is optional so in-process test connectors remain small. Remote
@@ -24,8 +30,9 @@ type Pinger interface {
 
 func New(items ...connector.Connector) (*Registry, error) {
 	result := &Registry{
-		connectors: make(map[string]connector.Connector, len(items)),
-		manifests:  make(map[string]connector.Manifest, len(items)),
+		connectors: make(map[runtimeKey]connector.Connector, len(items)),
+		manifests:  make(map[runtimeKey]connector.Manifest, len(items)),
+		versions:   make(map[string][]string),
 	}
 	for _, item := range items {
 		if item == nil {
@@ -39,37 +46,53 @@ func New(items ...connector.Connector) (*Registry, error) {
 		if code == "" || code != manifest.Code {
 			return nil, fmt.Errorf("connector code %q does not match manifest code %q", code, manifest.Code)
 		}
-		if _, exists := result.connectors[code]; exists {
-			return nil, fmt.Errorf("duplicate connector %s", code)
+		key := runtimeKey{providerCode: code, providerVersion: strings.TrimSpace(manifest.Version)}
+		if _, exists := result.connectors[key]; exists {
+			return nil, fmt.Errorf("duplicate connector runtime %s@%s", code, key.providerVersion)
 		}
-		result.connectors[code] = item
-		result.manifests[code] = manifest
+		result.connectors[key] = item
+		result.manifests[key] = manifest
+		result.versions[code] = append(result.versions[code], key.providerVersion)
 	}
 	if len(result.connectors) == 0 {
 		return nil, fmt.Errorf("at least one connector is required")
+	}
+	for code := range result.versions {
+		sort.Strings(result.versions[code])
 	}
 	return result, nil
 }
 
 func (r *Registry) Connector(code string) (connector.Connector, error) {
-	item, ok := r.connectors[strings.ToLower(strings.TrimSpace(code))]
-	if !ok {
-		return nil, &connector.APIError{Provider: code, Status: 422, Code: "CONNECTOR_NOT_AVAILABLE", Message: "connector is not installed"}
-	}
-	return item, nil
+	return r.ConnectorVersion(code, "")
 }
 
 func (r *Registry) Manifest(code string) (connector.Manifest, error) {
-	manifest, ok := r.manifests[strings.ToLower(strings.TrimSpace(code))]
-	if !ok {
-		return connector.Manifest{}, &connector.APIError{Provider: code, Status: 422, Code: "CONNECTOR_NOT_AVAILABLE", Message: "connector is not installed"}
+	return r.ManifestVersion(code, "")
+}
+
+// ConnectorVersion resolves one immutable shared runtime. An empty version is
+// accepted only while a provider has exactly one loaded runtime, preserving
+// compatibility during the staged migration to version-pinned dispatch.
+func (r *Registry) ConnectorVersion(code, version string) (connector.Connector, error) {
+	key, err := r.resolve(code, version)
+	if err != nil {
+		return nil, err
 	}
-	return manifest.Clone(), nil
+	return r.connectors[key], nil
+}
+
+func (r *Registry) ManifestVersion(code, version string) (connector.Manifest, error) {
+	key, err := r.resolve(code, version)
+	if err != nil {
+		return connector.Manifest{}, err
+	}
+	return r.manifests[key].Clone(), nil
 }
 
 func (r *Registry) Codes() []string {
-	codes := make([]string, 0, len(r.connectors))
-	for code := range r.connectors {
+	codes := make([]string, 0, len(r.versions))
+	for code := range r.versions {
 		codes = append(codes, code)
 	}
 	sort.Strings(codes)
@@ -77,29 +100,68 @@ func (r *Registry) Codes() []string {
 }
 
 func (r *Registry) Manifests() []connector.Manifest {
-	codes := r.Codes()
-	items := make([]connector.Manifest, 0, len(codes))
-	for _, code := range codes {
-		items = append(items, r.manifests[code].Clone())
+	keys := r.runtimeKeys()
+	items := make([]connector.Manifest, 0, len(keys))
+	for _, key := range keys {
+		items = append(items, r.manifests[key].Clone())
 	}
 	return items
 }
 
 func (r *Registry) Supports(code string, operation connector.Operation) (bool, error) {
-	manifest, ok := r.manifests[strings.ToLower(strings.TrimSpace(code))]
-	if !ok {
-		return false, &connector.APIError{Provider: code, Status: 422, Code: "CONNECTOR_NOT_AVAILABLE", Message: "connector is not installed"}
+	return r.SupportsVersion(code, "", operation)
+}
+
+func (r *Registry) SupportsVersion(code, version string, operation connector.Operation) (bool, error) {
+	key, err := r.resolve(code, version)
+	if err != nil {
+		return false, err
 	}
+	manifest := r.manifests[key]
 	return manifest.Supports(operation), nil
 }
 
 func (r *Registry) Ping(ctx context.Context) error {
-	for _, code := range r.Codes() {
-		if pinger, ok := r.connectors[code].(Pinger); ok {
+	for _, key := range r.runtimeKeys() {
+		if pinger, ok := r.connectors[key].(Pinger); ok {
 			if err := pinger.Ping(ctx); err != nil {
-				return fmt.Errorf("connector %s is not ready: %w", code, err)
+				return fmt.Errorf("connector %s@%s is not ready: %w", key.providerCode, key.providerVersion, err)
 			}
 		}
 	}
 	return nil
+}
+
+func (r *Registry) resolve(code, version string) (runtimeKey, error) {
+	normalizedCode := strings.ToLower(strings.TrimSpace(code))
+	loadedVersions := r.versions[normalizedCode]
+	if len(loadedVersions) == 0 {
+		return runtimeKey{}, &connector.APIError{Provider: code, Status: 422, Code: "CONNECTOR_NOT_AVAILABLE", Message: "connector is not installed"}
+	}
+	normalizedVersion := strings.TrimSpace(version)
+	if normalizedVersion == "" {
+		if len(loadedVersions) != 1 {
+			return runtimeKey{}, &connector.APIError{Provider: code, Status: 409, Code: "CONNECTOR_VERSION_REQUIRED", Message: "provider has multiple loaded connector versions"}
+		}
+		normalizedVersion = loadedVersions[0]
+	}
+	key := runtimeKey{providerCode: normalizedCode, providerVersion: normalizedVersion}
+	if _, ok := r.connectors[key]; !ok {
+		return runtimeKey{}, &connector.APIError{Provider: code, Status: 422, Code: "CONNECTOR_VERSION_NOT_AVAILABLE", Message: "connector version is not loaded"}
+	}
+	return key, nil
+}
+
+func (r *Registry) runtimeKeys() []runtimeKey {
+	keys := make([]runtimeKey, 0, len(r.connectors))
+	for key := range r.connectors {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].providerCode == keys[j].providerCode {
+			return keys[i].providerVersion < keys[j].providerVersion
+		}
+		return keys[i].providerCode < keys[j].providerCode
+	})
+	return keys
 }

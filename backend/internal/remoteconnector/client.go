@@ -78,10 +78,11 @@ func DiscoverWithCAPEM(ctx context.Context, baseURL, token string, timeout time.
 		if err := manifest.Validate(); err != nil {
 			return nil, fmt.Errorf("connector runner manifest: %w", err)
 		}
-		if seen[manifest.Code] {
-			return nil, fmt.Errorf("connector runner returned duplicate connector %q", manifest.Code)
+		runtimeID := manifest.Code + "@" + manifest.Version
+		if seen[runtimeID] {
+			return nil, fmt.Errorf("connector runner returned duplicate connector runtime %q", runtimeID)
 		}
-		seen[manifest.Code] = true
+		seen[runtimeID] = true
 		result = append(result, &Client{baseURL: parsed, token: bootstrap.token, httpClient: httpClient, manifest: manifest.Clone()})
 	}
 	return result, nil
@@ -118,17 +119,19 @@ func (c *Client) Ping(ctx context.Context) error {
 
 func (c *Client) ValidatePaymentMethod(input connector.PaymentMethodMapping) error {
 	payload := struct {
-		ProviderCode string                         `json:"provider_code"`
-		Input        connector.PaymentMethodMapping `json:"input"`
-	}{ProviderCode: c.Code(), Input: input}
+		ProviderCode    string                         `json:"provider_code"`
+		ProviderVersion string                         `json:"provider_version"`
+		Input           connector.PaymentMethodMapping `json:"input"`
+	}{ProviderCode: c.Code(), ProviderVersion: c.manifest.Version, Input: input}
 	return c.do(context.Background(), http.MethodPost, "/partner/v1/payment-methods/validate", payload, nil, false)
 }
 
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 	payload := struct {
-		ProviderCode string                      `json:"provider_code"`
-		Input        connector.PaymentValidation `json:"input"`
-	}{ProviderCode: c.Code(), Input: input}
+		ProviderCode    string                      `json:"provider_code"`
+		ProviderVersion string                      `json:"provider_version"`
+		Input           connector.PaymentValidation `json:"input"`
+	}{ProviderCode: c.Code(), ProviderVersion: c.manifest.Version, Input: input}
 	return c.do(context.Background(), http.MethodPost, "/partner/v1/payments/validate", payload, nil, false)
 }
 

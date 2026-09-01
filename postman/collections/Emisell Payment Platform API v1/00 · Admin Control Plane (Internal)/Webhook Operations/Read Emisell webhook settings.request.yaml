@@ -1,0 +1,10 @@
+$kind: http-request
+description: Reads Callback URL, enabled state, masked secret, and last connection test. Plaintext secret is never returned.
+url: "{{base_url}}/api/v1/admin/emisell-webhook"
+method: GET
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/Read Emisell webhook settings.resources/examples
+order: 1000

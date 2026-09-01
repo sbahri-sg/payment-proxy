@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{partner_base_url}}/partner/v1/refunds/get"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "provider_code": "{{provider_code}}",
+      "environment": "{{execution_mode}}",
+      "credentials": {"api_key": "{{provider_secret}}"},
+      "refund_id": "{{provider_refund_id}}"
+    }
+examples: ./.resources/Get refund status.resources/examples
+order: 2000

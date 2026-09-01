@@ -139,7 +139,8 @@ Browser tidak menerima service key dan tidak memanggil provider connector.
 | Handle webhook | Ya | Ya | Signature diverifikasi connector lalu dinormalisasi |
 | Capture | Belum | Belum | Tidak diiklankan manifest |
 | Cancel | Belum | Disiapkan | Midtrans adapter diuji lokal, tetapi manifest tetap ditutup sampai sandbox evidence |
-| Create/get refund | Belum | Disiapkan | Midtrans adapter diuji lokal, tetapi manifest tetap ditutup sampai sandbox evidence |
+| Create refund | Disiapkan | Disiapkan | Adapter diuji lokal; keduanya tetap ditutup sampai sandbox + webhook evidence |
+| Get refund provider | Tidak | Disiapkan | Projection canonical selalu tersedia; provider lookup hanya dipakai bila didokumentasikan |
 
 Operation baru baru boleh dimasukkan ke manifest setelah implementation,
 contract test, sandbox evidence, webhook evidence, dan failure-mode test lulus.
@@ -165,6 +166,23 @@ Aturan mutasi:
 5. `UNKNOWN` tidak boleh automatic failover ke provider lain;
 6. status terminal tidak boleh diturunkan oleh webhook terlambat;
 7. retry hanya memakai logical operation dan provider resource yang sama.
+
+`SUCCEEDED` tetap boleh mengoreksi `EXPIRED`, `FAILED`, atau `CANCELLED` karena
+konfirmasi dana masuk tidak boleh dibuang. Koreksi `EXPIRED → SUCCEEDED`
+menambahkan flag canonical `late_payment`; koreksi `UNKNOWN → SUCCEEDED`
+menambahkan `provider_delayed_confirmation`. Flag ikut ke outbox agar aturan
+order terlambat berada di Emisell Backend, bukan di connector provider.
+
+Refund mempunyai guard tambahan:
+
+1. dana selalu kembali melalui payment route asal;
+2. payment method asal disimpan bersama payment dan refund;
+3. policy refund berada pada metadata capability per payment method, bukan
+   hanya pada manifest provider;
+4. full/partial dan multiple-partial divalidasi transaksional;
+5. alasan serta actor disimpan pada refund dan audit log;
+6. acknowledgement provider asynchronous tetap `PENDING` sampai callback final;
+7. installation tidak boleh di-uninstall selama refund liability masih terbuka.
 
 ## 8. Webhook boundary
 

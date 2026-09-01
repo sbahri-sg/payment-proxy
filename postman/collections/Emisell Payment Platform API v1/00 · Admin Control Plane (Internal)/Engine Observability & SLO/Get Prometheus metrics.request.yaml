@@ -1,0 +1,10 @@
+$kind: http-request
+description: Prometheus exposition format untuk scraper internal.
+url: "{{base_url}}/api/v1/admin/metrics"
+method: GET
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/Get Prometheus metrics.resources/examples
+order: 2000

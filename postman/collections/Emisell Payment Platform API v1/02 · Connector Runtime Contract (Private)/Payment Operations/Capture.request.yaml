@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{partner_base_url}}/partner/v1/payments/capture"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "provider_code": "{{provider_code}}",
+      "environment": "{{execution_mode}}",
+      "credentials": {"api_key": "{{provider_secret}}"},
+      "payment_id": "{{provider_payment_id}}",
+      "idempotency_key": "capture-payment-123-attempt-1",
+      "amount": 1000000,
+      "currency": "IDR"
+    }
+examples: ./.resources/Capture.resources/examples
+order: 3000

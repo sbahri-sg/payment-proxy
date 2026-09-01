@@ -1,6 +1,60 @@
 # Emisell Payment Platform API Contracts v1
 
-## Provider Apps (admin control plane)
+## Mulai dari audience yang benar
+
+Emisell Backend hanya mengintegrasikan kontrak canonical berikut:
+
+| Domain | Endpoint inti |
+|---|---|
+| Provider catalog | `GET /api/v1/providers` |
+| Merchant connection | `POST/GET /api/v1/provider-installations`, `GET/DELETE /api/v1/provider-installations/{id}` |
+| Credential | `PUT/PATCH /api/v1/provider-installations/{id}/credentials` |
+| Lifecycle | `POST .../{id}/activate`, `POST .../{id}/deactivate` |
+| Checkout configuration | payment methods, assignments, dan `GET /api/v1/payment-options` |
+| Payment | `POST /api/v1/payment-sessions`, `GET /api/v1/payment-sessions/{id}`, `POST .../{id}/cancel` |
+| Integration readiness | `GET /api/v1/integration-readiness` |
+| Refund | `POST /api/v1/refunds`, `GET /api/v1/refunds/{id}` |
+| Status event | satu receiver canonical milik Emisell Backend |
+
+Endpoint observability, Provider App release, service API key, certification,
+payment timeline, webhook inbox/delivery, reconciliation, health, dan Partner
+API bukan kewajiban integrasi Emisell Backend. Semuanya merupakan control
+plane, operasi internal, infrastructure probe, atau southbound connector
+contract.
+
+Decision matrix lengkap tersedia di
+[`docs/backend-api-scope.md`](backend-api-scope.md).
+
+Endpoint yang sengaja **tidak dibuat**:
+
+- tidak ada endpoint verify terpisah; konfigurasi credential langsung verify;
+- tidak ada endpoint switch Sandbox/Live; keduanya connection slot terpisah;
+- tidak ada endpoint `/xendit/*` atau `/midtrans/*`;
+- tidak ada endpoint merchant untuk memilih container/runtime;
+- tidak ada endpoint untuk membaca kembali secret;
+- tidak ada create-payment endpoint per metode;
+- refund adalah kontrak inti bersyarat; hanya original payment channel dengan
+  return-to-source policy dan released connector `create_refund` yang dapat
+  menjalankannya. Capture tetap belum masuk kontrak inti.
+
+## Contract map
+
+Dokumentasi dibagi berdasarkan pemanggil dan arah komunikasi. Kontrak tidak
+boleh dicampur walaupun seluruhnya berada di platform yang sama.
+
+| Contract | Arah | Base path | Status |
+|---|---|---|---|
+| Emisell Backend API | Emisell Backend → Payment Proxy | `/api/v1/*` | Active; kontrak integrasi utama |
+| Admin control plane | Dashboard/operator → Payment Proxy | `/api/v1/admin/*` dan operational routes | Internal only |
+| Emisell status webhook | Payment Proxy → Emisell Backend | callback URL milik Emisell | Active |
+| Provider webhook ingress | Provider → Payment Proxy | `/webhooks/v1/providers/{provider}/{installation_id}` | Internal implementation detail |
+| Partner API Contract | Payment Proxy → isolated Connector Runner | `/partner/v1/*` | Private service contract |
+
+Detail payload Xendit, Midtrans, DOKU, atau Duitku tidak boleh bocor ke
+Emisell Backend atau checkout. Dashboard `/docs` dan collection Postman memakai
+pembagian audience yang sama.
+
+## Provider Apps (admin control plane; bukan Backend API)
 
 Connector baru dimulai dengan membuat identitas provider melalui
 `POST /api/v1/admin/provider-app-providers`. Setelah itu versi ZIP dikirim ke
@@ -13,24 +67,7 @@ isolated runtime memuat provider code dan exact manifest version yang sama.
 Kontrak bundle, contoh request Postman, contoh response, dan security gate
 lengkap tersedia di [`docs/provider-apps.md`](provider-apps.md).
 
-Dokumentasi dibagi berdasarkan pemanggil dan arah komunikasi. Kontrak tidak boleh dicampur walaupun seluruhnya berada di platform yang sama.
-
-| Contract | Arah | Base path | Status |
-|---|---|---|---|
-| Emisell Internal Gateway | Emisell Backend → Payment Proxy | `/api/v1/*` | Active |
-| Admin control plane | Dashboard/operator → Payment Proxy | `/api/v1/admin/*` | Active; admin authentication + IP rate limit |
-| Emisell status webhook | Payment Proxy → Emisell Backend | callback URL milik Emisell | Active |
-| Provider webhook ingress | Provider → Payment Proxy | `/webhooks/v1/providers/{provider}/{installation_id}` | Active |
-| Partner API Contract | Payment Proxy → isolated Connector Runner | `/partner/v1/*` | Active; private service contract |
-
-Detail payload Xendit, Midtrans, DOKU, atau Duitku tidak boleh bocor ke Emisell Backend atau checkout. Dashboard `/docs` dan collection Postman memakai pembagian kontrak yang sama.
-
-Collection Postman menggunakan satu `base_url` untuk `/api/v1/*` dan
-`/api/v1/admin/*`. Keduanya berada dalam namespace versi yang sama; subpath admin
-dibedakan oleh `X-Admin-API-Key`, sedangkan endpoint merchant memakai service key.
-`partner_base_url` tetap khusus `/partner/v1/*` pada jaringan privat.
-
-## Emisell Internal Gateway
+## Emisell Backend API
 
 Base path: `/api/v1`. API ini adalah kontrak canonical antara Emisell Backend dan Payment Proxy.
 
@@ -38,11 +75,10 @@ Base path: `/api/v1`. API ini adalah kontrak canonical antara Emisell Backend da
 
 | Header | Required | Fungsi |
 |---|---:|---|
-| `Authorization: Bearer <SERVICE_API_KEY>` | semua `/api/v1/*` | service authentication |
-| `X-Emisell-Merchant-ID` | semua `/api/v1/*` | tenant isolation |
-| `X-Emisell-API-Version: 2026-08-28` | recommended | pin kontrak; versi tidak didukung menghasilkan `406` |
-| `X-Emisell-Execution-Mode` | create/assignment/certification | `sandbox` atau `live` |
-| `Idempotency-Key` | payment/cancel/refund/reconciliation/replay | ID logical operation, 8–128 karakter |
+| `Authorization: Bearer <SERVICE_API_KEY>` | endpoint merchant/service | service authentication |
+| `X-Emisell-Merchant-ID` | endpoint merchant/service | tenant isolation |
+| `X-Emisell-Execution-Mode` | filter/install/assignment/payment | `sandbox` atau `live` |
+| `Idempotency-Key` | create/cancel payment dan create refund | ID logical operation, 8–128 karakter |
 
 Error selalu stabil:
 
@@ -50,24 +86,48 @@ Error selalu stabil:
 {"error":{"code":"INVALID_STATE","message":"resource state does not allow this operation"}}
 ```
 
-Semua response membawa `X-Emisell-API-Version`, `X-Request-ID`, dan
-`Cache-Control: no-store`. Jika traffic guard aktif, response juga membawa
+Semua response membawa `X-Request-ID` dan `Cache-Control: no-store`. Jika
+traffic guard aktif, response juga membawa
 `X-RateLimit-Limit` dan `X-RateLimit-Remaining`. Ikuti `Retry-After` pada
 `429 RATE_LIMIT_EXCEEDED` atau `503 API_BUSY`; mutation hanya boleh diulang
 dengan `Idempotency-Key` yang sama.
 
-## Engine capability contract
+Kontrak ringkas untuk coding assistant tersedia sebagai plain text di
+`GET /docs/llms.txt`. File tersebut sengaja hanya memuat kontrak Emisell
+Backend dan guardrail keamanan; endpoint admin, Partner API, serta secret
+provider tidak dimasukkan sebagai instruksi integrasi.
+
+## Merchant integration readiness
+
+`GET /api/v1/integration-readiness` menilai kesiapan per Merchant ID dan
+`X-Emisell-Execution-Mode`. Status `READY` hanya diberikan setelah platform
+melihat bukti connection aktif, payment method aktif, create payment, replay
+idempotency, status lookup, webhook backend yang aktif, dan delivery webhook
+HTTP 2xx. Checklist ini berbeda dari connector certification milik operator.
+
+```http
+GET /api/v1/integration-readiness
+Authorization: Bearer <service-key>
+X-Emisell-Merchant-ID: merchant_123
+X-Emisell-Execution-Mode: sandbox
+```
+
+Sandbox dan Live dinilai secara terpisah. `resilience_evidence=true` berarti
+platform pernah memproses `late_payment` atau
+`provider_delayed_confirmation`; indikator tersebut informatif dan tidak
+memblokir status `READY`.
+
+## Runtime diagnostic (operator/internal)
 
 `GET /api/v1/engine/capabilities` adalah sumber machine-readable untuk runtime
-yang benar-benar berjalan. Emisell Backend dapat memeriksa versi connector,
-operation, field credential, dan certification profile sebelum mengaktifkan
-fitur baru.
+yang benar-benar berjalan. Endpoint ini dipakai Payment Kernel, deployment
+check, dan operator; Emisell Backend tidak perlu memanggilnya. Katalog yang
+dibutuhkan Dashboard Merchant sudah tersedia melalui `GET /api/v1/providers`.
 
 ```http
 GET /api/v1/engine/capabilities
 Authorization: Bearer <service-key>
 X-Emisell-Merchant-ID: merchant_123
-X-Emisell-API-Version: 2026-08-28
 ```
 
 ```json
@@ -100,7 +160,7 @@ Katalog database menentukan payment method yang boleh tampil di checkout.
 Manifest capability menentukan operation yang mampu dijalankan binary. Keduanya
 harus siap; capability endpoint tidak menggantikan assignment merchant.
 
-## Emisell Backend service API keys
+## Admin: Emisell Backend service API keys
 
 Menu Dashboard **API Keys** menerbitkan Bearer credential untuk Main Service
 Emisell. Key hasil generate mempunyai scope `gateway:full` dan dapat memanggil
@@ -144,7 +204,7 @@ Pasang `secret` pada secret manager Emisell Backend dan kirim sebagai
 memindahkan consumer, lalu revoke key lama. `SERVICE_API_KEY` environment tetap
 diterima sebagai bootstrap fallback deployment lama.
 
-## Engine observability
+## Admin: Engine observability
 
 Endpoint observability memakai `X-Admin-API-Key` dan tidak boleh diekspos ke
 checkout atau browser publik:
@@ -278,10 +338,13 @@ PUT /api/v1/provider-installations/{id}/credentials
 ```json
 {
   "provider_code": "xendit",
-  "provider_version": "emisell-xendit-v1",
   "environment": "sandbox"
 }
 ```
+
+`provider_version` opsional. Jika tidak dikirim, Payment Proxy memilih exact
+version yang sedang dimuat runtime. Emisell Backend sebaiknya memakai default
+ini agar tidak meng-hardcode versi connector.
 
 ```json
 {
@@ -354,12 +417,74 @@ Contoh response:
         {"code":"api_key","configured":true},
         {"code":"webhook_verification_token","configured":true}
       ],
-      "webhook_ready": true
+      "webhook_ready": true,
+      "verification_required": false,
+      "verification": {
+        "id": "iver_01k3...",
+        "result": "PASSED",
+        "provider_version": "emisell-xendit-v1",
+        "manifest_digest": "sha256-digest-without-prefix",
+        "verified_at": "2026-09-01T03:00:00Z"
+      }
     },
     "version": 4
   }
 }
 ```
+
+Connector wajib mengembalikan environment yang terdeteksi dari credential.
+Payment Proxy menolak `CREDENTIAL_MODE_MISMATCH` jika, misalnya, Xendit test
+key atau Midtrans Sandbox Server Key dikirim ke installation Live. Dashboard
+merchant tidak menebak mode berdasarkan label; hasil verifikasi connector
+menjadi sumber kebenaran.
+
+Credential yang tidak memiliki penanda mode yang dikenali menghasilkan
+`422 INVALID_PROVIDER_CREDENTIAL`; key valid tetapi dipasang pada slot yang
+salah menghasilkan `422 CREDENTIAL_MODE_MISMATCH`.
+
+### `PATCH /provider-installations/{id}/credentials`
+
+Merotasi sebagian credential tanpa pernah membaca secret lama ke browser.
+Installation `ACTIVE` harus dideaktivasi terlebih dahulu. Field yang tidak
+dikirim dipertahankan dari vault, kemudian seluruh gabungan credential
+diverifikasi ulang oleh connector sebelum ciphertext diganti.
+
+```json
+{
+  "credentials": {
+    "api_key": "xnd_development_ROTATED_REDACTED"
+  }
+}
+```
+
+Field opsional dapat dihapus secara eksplisit:
+
+```json
+{
+  "credentials": {},
+  "clear_fields": ["pop_id"]
+}
+```
+
+Secret lama, secret baru, maupun fragmennya tidak pernah dikembalikan. Response
+hanya memuat `configured_fields`, waktu verifikasi, dan
+`verified_environment`.
+
+### Merchant Sandbox/Live switch
+
+Switch adalah pemilih dua credential slot terpisah, bukan operasi yang
+mengubah satu installation dari Sandbox menjadi Live:
+
+```text
+Provider
+├── Sandbox installation → Sandbox credential
+└── Live installation    → Production credential
+```
+
+Dashboard merchant mengambil keduanya melalui `GET /provider-installations`,
+menampilkan slot yang dipilih, dan membuat installation baru dengan
+`POST /provider-installations` bila slot tersebut belum tersedia. Credential
+tetap diverifikasi terhadap mode slot sebelum dapat diaktifkan.
 
 ### `POST /provider-installations/{id}/activate`
 
@@ -387,15 +512,16 @@ Mengubah `ACTIVE` menjadi `INACTIVE` tanpa menghapus credential.
 ```
 
 Upgrade bersifat eksplisit dan hanya menerima installation `INACTIVE`. Target
-harus sudah `RELEASED` oleh Provider App Registry dan harus sama dengan versi
-runtime yang sedang dimuat. Response berubah menjadi `READY`; caller kemudian
-melakukan activate memakai `version` terbaru. Credential tetap berada di vault.
+harus sudah `RELEASED` oleh Provider App Registry dan tersedia pada shared
+runtime. Response berubah menjadi `CONFIG_REQUIRED`, connector binding lama
+dilepas, dan credential tetap berada di vault. Caller harus menjalankan kembali
+configure/verify pada versi baru hingga `READY`, baru kemudian boleh activate.
 
 ### `DELETE /provider-installations/{id}`
 
 Installation aktif harus dideaktivasi dahulu. Uninstall menghapus credential ciphertext dan mempertahankan transaksi serta audit.
 
-## Connector certification
+## Admin/operator: Connector certification
 
 ### `GET /connector-certifications?provider=xendit&limit=25`
 
@@ -577,6 +703,13 @@ Contoh response card:
 
 Request dengan idempotency key dan body sama mengembalikan payment lama. Key sama dengan body berbeda menghasilkan `409 IDEMPOTENCY_CONFLICT`. Transport timeout mutation menghasilkan `202 OUTCOME_UNKNOWN`; jangan membuat payment pengganti sampai reconciliation selesai.
 
+Setiap payment response mempunyai `flags` array. `late_payment` ditambahkan
+ketika provider mengonfirmasi `SUCCEEDED` setelah status canonical sempat
+`EXPIRED`; `provider_delayed_confirmation` ditambahkan ketika konfirmasi sukses
+datang setelah `UNKNOWN`. Flag ikut dikirim pada event `payment.updated` agar
+Emisell Backend dapat menjalankan kebijakan order secara eksplisit tanpa
+mengubah arti status canonical.
+
 ### `GET /payment-sessions`
 
 Query: `status`, `provider`, `q`, `limit` (1–100), dan `offset` (0–10.000). Execution mode opsional.
@@ -597,24 +730,46 @@ Mengembalikan status history, source, details, dan timestamp.
 
 Wajib idempotency key. Connector Xendit native v1 saat ini mengembalikan `CANCEL_NOT_SUPPORTED` sampai conformance cancel per channel lulus.
 
-## Refunds
+## Conditional capability: Refunds
 
 ### `POST /refunds`
 
 ```json
-{"payment_id":"pay_01k3...","amount":50000,"reason":"requested_by_customer"}
+{"payment_id":"pay_01k3...","amount":1000000,"reason":"REQUESTED_BY_CUSTOMER"}
 ```
 
-Kontrak sudah universal. Refund hanya diteruskan apabila connector runtime
-mengiklankan operation `create_refund` pada manifest. Xendit native v1 belum
-mengiklankannya, sehingga API mengembalikan `REFUND_NOT_SUPPORTED` sebelum
-credential dibuka atau request provider dibuat.
+Kontrak sudah universal dan non-custodial. Payment Proxy selalu menggunakan
+provider, environment, installation, credential, dan provider payment ID dari
+payment asal. Tujuan dana tidak dapat diberikan client. Reason dinormalisasi ke
+`REQUESTED_BY_CUSTOMER`, `CANCELLATION`, `DUPLICATE`, `FRAUDULENT`, atau
+`OTHERS`.
+
+Eksekusi memerlukan dua gate sekaligus:
+
+1. metadata payment channel mempunyai `refund.supported=true` dan
+   `return_to_original_source=true`;
+2. exact provider runtime version mengiklankan operation `create_refund`.
+
+Implementasi Unified Refund Xendit untuk QRIS full refund sudah tersedia dan
+diuji pada contract test lokal, tetapi exact release belum mengiklankan
+`create_refund`. Gate tetap tertutup sampai ada bukti transaksi sandbox nyata,
+verified final webhook, duplicate callback, dan failure-mode test. Karena itu
+request saat ini tetap menghasilkan `REFUND_NOT_SUPPORTED` sebelum credential
+dibuka. Partial refund QRIS dan channel Xendit lain juga fail-closed.
 
 ### `GET /refunds/{id}`
 
-Mengambil canonical refund dan menyinkronkan ke provider bila connector mendukungnya.
+Mengambil canonical refund. Xendit menyelesaikan Unified Refund melalui
+`refund.succeeded` atau `refund.failed`; API tidak mengarang endpoint lookup
+provider yang tidak terdokumentasi. Event final dikirim ke Emisell Backend
+sebagai `refund.updated`.
 
-## Provider webhook ingress
+Uninstall installation ditolak selama terdapat refund non-terminal atau payment
+yang masih berada pada documented refund window. Merchant harus memakai
+deactivate agar checkout baru berhenti tetapi credential tetap tersedia untuk
+memenuhi kewajiban refund.
+
+## Provider → Payment Proxy webhook ingress
 
 ### `POST /webhooks/v1/providers/xendit/{installation_id}`
 
@@ -732,7 +887,7 @@ v1=hex(HMAC-SHA256(EMISELL_BACKEND_WEBHOOK_SECRET, unix_timestamp + "." + raw_bo
 
 Receiver wajib menolak timestamp di luar toleransi, signature salah, versi tidak dikenal, serta perbedaan ID/type/merchant antara header dan body. Simpan event dan event ID secara atomik sebelum merespons `2xx`. Event duplikat dengan body identik tetap dibalas `2xx`; ID yang sama dengan body berbeda harus ditolak.
 
-## Webhook operations API
+## Admin/operator: Webhook operations API
 
 ### `GET /webhook-inbox`
 
@@ -746,7 +901,7 @@ List outbox menuju Emisell Backend beserta attempt dan status.
 
 Hanya delivery `DEAD`; wajib `Idempotency-Key`.
 
-## Reconciliation
+## Admin/operator: Reconciliation
 
 ### `GET /reconciliation/cases`
 
@@ -756,7 +911,7 @@ Menggabungkan payment/refund `UNKNOWN`, delivery `DEAD`, webhook `FAILED`, dan i
 
 Wajib `Idempotency-Key`. Endpoint mengambil provider payment ID yang sama, memperbarui status canonical, dan tidak melakukan failover.
 
-## Health
+## Infrastructure: Health
 
 - `GET /health/live`: proses API hidup.
 - `GET /health/ready`: PostgreSQL dan registry connector Emisell siap.
@@ -770,6 +925,5 @@ Wajib `Idempotency-Key`. Endpoint mengambil provider payment ID yang sama, mempe
 - Dashboard: `http://localhost:13000/docs`
 - Download: `http://localhost:13000/postman/Emisell-Payment-Proxy.postman_collection.json`
 
-Collection tidak menyimpan API key. Isi `service_api_key`, `merchant_id`,
-`api_contract_version`, dan `xendit_api_key` sebagai current values lokal sebelum
-menjalankan request.
+Collection tidak menyimpan API key. Isi `service_api_key`, `merchant_id`, dan
+`xendit_api_key` sebagai current values lokal sebelum menjalankan request.

@@ -1,0 +1,16 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/provider-app-providers"
+  method: GET
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 2, "active_version": "emisell-midtrans-v1.1.0" }]
+      }
+order: 1000

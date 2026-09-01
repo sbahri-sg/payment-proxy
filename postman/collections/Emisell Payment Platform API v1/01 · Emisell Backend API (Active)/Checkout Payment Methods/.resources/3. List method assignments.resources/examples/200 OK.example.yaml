@@ -1,0 +1,30 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-method-assignments"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    X-Emisell-Execution-Mode: "{{execution_mode}}"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": [
+          {
+            "id": "pmo_01k3...",
+            "payment_method_code": "qris",
+            "payment_method": "real_time_payment",
+            "payment_method_type": "qris",
+            "installation_id": "ins_01k3...",
+            "label": "QRIS",
+            "status": "ACTIVE",
+            "version": 1
+          }
+        ]
+      }
+order: 1000

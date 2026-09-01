@@ -1,0 +1,21 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/emisell-webhook/test"
+  method: POST
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "success": true,
+          "http_status": 202,
+          "event_id": "evt_test_01k3...",
+          "message": "Signed webhook test was accepted by Emisell Backend."
+        }
+      }
+order: 1000

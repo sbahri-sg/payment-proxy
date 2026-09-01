@@ -1,0 +1,29 @@
+$kind: http-example
+request:
+  url: "{{partner_base_url}}/partner/v1/payments/get"
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "provider_code": "{{provider_code}}",
+        "environment": "{{execution_mode}}",
+        "credentials": {"api_key": "{{provider_secret}}"},
+        "payment_id": "{{provider_payment_id}}"
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "id": "{{provider_payment_id}}",
+          "status": "SUCCEEDED",
+          "connector_transaction_id": "txn-provider-001"
+        }
+      }
+order: 1000

@@ -1,0 +1,8 @@
+$kind: http-request
+description: Kontrak machine-readable untuk connector, operation, credential field, dan certification profile yang tersedia pada runtime.
+url: "{{base_url}}/api/v1/engine/capabilities"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+examples: ./.resources/Get runtime connector capabilities.resources/examples
+order: 1000

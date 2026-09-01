@@ -1,0 +1,28 @@
+$kind: http-request
+description: Provider code menjadi identitas permanen. Nama dan code manifest ZIP berikutnya wajib cocok.
+url: "{{base_url}}/api/v1/admin/provider-app-providers"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "provider_code": "{{provider_app_code}}",
+      "provider_name": "Connector Demo",
+      "description": "Provider connector registered before ZIP submission.",
+      "website_url": "https://example.com",
+      "documentation_url": "https://example.com/docs",
+      "support_email": "support@example.com"
+    }
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Provider created', () => pm.expect(pm.response.code).to.eql(201));
+      if (pm.response.code === 201) pm.collectionVariables.set('provider_app_code', pm.response.json().data.provider_code);
+    language: text/javascript
+examples: ./.resources/1. Create Provider.resources/examples
+order: 1000

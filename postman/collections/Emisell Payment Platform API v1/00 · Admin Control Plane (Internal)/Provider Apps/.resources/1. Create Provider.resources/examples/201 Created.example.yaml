@@ -1,0 +1,33 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/provider-app-providers"
+  method: POST
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "provider_code": "{{provider_app_code}}",
+        "provider_name": "Connector Demo",
+        "description": "Provider connector registered before ZIP submission.",
+        "website_url": "https://example.com",
+        "documentation_url": "https://example.com/docs",
+        "support_email": "support@example.com"
+      }
+response:
+  statusCode: 201
+  statusText: Created
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "provider_code": "connector_demo",
+          "provider_name": "Connector Demo",
+          "status": "DRAFT",
+          "version_count": 0
+        }
+      }
+order: 1000

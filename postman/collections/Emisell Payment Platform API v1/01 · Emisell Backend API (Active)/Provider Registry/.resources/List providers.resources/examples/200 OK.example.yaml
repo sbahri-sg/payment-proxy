@@ -1,0 +1,33 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/providers"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": [
+          {
+            "code": "xendit",
+            "name": "Xendit",
+            "available": true,
+            "environments": [
+              "sandbox",
+              "live"
+            ],
+            "payment_methods": [
+              "qris", "va_bca", "va_mandiri", "va_bni", "va_bri", "va_permata", "va_cimb", "va_bsi", "va_muamalat",
+              "ewallet_ovo", "ewallet_dana", "ewallet_shopeepay", "ewallet_linkaja", "ewallet_astrapay", "card"
+            ],
+            "connector_code": "xendit"
+          }
+        ]
+      }
+order: 1000

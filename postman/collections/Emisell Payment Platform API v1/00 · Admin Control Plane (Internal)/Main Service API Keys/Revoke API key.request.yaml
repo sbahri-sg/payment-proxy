@@ -1,0 +1,10 @@
+$kind: http-request
+description: Mencabut akses secara langsung tanpa restart Payment Proxy. Gunakan key baru di Emisell sebelum melakukan revoke saat rotasi.
+url: "{{base_url}}/api/v1/admin/service-api-keys/{{service_api_key_id}}/revoke"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/Revoke API key.resources/examples
+order: 3000

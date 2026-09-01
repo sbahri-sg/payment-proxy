@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/provider-installations/{{installation_id}}"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+examples: ./.resources/Get installation.resources/examples
+order: 6000

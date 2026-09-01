@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{base_url}}/health/live"
+method: GET
+auth:
+  type: noauth
+examples: ./.resources/Liveness.resources/examples
+order: 1000

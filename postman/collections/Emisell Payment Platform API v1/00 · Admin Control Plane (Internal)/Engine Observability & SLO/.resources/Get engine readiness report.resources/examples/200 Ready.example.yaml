@@ -1,0 +1,23 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/engine/readiness"
+  method: GET
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "status": "ready",
+          "environment": "production",
+          "contract_version": "2026-08-28",
+          "connector_count": 1,
+          "checks": { "database": "ok", "connector_registry": "ok", "runtime_configuration": "ok" },
+          "request_guards": { "max_body_bytes": 1048576, "timeout_seconds": 25, "rate_limit_rps": 300, "rate_limit_burst": 600, "max_in_flight": 500, "rate_limit_scope": "per_replica_per_merchant" }
+        }
+      }
+order: 1000

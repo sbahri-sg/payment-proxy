@@ -1,0 +1,6 @@
+$kind: http-request
+description: ACTIVE. Manifest runtime tetap memerlukan sertifikasi Emisell sebelum method ditampilkan di checkout.
+url: "{{partner_base_url}}/partner/v1/capabilities"
+method: GET
+examples: ./.resources/List runtime capabilities.resources/examples
+order: 2000

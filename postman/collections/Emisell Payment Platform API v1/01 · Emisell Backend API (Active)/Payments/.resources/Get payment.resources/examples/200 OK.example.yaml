@@ -1,0 +1,27 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-sessions/{{payment_id}}"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "pay_01k3...",
+          "installation_id": "ins_01k3...",
+          "provider_code": "xendit",
+          "environment": "sandbox",
+          "amount": 1000000,
+          "currency": "IDR",
+          "status": "PENDING",
+          "provider_payment_id": "pay_engine_..."
+        }
+      }
+order: 1000

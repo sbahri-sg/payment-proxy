@@ -28,23 +28,21 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return <svg {...common}>{paths[name]}</svg>;
 }
 
-type ActivePage = "overview" | "payments" | "providers" | "provider-apps" | "installations" | "payment-methods" | "webhooks" | "api-keys" | "docs";
+type ActivePage = "overview" | "payments" | "providers" | "payment-methods" | "webhooks" | "api-keys" | "docs";
 
 const navigation: { label: string; items: { name: string; icon: IconName; href?: string; badge?: string; page?: ActivePage }[] }[] = [
   { label: "Workspace", items: [
     { name: "Overview", icon: "overview", href: "/", page: "overview" },
     { name: "Payments", icon: "payment", href: "/payments", page: "payments" },
   ]},
-  { label: "Connections", items: [
-    { name: "Payment providers", icon: "provider", href: "/providers", page: "providers" },
-    { name: "Merchant gateways", icon: "install", href: "/installations", page: "installations" },
+  { label: "Payment setup", items: [
+    { name: "Providers", icon: "provider", href: "/providers", page: "providers" },
     { name: "Checkout methods", icon: "wallet", href: "/payment-methods", page: "payment-methods" },
   ]},
   { label: "Operations", items: [
     { name: "Webhooks", icon: "webhook", href: "/webhooks", page: "webhooks" },
   ]},
   { label: "Developers", items: [
-    { name: "Connector apps", icon: "route", href: "/provider-apps", page: "provider-apps" },
     { name: "API keys", icon: "key", href: "/api-keys", page: "api-keys" },
     { name: "API documentation", icon: "docs", href: "/docs", page: "docs" },
   ]},

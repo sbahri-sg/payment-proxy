@@ -1,0 +1,16 @@
+$kind: http-request
+description: Mengambil payment ID yang sama langsung dari provider lalu menerapkan status canonical, timeline, reconciliation counter, dan audit secara atomic. Tidak membuat payment pengganti dan tidak melakukan failover.
+url: "{{base_url}}/api/v1/reconciliation/payments/{{payment_id}}/resolve"
+method: POST
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  Idempotency-Key: reconcile-payment-123-attempt-1
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "expected_reconciliation_count": 0
+    }
+examples: ./.resources/Resolve unknown payment.resources/examples
+order: 2000

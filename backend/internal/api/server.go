@@ -22,6 +22,7 @@ import (
 	"github.com/emisell/api-payment-proxy/internal/config"
 	"github.com/emisell/api-payment-proxy/internal/connector"
 	"github.com/emisell/api-payment-proxy/internal/ids"
+	"github.com/emisell/api-payment-proxy/internal/installationservice"
 	"github.com/emisell/api-payment-proxy/internal/model"
 	"github.com/emisell/api-payment-proxy/internal/observability"
 	"github.com/emisell/api-payment-proxy/internal/providerapps"
@@ -35,8 +36,9 @@ import (
 )
 
 const (
-	maxRequestBody     = 1 << 20
-	apiContractHeader  = "X-Emisell-API-Version"
+	maxRequestBody = 1 << 20
+	// apiContractVersion is descriptive metadata returned by readiness and
+	// capability resources. Request versioning is defined solely by /api/v1.
 	apiContractVersion = "2026-08-28"
 )
 
@@ -47,11 +49,11 @@ var (
 
 type Engine interface {
 	Ping(context.Context) error
-	Manifest(string) (connector.Manifest, error)
+	ManifestVersion(string, string) (connector.Manifest, error)
 	Manifests() []connector.Manifest
-	Supports(string, connector.Operation) (bool, error)
-	ValidatePaymentMethod(string, connector.PaymentMethodMapping) error
-	ValidatePayment(string, connector.PaymentValidation) error
+	SupportsVersion(string, string, connector.Operation) (bool, error)
+	ValidatePaymentMethodVersion(string, string, connector.PaymentMethodMapping) error
+	ValidatePaymentVersion(string, string, connector.PaymentValidation) error
 	VerifyInstallation(context.Context, connector.InstallationInput) (connector.InstallationResult, error)
 	DisableInstallation(context.Context, connector.InstallationInput) error
 	CreatePayment(context.Context, connector.PaymentInput) (connector.PaymentResult, error)
@@ -69,6 +71,7 @@ type Server struct {
 	store            *store.Postgres
 	engine           Engine
 	cipher           *secrets.Cipher
+	installations    *installationservice.Service
 	serviceKeys      *servicekeys.Service
 	webhookSettings  *webhooksettings.Service
 	metrics          *observability.Metrics
@@ -81,6 +84,7 @@ type Server struct {
 func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *secrets.Cipher, keys *servicekeys.Service, settings *webhooksettings.Service, logger *slog.Logger) http.Handler {
 	s := &Server{
 		cfg: cfg, store: database, engine: engine, cipher: cipher, serviceKeys: keys,
+		installations:   installationservice.New(database, engine, cipher, cfg.PublicBaseURL),
 		webhookSettings: settings, metrics: observability.New(),
 		rateLimiter: ratelimit.New(cfg.APIRateLimitRPS, cfg.APIRateLimitBurst), log: logger,
 		adminRateLimiter: ratelimit.New(cfg.AdminRateLimitRPS, cfg.AdminRateLimitBurst),
@@ -89,30 +93,26 @@ func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *sec
 		s.inFlight = make(chan struct{}, cfg.APIMaxInFlight)
 	}
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer, s.securityHeaders, s.contractHeaders, s.accessLog)
+	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer, s.securityHeaders, s.responseHeaders, s.accessLog)
 	r.Get("/health/live", s.live)
 	r.Get("/health/ready", s.ready)
 	r.Post("/webhooks/v1/providers/{provider}/{installationID}", s.providerWebhook)
-	// Keep the former path as a compatibility alias while all documented and
-	// first-party clients use the canonical version-first namespace below.
-	r.Route("/internal/v1", func(r chi.Router) {
-		r.Use(s.markLegacyAdminRoute, s.protectAdminTraffic, s.authenticateAdmin, s.requestDeadline)
-		s.registerAdminRoutes(r)
-	})
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(s.protectAdminTraffic, s.authenticateAdmin, s.requestDeadline)
 			s.registerAdminRoutes(r)
 		})
 		r.Group(func(r chi.Router) {
-			r.Use(s.requireAPIVersion, s.authenticateService, s.protectServiceTraffic, s.requestDeadline)
+			r.Use(s.authenticateService, s.protectServiceTraffic, s.requestDeadline)
 			r.Get("/engine/capabilities", s.engineCapabilities)
+			r.Get("/integration-readiness", s.integrationReadiness)
 			r.Get("/providers", s.listProviders)
 			r.Get("/payment-methods", s.listPaymentMethods)
 			r.Get("/provider-installations", s.listInstallations)
 			r.Post("/provider-installations", s.createInstallation)
 			r.Get("/provider-installations/{id}", s.getInstallation)
 			r.Put("/provider-installations/{id}/credentials", s.configureCredentials)
+			r.Patch("/provider-installations/{id}/credentials", s.configureCredentials)
 			r.Post("/provider-installations/{id}/upgrade", s.upgradeInstallation)
 			r.Post("/provider-installations/{id}/activate", s.activateInstallation)
 			r.Post("/provider-installations/{id}/deactivate", s.deactivateInstallation)
@@ -149,7 +149,6 @@ func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Post("/service-api-keys", s.createServiceAPIKey)
 	r.Post("/service-api-keys/{id}/revoke", s.revokeServiceAPIKey)
 	r.Get("/provider-apps", s.listProviderApps)
-	r.Post("/provider-apps", s.uploadProviderApp)
 	r.Post("/provider-apps/{id}/transition", s.transitionProviderApp)
 	r.Get("/provider-app-providers", s.listProviderAppProviders)
 	r.Post("/provider-app-providers", s.createProviderAppProvider)
@@ -160,14 +159,6 @@ func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Put("/emisell-webhook", s.updateEmisellWebhookSettings)
 	r.Post("/emisell-webhook/secret", s.generateEmisellWebhookSecret)
 	r.Post("/emisell-webhook/test", s.testEmisellWebhook)
-}
-
-func (s *Server) markLegacyAdminRoute(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Deprecation", "true")
-		w.Header().Set("Link", `</api/v1/admin>; rel="successor-version"`)
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (s *Server) live(w http.ResponseWriter, _ *http.Request) {
@@ -208,6 +199,57 @@ func (s *Server) engineCapabilities(w http.ResponseWriter, _ *http.Request) {
 			"provider_credentials_never_leave_payment_platform",
 		},
 	})
+}
+
+func (s *Server) integrationReadiness(w http.ResponseWriter, r *http.Request) {
+	mode, ok := requireMode(w, r)
+	if !ok {
+		return
+	}
+	facts, err := s.store.GetIntegrationReadinessFacts(r.Context(), tenant(r), mode)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	settings, err := s.webhookSettings.Get(r.Context())
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	webhookConfigured := settings.Configured && settings.Enabled && settings.SecretConfigured
+	checks := make([]model.IntegrationReadinessCheck, 0, 7)
+	add := func(code, label string, passed bool, pendingDetail string) {
+		status, detail := "PASSED", "Verified from platform evidence."
+		if !passed {
+			status, detail = "PENDING", pendingDetail
+		}
+		checks = append(checks, model.IntegrationReadinessCheck{Code: code, Label: label, Status: status, Detail: detail})
+	}
+	add("provider_connection", "Active provider connection", facts.ActiveInstallation, "Install, configure, verify, and activate a provider for this environment.")
+	add("payment_method", "Active payment method", facts.ActiveAssignment, "Assign at least one certified payment method to the active provider connection.")
+	add("payment_create", "Payment creation", facts.PaymentCreated, "Create one payment session using a stable Idempotency-Key.")
+	add("idempotency_replay", "Idempotency replay", facts.IdempotencyReplay, "Repeat the same payment request with the same Idempotency-Key and confirm the same payment is returned.")
+	add("payment_status", "Payment status lookup", facts.PaymentStatusRead, "Retrieve the created payment by its canonical payment ID.")
+	add("backend_webhook", "Emisell Backend webhook", webhookConfigured, "Configure and enable the signed Emisell Backend webhook in Admin settings.")
+	add("webhook_delivery", "Successful webhook delivery", facts.WebhookDelivered, "Complete a sandbox payment and return HTTP 2xx from the Emisell Backend webhook receiver.")
+
+	result := model.IntegrationReadiness{
+		Environment: mode, Status: "READY", Total: len(checks),
+		ResilienceEvidence: facts.ResilienceObserved, Checks: checks,
+	}
+	for _, check := range checks {
+		if check.Status == "PASSED" {
+			result.Passed++
+			continue
+		}
+		if result.RecommendedAction == "" {
+			result.RecommendedAction = check.Detail
+		}
+	}
+	if result.Passed != result.Total {
+		result.Status = "NOT_READY"
+	}
+	writeData(w, http.StatusOK, result)
 }
 
 func (s *Server) engineReadiness(w http.ResponseWriter, r *http.Request) {
@@ -430,10 +472,6 @@ func optionalPublicHTTPSURL(value string) bool {
 	return true
 }
 
-func (s *Server) uploadProviderApp(w http.ResponseWriter, r *http.Request) {
-	s.uploadProviderAppForProvider(w, r, "")
-}
-
 func (s *Server) uploadProviderAppVersion(w http.ResponseWriter, r *http.Request) {
 	providerCode := strings.ToLower(strings.TrimSpace(chi.URLParam(r, "providerCode")))
 	if !regexp.MustCompile(`^[a-z0-9_-]{2,48}$`).MatchString(providerCode) {
@@ -564,6 +602,7 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusConflict, "PROVIDER_APP_STATUS_CONFLICT", "provider app status has changed")
 		return
 	}
+	runtimeDigest := ""
 	switch request.Status {
 	case "VALIDATED":
 		artifact, artifactErr := s.store.GetProviderAppArtifact(r.Context(), item.ID)
@@ -587,17 +626,30 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 			problem(w, http.StatusUnprocessableEntity, "PUBLISH_NOTE_REQUIRED", "publish requires a deployment review note")
 			return
 		}
-		runtimeManifest, manifestErr := s.engine.Manifest(item.ProviderCode)
-		if manifestErr != nil || runtimeManifest.Version != item.Version {
+		runtimeManifest, manifestErr := s.engine.ManifestVersion(item.ProviderCode, item.Version)
+		if manifestErr != nil {
 			problem(w, http.StatusConflict, "CONNECTOR_RUNTIME_NOT_READY", "deploy the isolated connector runtime with this exact manifest version before publish")
 			return
 		}
 		var scanReport providerapps.ScanReport
-		if err := json.Unmarshal(item.ScanReport, &scanReport); err != nil || scanReport.EntrypointSHA256 == "" || runtimeManifest.ExecutableSHA256 == "" ||
-			!hmac.Equal([]byte(scanReport.EntrypointSHA256), []byte(runtimeManifest.ExecutableSHA256)) {
+		if err := json.Unmarshal(item.ScanReport, &scanReport); err != nil || runtimeManifest.ExecutableSHA256 == "" {
 			problem(w, http.StatusConflict, "CONNECTOR_ARTIFACT_MISMATCH", "the deployed connector executable does not match the certified Provider App artifact")
 			return
 		}
+		switch scanReport.PackageFormat {
+		case providerapps.PackageFormatSubmissionV1:
+			// The review ZIP is deliberately source-only. The separately deployed
+			// runtime identity is pinned in provider_versions at publish time.
+		case "", providerapps.PackageFormatLegacyBundle:
+			if scanReport.EntrypointSHA256 == "" || !hmac.Equal([]byte(scanReport.EntrypointSHA256), []byte(runtimeManifest.ExecutableSHA256)) {
+				problem(w, http.StatusConflict, "CONNECTOR_ARTIFACT_MISMATCH", "the deployed connector executable does not match the certified legacy Provider App artifact")
+				return
+			}
+		default:
+			problem(w, http.StatusConflict, "PROVIDER_APP_FORMAT_UNSUPPORTED", "the certified Provider App package format is not supported")
+			return
+		}
+		runtimeDigest = runtimeManifest.ExecutableSHA256
 	case "DEPRECATED", "DISABLED":
 	default:
 		problem(w, http.StatusUnprocessableEntity, "INVALID_PROVIDER_APP_STATUS", "unsupported provider app transition")
@@ -605,7 +657,7 @@ func (s *Server) transitionProviderApp(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := s.store.TransitionProviderApp(r.Context(), store.ProviderAppTransitionInput{
 		ID: item.ID, ExpectedStatus: request.ExpectedStatus, Status: request.Status,
-		ReviewNote: request.ReviewNote, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+		ReviewNote: request.ReviewNote, RuntimeDigest: runtimeDigest, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
 	})
 	if err != nil {
 		s.storeError(w, r, err)
@@ -725,31 +777,13 @@ func (s *Server) createInstallation(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(w, r, &request); err != nil {
 		return
 	}
-	request.ProviderCode = strings.ToLower(strings.TrimSpace(request.ProviderCode))
-	request.Environment = strings.ToLower(strings.TrimSpace(request.Environment))
-	if request.ProviderCode == "" || !validMode(request.Environment) {
-		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "provider_code and environment (sandbox/live) are required")
-		return
-	}
-	runtimeManifest, err := s.engine.Manifest(request.ProviderCode)
+	item, err := s.installations.Create(r.Context(), installationservice.CreateInput{
+		TenantID: tenant(r), ProviderCode: request.ProviderCode,
+		ProviderVersion: request.ProviderVersion, Environment: request.Environment,
+		Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+	})
 	if err != nil {
-		s.engineError(w, err)
-		return
-	}
-	if request.ProviderVersion == "" {
-		request.ProviderVersion = runtimeManifest.Version
-	}
-	if request.ProviderVersion != runtimeManifest.Version {
-		problem(w, http.StatusConflict, "PROVIDER_VERSION_NOT_RUNNING", "requested provider version is not loaded by the connector runtime")
-		return
-	}
-	id, ok := s.newID(w, r, "ins")
-	if !ok {
-		return
-	}
-	item, err := s.store.CreateInstallation(r.Context(), store.CreateInstallationInput{ID: id, TenantID: tenant(r), ProviderCode: request.ProviderCode, ProviderVersion: request.ProviderVersion, Environment: request.Environment, ProfileID: "emisell-native", Actor: actor(r), RequestID: middleware.GetReqID(r.Context())})
-	if err != nil {
-		s.storeError(w, r, err)
+		s.installationError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusCreated, s.withProviderWebhookURL(item))
@@ -758,11 +792,7 @@ func (s *Server) createInstallation(w http.ResponseWriter, r *http.Request) {
 type credentialRequest struct {
 	Credentials    map[string]string `json:"credentials"`
 	PaymentMethods []map[string]any  `json:"payment_methods"`
-}
-type credentialField struct {
-	Code     string `json:"code"`
-	Secret   bool   `json:"secret"`
-	Required bool   `json:"required"`
+	ClearFields    []string          `json:"clear_fields,omitempty"`
 }
 
 func (s *Server) configureCredentials(w http.ResponseWriter, r *http.Request) {
@@ -771,66 +801,14 @@ func (s *Server) configureCredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clearCredentials(request.Credentials)
-	installation, err := s.store.GetInstallation(r.Context(), tenant(r), chi.URLParam(r, "id"))
-	if err != nil {
-		s.storeError(w, r, err)
-		return
-	}
-	provider, err := s.store.GetProvider(r.Context(), installation.ProviderCode)
-	if err != nil {
-		s.storeError(w, r, err)
-		return
-	}
-	metadata, err := validateAndMaskCredentials(provider.CredentialSchema, request.Credentials)
-	if err != nil {
-		problem(w, http.StatusUnprocessableEntity, "INVALID_CREDENTIALS", err.Error())
-		return
-	}
-	installation, err = s.store.BeginCredentialConfig(r.Context(), tenant(r), installation.ID, actor(r), middleware.GetReqID(r.Context()))
-	if err != nil {
-		s.storeError(w, r, err)
-		return
-	}
-	callbackURL := s.providerWebhookURL(provider.Code, installation.ID)
-	result, err := s.engine.VerifyInstallation(r.Context(), connector.InstallationInput{
-		InstallationID: installation.ID, ProviderCode: provider.Code, Environment: installation.Environment,
-		Credentials: request.Credentials, PublicWebhookURL: callbackURL,
+	installation, err := s.installations.Configure(r.Context(), installationservice.ConfigureInput{
+		TenantID: tenant(r), InstallationID: chi.URLParam(r, "id"),
+		Credentials: request.Credentials, ClearFields: request.ClearFields,
+		PaymentMethods: request.PaymentMethods, PaymentMethodsPresent: request.PaymentMethods != nil,
+		Patch: r.Method == http.MethodPatch, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
 	})
 	if err != nil {
-		_ = s.store.FailInstallation(r.Context(), tenant(r), installation.ID, safeEngineError(err), actor(r))
-		s.engineError(w, err)
-		return
-	}
-	defer clearCredentials(result.StoredCredentials)
-	credentialPayload, err := json.Marshal(result.StoredCredentials)
-	if err != nil {
-		_ = s.store.FailInstallation(r.Context(), tenant(r), installation.ID, "credential serialization failed", actor(r))
-		s.internal(w, r, err)
-		return
-	}
-	ciphertext, err := s.cipher.Encrypt(credentialPayload, []byte("provider-credential:"+installation.ID))
-	clear(credentialPayload)
-	if err != nil {
-		_ = s.store.FailInstallation(r.Context(), tenant(r), installation.ID, "credential encryption failed", actor(r))
-		s.internal(w, r, err)
-		return
-	}
-	if err = s.store.SaveProviderCredentials(r.Context(), tenant(r), installation.ID, ciphertext); err != nil {
-		_ = s.store.FailInstallation(r.Context(), tenant(r), installation.ID, "credential vault write failed", actor(r))
-		s.internal(w, r, err)
-		return
-	}
-	var metadataObject map[string]any
-	_ = json.Unmarshal(metadata, &metadataObject)
-	metadataObject["execution_engine"] = "emisell_native"
-	metadataObject["webhook_ready"] = result.WebhookReady
-	metadataObject["public_webhook_url"] = callbackURL
-	metadata, _ = json.Marshal(metadataObject)
-	methods, _ := json.Marshal(request.PaymentMethods)
-	installation, err = s.store.CompleteCredentialConfig(r.Context(), tenant(r), installation.ID, result.ConnectorID, metadata, methods, actor(r))
-	if err != nil {
-		_ = s.store.FailInstallation(r.Context(), tenant(r), installation.ID, "credential configuration could not be finalized", actor(r))
-		s.internal(w, r, err)
+		s.installationError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusOK, s.withProviderWebhookURL(installation))
@@ -850,28 +828,13 @@ func (s *Server) upgradeInstallation(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(w, r, &request); err != nil {
 		return
 	}
-	request.ProviderVersion = strings.TrimSpace(request.ProviderVersion)
-	if request.Version <= 0 || request.ProviderVersion == "" {
-		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "version and provider_version are required")
-		return
-	}
-	installation, err := s.store.GetInstallation(r.Context(), tenant(r), chi.URLParam(r, "id"))
+	item, err := s.installations.Upgrade(r.Context(), installationservice.UpgradeInput{
+		TenantID: tenant(r), InstallationID: chi.URLParam(r, "id"),
+		ProviderVersion: request.ProviderVersion, ExpectedVersion: request.Version,
+		Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+	})
 	if err != nil {
-		s.storeError(w, r, err)
-		return
-	}
-	runtimeManifest, err := s.engine.Manifest(installation.ProviderCode)
-	if err != nil {
-		s.engineError(w, err)
-		return
-	}
-	if request.ProviderVersion != runtimeManifest.Version {
-		problem(w, http.StatusConflict, "PROVIDER_VERSION_NOT_RUNNING", "requested provider version is not loaded by the connector runtime")
-		return
-	}
-	item, err := s.store.UpgradeInstallation(r.Context(), tenant(r), installation.ID, request.ProviderVersion, actor(r), middleware.GetReqID(r.Context()), request.Version)
-	if err != nil {
-		s.storeError(w, r, err)
+		s.installationError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusOK, s.withProviderWebhookURL(item))
@@ -890,49 +853,30 @@ func (s *Server) transitionInstallation(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 	}
-	item, err := s.store.TransitionInstallation(r.Context(), tenant(r), chi.URLParam(r, "id"), target, actor(r), middleware.GetReqID(r.Context()), request.Version)
+	input := installationservice.TransitionInput{
+		TenantID: tenant(r), InstallationID: chi.URLParam(r, "id"),
+		Actor: actor(r), RequestID: middleware.GetReqID(r.Context()), ExpectedVersion: request.Version,
+	}
+	var item model.Installation
+	var err error
+	if target == model.InstallationActive {
+		item, err = s.installations.Activate(r.Context(), input)
+	} else {
+		item, err = s.installations.Deactivate(r.Context(), input)
+	}
 	if err != nil {
-		s.storeError(w, r, err)
+		s.installationError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusOK, s.withProviderWebhookURL(item))
 }
 func (s *Server) uninstallInstallation(w http.ResponseWriter, r *http.Request) {
-	item, err := s.store.GetInstallation(r.Context(), tenant(r), chi.URLParam(r, "id"))
+	item, err := s.installations.Uninstall(r.Context(), installationservice.UninstallInput{
+		TenantID: tenant(r), InstallationID: chi.URLParam(r, "id"),
+		Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+	})
 	if err != nil {
-		s.storeError(w, r, err)
-		return
-	}
-	if item.Status == model.InstallationUninstalled {
-		writeData(w, http.StatusOK, s.withProviderWebhookURL(item))
-		return
-	}
-	if item.Status == model.InstallationActive {
-		problem(w, http.StatusConflict, "INVALID_STATE", "deactivate the installation before uninstalling it")
-		return
-	}
-	credentials, credentialErr := s.loadCredentials(r.Context(), tenant(r), item.ID)
-	if credentialErr == nil {
-		defer clearCredentials(credentials)
-		err = s.engine.DisableInstallation(r.Context(), connector.InstallationInput{
-			InstallationID: item.ID, ProviderCode: item.ProviderCode, Environment: item.Environment, Credentials: credentials,
-		})
-		if err != nil && !errors.Is(err, connector.ErrNotSupported) {
-			_ = s.store.FailInstallation(r.Context(), tenant(r), item.ID, safeEngineError(err), actor(r))
-			s.engineError(w, err)
-			return
-		}
-	} else if !errors.Is(credentialErr, store.ErrNotFound) {
-		s.internal(w, r, credentialErr)
-		return
-	}
-	if err = s.store.DeleteProviderCredentials(r.Context(), tenant(r), item.ID); err != nil {
-		s.internal(w, r, err)
-		return
-	}
-	item, err = s.store.MarkUninstalled(r.Context(), tenant(r), item.ID, actor(r), middleware.GetReqID(r.Context()))
-	if err != nil {
-		s.storeError(w, r, err)
+		s.installationError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusOK, s.withProviderWebhookURL(item))
@@ -1017,7 +961,7 @@ func (s *Server) upsertPaymentMethodAssignment(w http.ResponseWriter, r *http.Re
 	}
 	request.PaymentMethod = capability.ProviderMethod
 	request.PaymentMethodType = capability.ProviderMethodType
-	if err = s.engine.ValidatePaymentMethod(installation.ProviderCode, connector.PaymentMethodMapping{
+	if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentMethodMapping{
 		PaymentMethodCode:  request.PaymentMethodCode,
 		ProviderMethod:     request.PaymentMethod,
 		ProviderMethodType: request.PaymentMethodType,
@@ -1134,7 +1078,7 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 		{Code: "installation", Label: "Active sandbox installation", Status: "PASSED", Detail: installation.ID},
 		{Code: "catalog_mapping", Label: "Canonical connector mapping", Status: "PASSED", Detail: capability.ProviderMethod + "/" + capability.ProviderMethodType},
 	}
-	if err = s.engine.ValidatePaymentMethod(installation.ProviderCode, connector.PaymentMethodMapping{
+	if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentMethodMapping{
 		PaymentMethodCode:  capability.PaymentMethodCode,
 		ProviderMethod:     capability.ProviderMethod,
 		ProviderMethodType: capability.ProviderMethodType,
@@ -1144,7 +1088,7 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 		s.writeConnectorCertification(w, r, http.StatusCreated, runID, installation, capability, "FAILED", "", "The catalog mapping is not executable by the registered connector.", checks)
 		return
 	}
-	manifest, manifestErr := s.engine.Manifest(capability.ProviderCode)
+	manifest, manifestErr := s.engine.ManifestVersion(capability.ProviderCode, installation.ProviderVersion)
 	if manifestErr != nil {
 		checks = append(checks, model.ConnectorCertificationCheck{Code: "test_profile", Label: "Automated sandbox test profile", Status: "BLOCKED"})
 		s.writeConnectorCertification(w, r, http.StatusCreated, runID, installation, capability, "BLOCKED", "", "The provider connector is not registered in the running Emisell Payment Engine.", checks)
@@ -1182,9 +1126,9 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	session, created, err := s.store.ReservePayment(r.Context(), store.ReservePaymentInput{
-		ID: paymentID, TenantID: tenant(r), InstallationID: installation.ID, ProviderCode: installation.ProviderCode,
+		ID: paymentID, TenantID: tenant(r), InstallationID: installation.ID, ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion,
 		Environment: mode, MerchantReference: reference, IdempotencyKey: idempotencyKey, RequestHash: requestHash,
-		Amount: 1_000_000, Currency: "IDR", ExecutionEngine: "emisell_native",
+		PaymentMethodCode: capability.PaymentMethodCode, Amount: 1_000_000, Currency: "IDR", ExecutionEngine: "emisell_native",
 	})
 	if err != nil || !created {
 		if err == nil {
@@ -1194,7 +1138,7 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	result, err := s.engine.CreatePayment(r.Context(), connector.PaymentInput{
-		ProviderCode: installation.ProviderCode, Environment: mode, Credentials: credentials,
+		ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, Credentials: credentials,
 		InstallationID: installation.ID, LocalPaymentID: session.ID, MerchantReference: reference,
 		IdempotencyKey: idempotencyKey, Amount: 1_000_000, Currency: "IDR",
 		PaymentMethodCode: capability.PaymentMethodCode, ChannelCode: capability.ProviderChannelCode,
@@ -1227,7 +1171,7 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 	}
 	checks = append(checks, model.ConnectorCertificationCheck{Code: "next_action", Label: "Customer next action", Status: "PASSED"})
 	synced, syncErr := s.engine.GetPayment(r.Context(), connector.PaymentLookup{
-		ProviderCode: installation.ProviderCode, Environment: mode, Credentials: credentials, PaymentID: result.ID,
+		ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, Credentials: credentials, PaymentID: result.ID,
 	})
 	if syncErr != nil || synced.ID != result.ID {
 		detail := "payment identity mismatch"
@@ -1241,7 +1185,7 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 	_, _ = s.store.CompletePayment(r.Context(), tenant(r), session.ID, synced.ID, synced.ConnectorTransactionID, mapPaymentStatus(synced.Status), "certification.engine.sync", synced.NextAction)
 	checks = append(checks, model.ConnectorCertificationCheck{Code: "payment_retrieve", Label: "Provider payment retrieval", Status: "PASSED", Detail: synced.Status})
 	if err = s.engine.SimulatePayment(r.Context(), connector.PaymentLookup{
-		ProviderCode: installation.ProviderCode, Environment: mode, Credentials: credentials, PaymentID: result.ID,
+		ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, Credentials: credentials, PaymentID: result.ID,
 	}, session.Amount, session.Currency); err != nil {
 		if isManualCertificationAction(err, result.NextAction) {
 			detail := "Complete the provider sandbox action, then verify this payment."
@@ -1339,7 +1283,7 @@ func (s *Server) resumeConnectorCertification(w http.ResponseWriter, r *http.Req
 	}
 	defer clearCredentials(credentials)
 	checks = append(checks, model.ConnectorCertificationCheck{Code: "credential_vault", Label: "Encrypted connector credential", Status: "PASSED"})
-	synced, err := s.engine.GetPayment(r.Context(), connector.PaymentLookup{ProviderCode: installation.ProviderCode, Environment: payment.Environment, Credentials: credentials, PaymentID: payment.EnginePaymentID})
+	synced, err := s.engine.GetPayment(r.Context(), connector.PaymentLookup{ProviderCode: installation.ProviderCode, ProviderVersion: payment.ProviderVersion, Environment: payment.Environment, Credentials: credentials, PaymentID: payment.EnginePaymentID})
 	if err != nil {
 		checks = append(checks, model.ConnectorCertificationCheck{Code: "payment_retrieve", Label: "Provider payment retrieval", Status: "FAILED", Detail: safeEngineError(err)})
 		s.writeConnectorCertification(w, r, http.StatusCreated, runID, installation, capability, "FAILED", payment.ID, "Provider payment could not be retrieved.", checks)
@@ -1490,6 +1434,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		s.storeError(w, r, lookupErr)
 		return
 	} else if found {
+		s.recordIntegrationEvidence(r, mode, "idempotency_replay", map[string]any{"payment_id": existing.ID})
 		writeData(w, http.StatusOK, existing)
 		return
 	}
@@ -1541,7 +1486,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusConflict, "CONNECTOR_METHOD_NOT_CERTIFIED", "the payment method has not passed Emisell connector certification")
 		return
 	}
-	if err = s.engine.ValidatePaymentMethod(installation.ProviderCode, connector.PaymentMethodMapping{
+	if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentMethodMapping{
 		PaymentMethodCode:  capability.PaymentMethodCode,
 		ProviderMethod:     capability.ProviderMethod,
 		ProviderMethodType: capability.ProviderMethodType,
@@ -1549,7 +1494,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", err.Error())
 		return
 	}
-	if err = s.engine.ValidatePayment(installation.ProviderCode, connector.PaymentValidation{
+	if err = s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
 		PaymentMethodCode: request.PaymentMethodCode,
 		Currency:          request.Currency,
 		Amount:            request.Amount,
@@ -1567,17 +1512,18 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	session, created, err := s.store.ReservePayment(r.Context(), store.ReservePaymentInput{ID: id, TenantID: tenant(r), InstallationID: installation.ID, PaymentOptionID: request.PaymentOptionID, ProviderCode: installation.ProviderCode, Environment: mode, MerchantReference: request.MerchantReference, IdempotencyKey: key, RequestHash: hash, Amount: request.Amount, Currency: request.Currency, ExecutionEngine: installation.ExecutionEngine})
+	session, created, err := s.store.ReservePayment(r.Context(), store.ReservePaymentInput{ID: id, TenantID: tenant(r), InstallationID: installation.ID, PaymentOptionID: request.PaymentOptionID, PaymentMethodCode: request.PaymentMethodCode, ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, MerchantReference: request.MerchantReference, IdempotencyKey: key, RequestHash: hash, Amount: request.Amount, Currency: request.Currency, ExecutionEngine: installation.ExecutionEngine})
 	if err != nil {
 		s.storeError(w, r, err)
 		return
 	}
 	if !created {
+		s.recordIntegrationEvidence(r, mode, "idempotency_replay", map[string]any{"payment_id": session.ID})
 		writeData(w, http.StatusOK, session)
 		return
 	}
 	result, err := s.engine.CreatePayment(r.Context(), connector.PaymentInput{
-		ProviderCode: installation.ProviderCode, Environment: mode, Credentials: credentials,
+		ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, Credentials: credentials,
 		InstallationID: installation.ID, LocalPaymentID: session.ID, MerchantReference: request.MerchantReference,
 		IdempotencyKey: key, Amount: request.Amount, Currency: request.Currency,
 		PaymentMethodCode: request.PaymentMethodCode, ChannelCode: capability.ProviderChannelCode,
@@ -1651,13 +1597,20 @@ func (s *Server) getPayment(w http.ResponseWriter, r *http.Request) {
 		credentials, credentialErr := s.loadCredentials(r.Context(), tenant(r), item.InstallationID)
 		if credentialErr == nil {
 			defer clearCredentials(credentials)
-			result, syncErr := s.engine.GetPayment(r.Context(), connector.PaymentLookup{ProviderCode: item.ProviderCode, Environment: item.Environment, Credentials: credentials, PaymentID: item.EnginePaymentID})
+			result, syncErr := s.engine.GetPayment(r.Context(), connector.PaymentLookup{ProviderCode: item.ProviderCode, ProviderVersion: item.ProviderVersion, Environment: item.Environment, Credentials: credentials, PaymentID: item.EnginePaymentID})
 			if syncErr == nil {
 				item, _ = s.store.CompletePayment(r.Context(), tenant(r), item.ID, result.ID, result.ConnectorTransactionID, mapPaymentStatus(result.Status), "engine.sync", result.NextAction)
 			}
 		}
 	}
+	s.recordIntegrationEvidence(r, item.Environment, "payment_status_read", map[string]any{"payment_id": item.ID})
 	writeData(w, http.StatusOK, item)
+}
+
+func (s *Server) recordIntegrationEvidence(r *http.Request, environment, code string, details any) {
+	if err := s.store.RecordIntegrationEvidence(r.Context(), tenant(r), environment, code, details); err != nil {
+		s.log.Warn("record integration evidence", "code", code, "environment", environment, "error", err)
+	}
 }
 
 func (s *Server) paymentTimeline(w http.ResponseWriter, r *http.Request) {
@@ -1711,7 +1664,7 @@ func (s *Server) cancelPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clearCredentials(credentials)
-	result, err := s.engine.CancelPayment(r.Context(), connector.PaymentLookup{ProviderCode: item.ProviderCode, Environment: item.Environment, Credentials: credentials, PaymentID: item.EnginePaymentID}, key, request.Reason)
+	result, err := s.engine.CancelPayment(r.Context(), connector.PaymentLookup{ProviderCode: item.ProviderCode, ProviderVersion: item.ProviderVersion, Environment: item.Environment, Credentials: credentials, PaymentID: item.EnginePaymentID}, key, request.Reason)
 	if err != nil {
 		if errors.Is(err, connector.ErrNotSupported) {
 			problem(w, http.StatusUnprocessableEntity, "CANCEL_NOT_SUPPORTED", "the connector does not support cancellation for this payment method")
@@ -1735,6 +1688,46 @@ type refundRequest struct {
 	Metadata  map[string]any `json:"metadata"`
 }
 
+type refundPolicy struct {
+	Supported              bool   `json:"supported"`
+	Partial                bool   `json:"partial"`
+	MultiplePartial        bool   `json:"multiple_partial"`
+	ReturnToOriginalSource bool   `json:"return_to_original_source"`
+	Confirmation           string `json:"confirmation"`
+	WindowDays             int    `json:"window_days"`
+}
+
+func refundPolicyFromMetadata(metadata json.RawMessage) (refundPolicy, error) {
+	var envelope struct {
+		Refund *refundPolicy `json:"refund"`
+	}
+	if err := json.Unmarshal(metadata, &envelope); err != nil {
+		return refundPolicy{}, err
+	}
+	if envelope.Refund == nil {
+		return refundPolicy{}, nil
+	}
+	envelope.Refund.Confirmation = strings.ToLower(strings.TrimSpace(envelope.Refund.Confirmation))
+	return *envelope.Refund, nil
+}
+
+func normalizeRefundReason(value string) (string, bool) {
+	normalized := strings.ToUpper(strings.TrimSpace(value))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	switch normalized {
+	case "REQUESTED_BY_CUSTOMER", "CUSTOMER_REQUEST":
+		return "REQUESTED_BY_CUSTOMER", true
+	case "CANCELLATION", "CANCELLED", "ORDER_CANCELLED":
+		return "CANCELLATION", true
+	case "DUPLICATE", "FRAUDULENT", "OTHERS":
+		return normalized, true
+	case "OTHER":
+		return "OTHERS", true
+	default:
+		return "", false
+	}
+}
+
 func (s *Server) createRefund(w http.ResponseWriter, r *http.Request) {
 	key, ok := requireIdempotency(w, r)
 	if !ok {
@@ -1748,6 +1741,12 @@ func (s *Server) createRefund(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "payment_id and positive amount are required")
 		return
 	}
+	normalizedReason, validReason := normalizeRefundReason(request.Reason)
+	if !validReason {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_REFUND_REASON", "reason must be requested_by_customer, cancellation, duplicate, fraudulent, or others")
+		return
+	}
+	request.Reason = normalizedReason
 	payment, err := s.store.GetPayment(r.Context(), tenant(r), request.PaymentID)
 	if err != nil {
 		s.storeError(w, r, err)
@@ -1757,7 +1756,33 @@ func (s *Server) createRefund(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusConflict, "PAYMENT_NOT_REFUNDABLE", "payment is not refundable or amount exceeds the payment")
 		return
 	}
-	refundSupported, err := s.engine.Supports(payment.ProviderCode, connector.OperationCreateRefund)
+	if payment.ExecutionEngine != "emisell_native" {
+		problem(w, http.StatusConflict, "LEGACY_PAYMENT_READ_ONLY", "payments from the previous runtime cannot be refunded automatically")
+		return
+	}
+	if payment.PaymentMethodCode == "" {
+		problem(w, http.StatusUnprocessableEntity, "REFUND_POLICY_UNAVAILABLE", "the original payment method is not recorded; automatic refund is fail-closed")
+		return
+	}
+	capability, err := s.store.GetProviderPaymentMethodCapability(r.Context(), payment.ProviderCode, payment.PaymentMethodCode)
+	if err != nil {
+		s.storeError(w, r, err)
+		return
+	}
+	policy, err := refundPolicyFromMetadata(capability.Metadata)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	if !policy.Supported || !policy.ReturnToOriginalSource {
+		problem(w, http.StatusUnprocessableEntity, "REFUND_NOT_SUPPORTED", "the original payment channel does not have a certified return-to-source refund policy")
+		return
+	}
+	if !policy.Partial && request.Amount != payment.Amount {
+		problem(w, http.StatusUnprocessableEntity, "PARTIAL_REFUND_NOT_SUPPORTED", "the original payment channel only supports a full refund")
+		return
+	}
+	refundSupported, err := s.engine.SupportsVersion(payment.ProviderCode, payment.ProviderVersion, connector.OperationCreateRefund)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -1771,23 +1796,33 @@ func (s *Server) createRefund(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	refund, created, err := s.store.ReserveRefund(r.Context(), store.ReserveRefundInput{ID: id, TenantID: tenant(r), PaymentID: payment.ID, IdempotencyKey: key, RequestHash: hash, Amount: request.Amount, Currency: payment.Currency, ExecutionEngine: payment.ExecutionEngine})
+	refund, created, err := s.store.ReserveRefund(r.Context(), store.ReserveRefundInput{
+		ID: id, TenantID: tenant(r), PaymentID: payment.ID, PaymentMethodCode: payment.PaymentMethodCode,
+		IdempotencyKey: key, RequestHash: hash, Amount: request.Amount, Currency: payment.Currency,
+		Reason: request.Reason, RequestedBy: actor(r), RequestID: middleware.GetReqID(r.Context()),
+		ExecutionEngine: payment.ExecutionEngine, AllowPartial: policy.Partial, AllowMultiple: policy.MultiplePartial,
+	})
 	if err != nil {
 		s.storeError(w, r, err)
 		return
 	}
-	if !created {
+	if !created && refund.Status != "CREATED" {
 		writeData(w, http.StatusOK, refund)
 		return
 	}
+	// A previous attempt can be stranded at CREATED if the provider result
+	// could not be persisted. Re-dispatching the same logical request is safe:
+	// the exact provider idempotency key is reused and no second refund may be
+	// reserved transactionally.
 	credentials, err := s.loadCredentials(r.Context(), tenant(r), payment.InstallationID)
 	if err != nil {
+		_, _ = s.store.FailRefund(r.Context(), tenant(r), refund.ID, "FAILED", "provider credential is not available")
 		problem(w, http.StatusConflict, "CONNECTOR_CREDENTIAL_MISSING", "provider credential is not available")
 		return
 	}
 	defer clearCredentials(credentials)
 	result, err := s.engine.CreateRefund(r.Context(), connector.RefundInput{
-		ProviderCode: payment.ProviderCode, Environment: payment.Environment, Credentials: credentials,
+		ProviderCode: payment.ProviderCode, ProviderVersion: payment.ProviderVersion, Environment: payment.Environment, Credentials: credentials,
 		PaymentID: payment.EnginePaymentID, IdempotencyKey: key, Amount: request.Amount, Currency: payment.Currency,
 		Reason: request.Reason, Metadata: mergeMetadata(request.Metadata, map[string]any{"emisell_tenant_id": tenant(r), "emisell_refund_id": refund.ID}),
 	})
@@ -1816,12 +1851,15 @@ func (s *Server) getRefund(w http.ResponseWriter, r *http.Request) {
 	if item.EngineRefundID != "" && item.ExecutionEngine == "emisell_native" {
 		payment, paymentErr := s.store.GetPayment(r.Context(), tenant(r), item.PaymentID)
 		if paymentErr == nil {
-			credentials, credentialErr := s.loadCredentials(r.Context(), tenant(r), payment.InstallationID)
-			if credentialErr == nil {
-				defer clearCredentials(credentials)
-				result, syncErr := s.engine.GetRefund(r.Context(), connector.RefundLookup{ProviderCode: payment.ProviderCode, Environment: payment.Environment, Credentials: credentials, RefundID: item.EngineRefundID})
-				if syncErr == nil {
-					item, _ = s.store.CompleteRefund(r.Context(), tenant(r), item.ID, result.ID, mapRefundStatus(result.Status))
+			lookupSupported, supportErr := s.engine.SupportsVersion(payment.ProviderCode, payment.ProviderVersion, connector.OperationGetRefund)
+			if supportErr == nil && lookupSupported {
+				credentials, credentialErr := s.loadCredentials(r.Context(), tenant(r), payment.InstallationID)
+				if credentialErr == nil {
+					defer clearCredentials(credentials)
+					result, syncErr := s.engine.GetRefund(r.Context(), connector.RefundLookup{ProviderCode: payment.ProviderCode, ProviderVersion: payment.ProviderVersion, Environment: payment.Environment, Credentials: credentials, RefundID: item.EngineRefundID})
+					if syncErr == nil {
+						item, _ = s.store.CompleteRefund(r.Context(), tenant(r), item.ID, result.ID, mapRefundStatus(result.Status))
+					}
 				}
 			}
 		}
@@ -1950,7 +1988,7 @@ func (s *Server) resolvePaymentReconciliation(w http.ResponseWriter, r *http.Req
 		return
 	}
 	defer clearCredentials(credentials)
-	result, err := s.engine.GetPayment(r.Context(), connector.PaymentLookup{ProviderCode: payment.ProviderCode, Environment: payment.Environment, Credentials: credentials, PaymentID: payment.EnginePaymentID})
+	result, err := s.engine.GetPayment(r.Context(), connector.PaymentLookup{ProviderCode: payment.ProviderCode, ProviderVersion: payment.ProviderVersion, Environment: payment.Environment, Credentials: credentials, PaymentID: payment.EnginePaymentID})
 	if err != nil {
 		s.engineError(w, err)
 		return
@@ -2005,7 +2043,7 @@ func (s *Server) providerWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clearCredentials(credentials)
-	event, err := s.engine.HandleWebhook(r.Context(), connector.WebhookInput{ProviderCode: providerCode, Credentials: credentials, Headers: r.Header.Clone(), Body: body})
+	event, err := s.engine.HandleWebhook(r.Context(), connector.WebhookInput{ProviderCode: providerCode, ProviderVersion: installation.ProviderVersion, Credentials: credentials, Headers: r.Header.Clone(), Body: body})
 	if err != nil {
 		s.metrics.RecordProviderWebhook("invalid")
 		var apiErr *connector.APIError
@@ -2063,17 +2101,6 @@ func (s *Server) authenticateService(next http.Handler) http.Handler {
 		t := strings.TrimSpace(r.Header.Get("X-Emisell-Merchant-ID"))
 		if !tenantPattern.MatchString(t) {
 			problem(w, http.StatusBadRequest, "INVALID_TENANT", "X-Emisell-Merchant-ID is required")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (s *Server) requireAPIVersion(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requested := strings.TrimSpace(r.Header.Get(apiContractHeader))
-		if requested != "" && requested != apiContractVersion {
-			problem(w, http.StatusNotAcceptable, "UNSUPPORTED_API_VERSION", "requested API contract version is not supported")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -2187,9 +2214,8 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-func (s *Server) contractHeaders(next http.Handler) http.Handler {
+func (s *Server) responseHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set(apiContractHeader, apiContractVersion)
 		w.Header().Set("X-Request-ID", middleware.GetReqID(r.Context()))
 		w.Header().Set("Cache-Control", "no-store")
 		addVary(w.Header(), "Authorization")
@@ -2250,6 +2276,26 @@ func (s *Server) storeError(w http.ResponseWriter, r *http.Request, err error) {
 		s.internal(w, r, err)
 	}
 }
+func (s *Server) installationError(w http.ResponseWriter, r *http.Request, err error) {
+	var domainErr *installationservice.Error
+	if errors.As(err, &domainErr) {
+		status := http.StatusUnprocessableEntity
+		switch domainErr.Code {
+		case installationservice.CodeProviderVersionNotRunning,
+			installationservice.CodeInvalidState,
+			installationservice.CodeRefundLiabilityOpen:
+			status = http.StatusConflict
+		}
+		problem(w, status, domainErr.Code, domainErr.Message)
+		return
+	}
+	var engineErr *installationservice.EngineError
+	if errors.As(err, &engineErr) {
+		s.engineError(w, engineErr.Cause)
+		return
+	}
+	s.storeError(w, r, err)
+}
 func (s *Server) engineError(w http.ResponseWriter, err error) { s.engineErrorWithData(w, err, nil) }
 func (s *Server) engineErrorWithData(w http.ResponseWriter, err error, data any) {
 	status := http.StatusBadGateway
@@ -2265,6 +2311,11 @@ func (s *Server) engineErrorWithData(w http.ResponseWriter, err error, data any)
 		status = http.StatusUnprocessableEntity
 		code = "OPERATION_NOT_SUPPORTED"
 		message = "the selected connector does not support this operation"
+	} else if errors.Is(err, connector.ErrInvalidCredential) {
+		s.metrics.RecordConnectorOutcome("rejected")
+		status = http.StatusUnprocessableEntity
+		code = "INVALID_PROVIDER_CREDENTIAL"
+		message = "provider credential is invalid or its mode cannot be detected"
 	} else {
 		var apiErr *connector.APIError
 		if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 500 {
@@ -2321,7 +2372,7 @@ func problem(w http.ResponseWriter, status int, code, message string) {
 }
 func tenant(r *http.Request) string { return strings.TrimSpace(r.Header.Get("X-Emisell-Merchant-ID")) }
 func actor(r *http.Request) string {
-	if strings.HasPrefix(r.URL.Path, "/api/v1/admin/") || strings.HasPrefix(r.URL.Path, "/internal/v1/") {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/admin/") {
 		return "payment-proxy-admin"
 	}
 	return "emisell-backend"
@@ -2437,34 +2488,14 @@ func canonicalHash(value any) ([]byte, error) {
 	return sum[:], nil
 }
 func clearCredentials(values map[string]string) {
-	for key := range values {
-		values[key] = ""
-		delete(values, key)
-	}
+	installationservice.ClearCredentials(values)
 }
 func validateAndMaskCredentials(schema json.RawMessage, credentials map[string]string) ([]byte, error) {
-	var fields []credentialField
-	if err := json.Unmarshal(schema, &fields); err != nil {
-		return nil, errors.New("provider credential schema is invalid")
-	}
-	allowed := map[string]credentialField{}
-	for _, field := range fields {
-		allowed[field.Code] = field
-		if field.Required && strings.TrimSpace(credentials[field.Code]) == "" {
-			return nil, fmt.Errorf("credential %s is required", field.Code)
-		}
-	}
-	for key := range credentials {
-		if _, ok := allowed[key]; !ok {
-			return nil, fmt.Errorf("credential %s is not supported", key)
-		}
-	}
-	configured := make([]map[string]any, 0, len(credentials))
-	for key, value := range credentials {
-		entry := map[string]any{"code": key, "configured": strings.TrimSpace(value) != ""}
-		configured = append(configured, entry)
-	}
-	return json.Marshal(map[string]any{"configured_fields": configured, "configured_at": time.Now().UTC()})
+	return installationservice.ValidateAndMaskCredentials(schema, credentials)
+}
+
+func validateCredentialFieldNames(schema json.RawMessage, names []string) error {
+	return installationservice.ValidateCredentialFieldNames(schema, names)
 }
 
 func (s *Server) loadCredentials(ctx context.Context, tenantID, installationID string) (map[string]string, error) {

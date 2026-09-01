@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{partner_base_url}}/partner/v1/refunds/create"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "provider_code": "{{provider_code}}",
+      "environment": "{{execution_mode}}",
+      "credentials": {"api_key": "{{provider_secret}}"},
+      "payment_id": "{{provider_payment_id}}",
+      "idempotency_key": "refund-payment-123-part-1",
+      "amount": 50000,
+      "currency": "IDR",
+      "reason": "requested_by_customer"
+    }
+examples: ./.resources/Refund.resources/examples
+order: 1000

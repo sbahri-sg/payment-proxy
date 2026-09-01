@@ -1,0 +1,10 @@
+$kind: http-request
+description: Satu record per provider dengan active/latest version dan jumlah versi; tidak pernah mengembalikan binary artifact.
+url: "{{base_url}}/api/v1/admin/provider-app-providers"
+method: GET
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/6. List Provider Registry.resources/examples
+order: 6000

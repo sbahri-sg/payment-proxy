@@ -1,0 +1,15 @@
+# Use this workspace to collaborate
+workspace:
+  id: ""
+
+localResources:
+  collections:
+    - ../dashboard/public/postman/Emisell-Payment-Proxy.postman_collection.json
+  specs:
+    - ../provider-apps/xendit/openapi.yaml
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
+cloudResources:
+  collections:
+    ../postman/collections/Emisell Payment Platform API v1: f6cd93ce-25e4-47b0-a674-4149cdcfa004

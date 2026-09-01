@@ -1,0 +1,11 @@
+$kind: http-request
+description: Tenant-scoped queue untuk payment/refund UNKNOWN, delivery DEAD, webhook FAILED, dan installation ERROR.
+url: "{{base_url}}/api/v1/reconciliation/cases?limit=25&offset=0"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+queryParams:
+  limit: "25"
+  offset: "0"
+examples: ./.resources/List reconciliation cases.resources/examples
+order: 1000

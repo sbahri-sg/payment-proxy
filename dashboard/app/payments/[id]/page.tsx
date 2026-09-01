@@ -66,6 +66,8 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
             <PaymentActions payment={payment}/>
           </section>
           {payment.status === "UNKNOWN" && <div className="unknown-payment-alert"><Icon name="activity" size={19}/><div><strong>Outcome payment belum diketahui</strong><p>Jangan membuat payment pengganti atau melakukan failover otomatis. Gunakan Sync status sampai engine atau webhook memberikan status kanonis.</p></div></div>}
+          {payment.flags?.includes("late_payment") && <div className="unknown-payment-alert"><Icon name="activity" size={19}/><div><strong>Pembayaran diterima setelah kedaluwarsa</strong><p>Status tetap SUCCEEDED dan ditandai <code>late_payment</code>. Emisell Backend harus menjalankan kebijakan order terlambat secara eksplisit, bukan mengabaikan pembayaran.</p></div></div>}
+          {payment.flags?.includes("provider_delayed_confirmation") && <div className="dashboard-alert"><strong>Provider delayed confirmation</strong><span>Provider akhirnya mengonfirmasi SUCCEEDED setelah outcome sebelumnya UNKNOWN. Jangan membuat transaksi pengganti untuk payment ini.</span></div>}
           {payment.last_error && <div className="dashboard-alert error"><strong>Last engine error</strong><span>{payment.last_error}</span></div>}
           <section className="payment-detail-layout">
             <div className="payment-detail-main">
@@ -73,6 +75,7 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
                 <div className="panel-heading"><div><p className="panel-kicker">PAYMENT SUMMARY</p><h2>{formatAmount(payment)}</h2><p>Canonical amount recorded by Payment Proxy.</p></div><BrandLogo code={payment.provider_code} label={payment.provider_code} className={`provider-logo ${payment.provider_code}`}/></div>
                 <dl className="payment-data-grid">
                   <div><dt>Provider</dt><dd>{payment.provider_code.toUpperCase()}</dd></div><div><dt>Environment</dt><dd>{payment.environment}</dd></div>
+                  <div><dt>Provider release</dt><dd><code>{payment.provider_version}</code></dd></div><div><dt>Payment method</dt><dd><code>{payment.payment_method_code || "Not recorded"}</code></dd></div>
                   <div><dt>Installation ID</dt><dd><code>{payment.installation_id}</code></dd></div><div><dt>Currency / minor amount</dt><dd>{payment.currency} · {payment.amount.toLocaleString("id-ID")}</dd></div>
                   <div><dt>Created</dt><dd>{created}</dd></div><div><dt>Last updated</dt><dd>{updated}</dd></div>
                 </dl>

@@ -1,0 +1,19 @@
+$kind: http-request
+description: Membaca ulang artifact immutable dan memverifikasi digest, manifest, serta seluruh checksum.
+url: "{{base_url}}/api/v1/admin/provider-apps/{{provider_app_id}}/transition"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "expected_status": "UPLOADED",
+      "status": "VALIDATED",
+      "review_note": ""
+    }
+auth:
+  type: noauth
+examples: ./.resources/3. Validate Provider App.resources/examples
+order: 3000

@@ -1,0 +1,25 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/webhooks/v1/providers/{{provider_code}}/{{installation_id}}"
+  method: POST
+  headers:
+    x-callback-token: "{{xendit_webhook_token}}"
+    webhook-id: "{{webhook_id}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "event": "payment.capture",
+        "data": {"payment_request_id": "{{provider_payment_id}}", "status": "SUCCEEDED"}
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "accepted": true
+      }
+order: 1000

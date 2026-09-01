@@ -212,7 +212,6 @@ services:
       PAYMENT_PROXY_PUBLIC_URL: https://${PAYMENT_PROXY_DOMAIN:?run scripts/deploy-production.sh first}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?run scripts/deploy-production.sh first}
       SERVICE_API_KEY: ${SERVICE_API_KEY:?run scripts/deploy-production.sh first}
-      API_CONTRACT_VERSION: "2026-08-28"
       DASHBOARD_MERCHANT_ID: ${DASHBOARD_MERCHANT_ID:-payment_proxy_operator}
       DASHBOARD_ADMIN_PASSWORD: ${DASHBOARD_ADMIN_PASSWORD:?run scripts/deploy-production.sh first}
       DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:?run scripts/deploy-production.sh first}

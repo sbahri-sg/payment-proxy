@@ -29,3 +29,58 @@ func TestCanonicalPaymentStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestCanonicalPaymentFlags(t *testing.T) {
+	tests := []struct {
+		name                    string
+		existing                []string
+		previous, applied       string
+		expected, expectedAdded []string
+	}{
+		{name: "late payment", previous: model.PaymentExpired, applied: model.PaymentSucceeded, expected: []string{"late_payment"}, expectedAdded: []string{"late_payment"}},
+		{name: "delayed confirmation", previous: model.PaymentUnknown, applied: model.PaymentSucceeded, expected: []string{"provider_delayed_confirmation"}, expectedAdded: []string{"provider_delayed_confirmation"}},
+		{name: "ordinary success", previous: model.PaymentPending, applied: model.PaymentSucceeded, expected: []string{}, expectedAdded: []string{}},
+		{name: "preserve and deduplicate", existing: []string{"late_payment"}, previous: model.PaymentExpired, applied: model.PaymentSucceeded, expected: []string{"late_payment"}, expectedAdded: []string{}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			flags, added := canonicalPaymentFlags(test.existing, test.previous, test.applied)
+			if !sameStrings(flags, test.expected) {
+				t.Fatalf("flags = %#v, want %#v", flags, test.expected)
+			}
+			if !sameStrings(added, test.expectedAdded) {
+				t.Fatalf("added = %#v, want %#v", added, test.expectedAdded)
+			}
+		})
+	}
+}
+
+func sameStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestValidRuntimeDigest(t *testing.T) {
+	valid := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, test := range []struct {
+		value string
+		valid bool
+	}{
+		{value: valid, valid: true},
+		{value: "", valid: false},
+		{value: valid[:63], valid: false},
+		{value: "G" + valid[1:], valid: false},
+		{value: "A" + valid[1:], valid: false},
+	} {
+		if got := validRuntimeDigest(test.value); got != test.valid {
+			t.Fatalf("validRuntimeDigest(%q) = %v, want %v", test.value, got, test.valid)
+		}
+	}
+}

@@ -32,12 +32,43 @@ func TestXenditCredentialMetadataContainsNoSecret(t *testing.T) {
 	}
 }
 
+func TestCredentialClearFieldsMustBelongToProviderSchema(t *testing.T) {
+	schema := json.RawMessage(`[{"code":"api_key","secret":true,"required":true},{"code":"webhook_token","secret":true,"required":false}]`)
+	if err := validateCredentialFieldNames(schema, []string{"webhook_token"}); err != nil {
+		t.Fatalf("valid optional field was rejected: %v", err)
+	}
+	if err := validateCredentialFieldNames(schema, []string{"admin_override"}); err == nil {
+		t.Fatal("unsupported clear field was accepted")
+	}
+}
+
 func TestPaymentStatusMapping(t *testing.T) {
 	cases := map[string]string{"succeeded": "SUCCEEDED", "requires_customer_action": "PENDING", "failed": "FAILED", "unrecognized": "UNKNOWN"}
 	for input, expected := range cases {
 		if got := mapPaymentStatus(input); got != expected {
 			t.Fatalf("%s: got %s, want %s", input, got, expected)
 		}
+	}
+}
+
+func TestRefundGovernanceNormalization(t *testing.T) {
+	for input, expected := range map[string]string{
+		"requested_by_customer": "REQUESTED_BY_CUSTOMER",
+		"customer_request":      "REQUESTED_BY_CUSTOMER",
+		"order-cancelled":       "CANCELLATION",
+		"other":                 "OTHERS",
+	} {
+		got, ok := normalizeRefundReason(input)
+		if !ok || got != expected {
+			t.Fatalf("%q normalized to %q, %v; want %q", input, got, ok, expected)
+		}
+	}
+	if _, ok := normalizeRefundReason("send_to_another_bank"); ok {
+		t.Fatal("an ungoverned refund reason was accepted")
+	}
+	policy, err := refundPolicyFromMetadata(json.RawMessage(`{"refund":{"supported":true,"partial":false,"multiple_partial":false,"return_to_original_source":true,"confirmation":"WEBHOOK","window_days":30}}`))
+	if err != nil || !policy.Supported || policy.Partial || !policy.ReturnToOriginalSource || policy.Confirmation != "webhook" || policy.WindowDays != 30 {
+		t.Fatalf("unexpected refund policy: %#v, %v", policy, err)
 	}
 }
 
@@ -55,7 +86,7 @@ func TestActorIsDerivedByServerAndIgnoresRequestHeader(t *testing.T) {
 	}
 }
 
-func TestCanonicalAdminRouteUsesAdminAuthentication(t *testing.T) {
+func TestAdminRoutesUseCanonicalNamespace(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	handler := New(config.Config{AdminAPIKey: "test-admin-key"}, nil, nil, nil, nil, nil, logger)
 
@@ -66,9 +97,19 @@ func TestCanonicalAdminRouteUsesAdminAuthentication(t *testing.T) {
 	}
 
 	legacy := httptest.NewRecorder()
-	handler.ServeHTTP(legacy, httptest.NewRequest(http.MethodGet, "/internal/v1/provider-app-providers", nil))
-	if legacy.Code != http.StatusUnauthorized || legacy.Header().Get("Deprecation") != "true" {
-		t.Fatalf("legacy admin compatibility route is not marked deprecated: %d %#v", legacy.Code, legacy.Header())
+	legacyRequest := httptest.NewRequest(http.MethodGet, "/internal/v1/provider-app-providers", nil)
+	legacyRequest.Header.Set("X-Admin-API-Key", "test-admin-key")
+	handler.ServeHTTP(legacy, legacyRequest)
+	if legacy.Code != http.StatusNotFound {
+		t.Fatalf("removed legacy admin namespace returned %d, want 404", legacy.Code)
+	}
+
+	genericUpload := httptest.NewRecorder()
+	genericUploadRequest := httptest.NewRequest(http.MethodPost, "/api/v1/admin/provider-apps", nil)
+	genericUploadRequest.Header.Set("X-Admin-API-Key", "test-admin-key")
+	handler.ServeHTTP(genericUpload, genericUploadRequest)
+	if genericUpload.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("removed generic Provider App upload returned %d, want 405", genericUpload.Code)
 	}
 }
 
@@ -180,27 +221,19 @@ func TestAccessLogAndMetricsDoNotLeakCredentials(t *testing.T) {
 	}
 }
 
-func TestAPIContractVersionNegotiationAndHeaders(t *testing.T) {
+func TestResponseHeaders(t *testing.T) {
 	server := &Server{}
-	handler := middleware.RequestID(server.contractHeaders(server.requireAPIVersion(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := middleware.RequestID(server.responseHeaders(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-	}))))
+	})))
 
 	accepted := httptest.NewRecorder()
 	handler.ServeHTTP(accepted, httptest.NewRequest(http.MethodGet, "/api/v1/engine/capabilities", nil))
 	if accepted.Code != http.StatusNoContent {
-		t.Fatalf("request without pinned version was rejected: %d", accepted.Code)
+		t.Fatalf("request was rejected: %d", accepted.Code)
 	}
-	if accepted.Header().Get(apiContractHeader) != apiContractVersion || accepted.Header().Get("X-Request-ID") == "" {
-		t.Fatalf("contract response headers are incomplete: %#v", accepted.Header())
-	}
-
-	rejectedRequest := httptest.NewRequest(http.MethodGet, "/api/v1/engine/capabilities", nil)
-	rejectedRequest.Header.Set(apiContractHeader, "2025-01-01")
-	rejected := httptest.NewRecorder()
-	handler.ServeHTTP(rejected, rejectedRequest)
-	if rejected.Code != http.StatusNotAcceptable || !strings.Contains(rejected.Body.String(), "UNSUPPORTED_API_VERSION") {
-		t.Fatalf("unsupported contract version was accepted: %d %s", rejected.Code, rejected.Body.String())
+	if accepted.Header().Get("X-Request-ID") == "" || accepted.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("response headers are incomplete: %#v", accepted.Header())
 	}
 }
 

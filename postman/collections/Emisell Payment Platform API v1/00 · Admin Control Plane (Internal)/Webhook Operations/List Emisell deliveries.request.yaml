@@ -1,0 +1,11 @@
+$kind: http-request
+description: Canonical outbox event dan metadata delivery menuju Emisell Backend.
+url: "{{base_url}}/api/v1/webhook-deliveries?limit=25&offset=0"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+queryParams:
+  limit: "25"
+  offset: "0"
+examples: ./.resources/List Emisell deliveries.resources/examples
+order: 6000

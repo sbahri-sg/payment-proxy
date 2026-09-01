@@ -1,0 +1,3 @@
+$kind: collection
+description: Kelola {{bearer_token_1659}} full-access untuk komunikasi Emisell Backend ke /api/v1/*. Secret hanya muncul sekali saat generate.
+order: 1000

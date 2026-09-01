@@ -1,0 +1,21 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/providers"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+response:
+  statusCode: 401
+  statusText: Unauthorized
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "UNAUTHORIZED",
+          "message": "invalid service credential"
+        }
+      }
+order: 1000

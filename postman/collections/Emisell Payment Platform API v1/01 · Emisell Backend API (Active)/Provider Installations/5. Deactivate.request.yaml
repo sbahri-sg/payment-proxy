@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/provider-installations/{{installation_id}}/deactivate"
+method: POST
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "version": {{installation_version}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Installation inactive', () => pm.expect(pm.response.json().data.status).to.eql('INACTIVE'));
+      if (pm.response.code === 200) pm.collectionVariables.set('installation_version', String(pm.response.json().data.version));
+    language: text/javascript
+examples: ./.resources/5. Deactivate.resources/examples
+order: 7000

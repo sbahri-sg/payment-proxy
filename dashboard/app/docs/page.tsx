@@ -5,7 +5,7 @@ import { requireDashboardSession } from "../lib/session";
 export const dynamic = "force-dynamic";
 
 type Endpoint = {
-  method: "GET" | "POST" | "PUT" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
   title: string;
   description: string;
@@ -27,7 +27,7 @@ type EndpointExample = {
 
 type Group = { id: string; title: string; summary: string; endpoints: Endpoint[] };
 
-type ContractID = "internal" | "partner";
+type ContractID = "backend" | "admin" | "partner";
 
 type Contract = {
   id: ContractID;
@@ -42,19 +42,29 @@ type Contract = {
 
 const contracts: Contract[] = [
   {
-    id: "internal",
-    label: "Emisell Internal Gateway",
-    classification: "INTERNAL",
+    id: "backend",
+    label: "Emisell Backend API",
+    classification: "SERVICE",
     status: "ACTIVE",
-    audience: "Emisell Backend / operator → Payment Proxy",
+    audience: "Emisell Backend → Payment Proxy",
     basePath: "/api/v1/*",
-    authentication: "Service API key; admin key khusus /api/v1/admin/*",
-    description: "Satu namespace versioned untuk operasi merchant dan administrasi. Subpath admin tetap terisolasi oleh credential yang berbeda.",
+    authentication: "Service Bearer key + Merchant ID",
+    description: "Kontrak minimal untuk katalog provider, koneksi merchant, metode checkout, payment, refund bersyarat, dan event canonical. Detail runtime serta operasi admin sengaja tidak diekspos sebagai kewajiban integrasi.",
+  },
+  {
+    id: "admin",
+    label: "Admin Control Plane",
+    classification: "OPERATOR",
+    status: "INTERNAL",
+    audience: "Dashboard/operator → Payment Proxy",
+    basePath: "/api/v1/admin/* + operational routes",
+    authentication: "Admin key; service key untuk tenant operations",
+    description: "Operasi release provider, API key, observability, certification, delivery, dan reconciliation. Emisell Backend tidak perlu mengimplementasikan alur ini.",
   },
   {
     id: "partner",
-    label: "Partner API Contract",
-    classification: "VENDOR",
+    label: "Connector Runtime Contract",
+    classification: "PRIVATE",
     status: "ACTIVE",
     audience: "Payment Proxy → Provider Connector",
     basePath: "/partner/v1/*",
@@ -138,12 +148,15 @@ const paymentBase = `{
   "id": "pay_01k3...",
   "installation_id": "ins_01k3...",
   "payment_option_id": "pmo_01k3...",
+  "payment_method_code": "qris",
   "provider_code": "xendit",
+  "provider_version": "emisell-xendit-v1",
   "environment": "sandbox",
   "merchant_reference": "order_2026_0001",
   "amount": 1000000,
   "currency": "IDR",
   "status": "PENDING",
+  "flags": [],
   "provider_payment_id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
   "execution_engine": "emisell_native",
   "next_action": { "type": "qr_code_information", "raw_qr_data": "00020101..." },
@@ -168,10 +181,13 @@ const paymentListBase = `{
 const refundBase = `{
   "id": "ref_01k3...",
   "payment_id": "pay_01k3...",
-  "amount": 50000,
+  "payment_method_code": "qris",
+  "amount": 1000000,
   "currency": "IDR",
+  "reason": "REQUESTED_BY_CUSTOMER",
+  "requested_by": "emisell-backend",
   "status": "PENDING",
-  "provider_refund_id": "ref_engine_...",
+  "provider_refund_id": "rfd-6f4a...",
   "created_at": "2026-08-28T03:20:00Z",
   "updated_at": "2026-08-28T03:20:01Z"
 }`;
@@ -330,20 +346,20 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
         response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 2, "active_version": "emisell-midtrans-v1.1.0", "latest_version": "emisell-midtrans-v1.1.0", "latest_status": "PUBLISHED" }] }`,
       },
       {
-        method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/versions", title: "Upload provider version", description: "Menerima multipart ZIP maksimum 25 MB di dalam provider yang sudah terdaftar. Root manifest.json, checksums.txt, safe paths, SDK contract, credential schema, payment methods, dan outbound host divalidasi; code/name manifest harus cocok dengan provider pada URL.",
+        method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/versions", title: "Upload provider version", description: "Menerima submission ZIP maksimum 25 MB. Root emisell-extension.yaml, openapi.yaml, safe paths, secret scan, SDK contract, credential schema, payment methods, dan outbound host divalidasi; code/name manifest harus cocok dengan provider pada URL. Native runtime binary ditolak.",
         headers: ["Content-Type: multipart/form-data"],
         body: `Postman → Body → form-data
 KEY       TYPE    VALUE
-bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
+bundle    File    xendit-provider-app-emisell-v1.zip`,
         response: `{ "data": ${providerAppBase} }`,
-        note: "Bundle hanya membawa credential schema. Server key/API key merchant tidak boleh berada di manifest, binary, checksums, atau nama file.",
+        note: "Submission hanya membawa kontrak dan bahan review. API key merchant tidak boleh berada di manifest, source, dokumentasi, atau nama file. Bundle binary lama masih dibaca sementara untuk kompatibilitas.",
       },
       {
         method: "GET", path: "/api/v1/admin/provider-app-providers/{providerCode}/versions", title: "List provider submission history", description: "Menampilkan seluruh versi untuk satu provider, termasuk release lama yang deprecated, tanpa mengembalikan binary ZIP.",
         response: `{ "data": [${providerAppBase}] }`,
       },
       {
-        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Validate Provider App", description: "Membaca ulang artifact immutable dari database, memverifikasi digest, ZIP, manifest, dan checksum, lalu memindahkan UPLOADED menjadi VALIDATED.",
+        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Validate Provider App", description: "Membaca ulang artifact immutable dari database, memverifikasi digest, keamanan ZIP, manifest, OpenAPI, dan secret scan, lalu memindahkan UPLOADED menjadi VALIDATED.",
         body: `{ "expected_status": "UPLOADED", "status": "VALIDATED", "review_note": "" }`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "VALIDATED" } }`,
       },
@@ -353,7 +369,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "CERTIFIED" } }`,
       },
       {
-        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Publish Provider App", description: "Mempromosikan CERTIFIED menjadi PUBLISHED dan merilis metadata provider hanya ketika connector runtime memuat provider code dan exact manifest version yang sama.",
+        method: "POST", path: "/api/v1/admin/provider-apps/{id}/transition", title: "Publish Provider App", description: "Mempromosikan CERTIFIED menjadi PUBLISHED hanya ketika shared runtime memuat provider code dan exact manifest version yang sama. Digest executable runtime disimpan terpisah dari digest ZIP submission.",
         body: `{ "expected_status": "CERTIFIED", "status": "PUBLISHED", "review_note": "Isolated runtime 0.1.0 deployed and health checked." }`,
         response: `{ "data": { "id": "papp_01k3...", "provider_code": "midtrans", "version": "0.1.0", "status": "PUBLISHED", "published_at": "2026-08-28T15:00:00Z" } }`,
         note: "Jika runtime belum tersedia, response 409 CONNECTOR_RUNTIME_NOT_READY. Guard ini mencegah merchant meng-install connector yang belum dapat mengeksekusi transaksi.",
@@ -404,6 +420,36 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
   }
 }`,
         note: "Katalog database menentukan metode yang tampil di checkout. Manifest runtime menentukan operasi yang benar-benar dapat dieksekusi. Keduanya harus sama-sama siap.",
+      },
+    ],
+  },
+  {
+    id: "integration-readiness",
+    title: "Integration Readiness",
+    summary: "Bukti kesiapan integrasi Emisell Backend per merchant dan environment, dihitung otomatis dari aktivitas nyata.",
+    endpoints: [
+      {
+        method: "GET", path: "/api/v1/integration-readiness", title: "Get merchant integration readiness", description: "Mengembalikan checklist evidence-based untuk connection, payment method, create/read payment, idempotency, dan delivery webhook. Tidak sama dengan certification connector milik admin.",
+        headers: ["X-Emisell-Execution-Mode: sandbox"],
+        response: `{
+  "data": {
+    "environment": "sandbox",
+    "status": "READY",
+    "passed": 7,
+    "total": 7,
+    "resilience_evidence": false,
+    "checks": [
+      { "code": "provider_connection", "label": "Active provider connection", "status": "PASSED", "detail": "Verified from platform evidence." },
+      { "code": "payment_method", "label": "Active payment method", "status": "PASSED", "detail": "Verified from platform evidence." },
+      { "code": "payment_create", "label": "Payment creation", "status": "PASSED", "detail": "Verified from platform evidence." },
+      { "code": "idempotency_replay", "label": "Idempotency replay", "status": "PASSED", "detail": "Verified from platform evidence." },
+      { "code": "payment_status", "label": "Payment status lookup", "status": "PASSED", "detail": "Verified from platform evidence." },
+      { "code": "backend_webhook", "label": "Emisell Backend webhook", "status": "PASSED", "detail": "Verified from platform evidence." },
+      { "code": "webhook_delivery", "label": "Successful webhook delivery", "status": "PASSED", "detail": "Verified from platform evidence." }
+    ]
+  }
+}`,
+        note: "Sandbox dan Live dinilai terpisah. resilience_evidence menjadi true setelah platform pernah menangani late_payment atau provider_delayed_confirmation; indikator ini informatif dan tidak memblokir READY.",
       },
     ],
   },
@@ -505,13 +551,13 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
     summary: "Lifecycle install, konfigurasi, aktivasi, dan uninstall provider per merchant.",
     endpoints: [
       {
-        method: "POST", path: "/api/v1/provider-installations", title: "Install provider", description: "Membuat installation baru dalam status CONFIG_REQUIRED.",
+        method: "POST", path: "/api/v1/provider-installations", title: "Install provider", description: "Membuat installation baru dalam status CONFIG_REQUIRED. Versi dipilih otomatis dari runtime connector yang sedang berjalan.",
         body: `{
   "provider_code": "xendit",
-  "provider_version": "emisell-xendit-v1",
   "environment": "sandbox"
 }`,
         response: `{ "data": ${installationBase} }`,
+        note: "Switch Sandbox/Live di Dashboard Merchant memilih slot installation yang terpisah. Credential yang dimasukkan akan dideteksi connector dan ditolak bila mode key tidak sesuai dengan slot. provider_version boleh dikirim untuk explicit version pin, tetapi integrasi normal sebaiknya menghilangkannya.",
       },
       {
         method: "GET", path: "/api/v1/provider-installations", title: "List installations", description: "List installation milik Merchant ID beserta metadata credential tersamarkan. Execution mode header dapat digunakan sebagai filter.",
@@ -546,6 +592,7 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         { "code": "api_key", "configured": true }
       ],
       "configured_at": "2026-08-28T03:05:00Z",
+      "verified_environment": "sandbox",
       "webhook_ready": true,
       "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3..."
     },
@@ -558,6 +605,32 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
         note: "Dashboard Emisell adalah pemilik alur setup seller dan menampilkan public_webhook_url. Dashboard Payment Proxy hanya menampilkan status operasional ingress. Xendit membutuhkan setup manual satu kali melalui Dashboard Emisell; Midtrans memakai X-Override-Notification otomatis per transaksi. PAYMENT_PROXY_PUBLIC_BASE_URL wajib HTTPS publik.",
       },
       {
+        method: "PATCH", path: "/api/v1/provider-installations/{id}/credentials", title: "Edit credentials", description: "Merotasi sebagian credential tanpa meminta merchant mengetik ulang seluruh secret. Field yang tidak dikirim tetap memakai nilai terenkripsi sebelumnya, lalu seluruh credential diverifikasi ulang ke provider.",
+        body: `{
+  "credentials": {
+    "api_key": "xnd_development_ROTATED_..."
+  },
+  "clear_fields": []
+}`,
+        response: `{
+  "data": {
+    "id": "ins_01k3...",
+    "provider_code": "xendit",
+    "environment": "sandbox",
+    "status": "READY",
+    "credential_metadata": {
+      "configured_fields": [
+        { "code": "api_key", "configured": true },
+        { "code": "webhook_verification_token", "configured": true }
+      ],
+      "verified_environment": "sandbox"
+    },
+    "version": 5
+  }
+}`,
+        note: "Secret lama tidak pernah dikembalikan. Nilai kosong tidak menghapus secret; gunakan clear_fields hanya untuk field opsional. Installation ACTIVE harus dideaktivasi sebelum credential diedit.",
+      },
+      {
         method: "POST", path: "/api/v1/provider-installations/{id}/activate", title: "Activate", description: "Mengubah READY atau INACTIVE menjadi ACTIVE.", body: `{ "version": 4 }`,
         response: installationStateResponse("ACTIVE", 5),
       },
@@ -568,8 +641,8 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
       {
         method: "POST", path: "/api/v1/provider-installations/{id}/upgrade", title: "Upgrade Provider App", description: "Memindahkan installation INACTIVE ke release Provider App yang sudah dimuat oleh runtime.",
         body: `{ "version": 6, "provider_version": "emisell-midtrans-v1.1.0" }`,
-        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v1.1.0", "status": "READY", "version": 7 } }`,
-        note: "Target harus RELEASED dan sama dengan manifest runtime aktif. Credential terenkripsi tidak dipindahkan atau ditampilkan. Setelah upgrade, panggil activate memakai version terbaru.",
+        response: `{ "data": { "id": "ins_01k3...", "provider_code": "midtrans", "provider_version": "emisell-midtrans-v1.1.0", "status": "CONFIG_REQUIRED", "credential_metadata": { "verification_required": true, "verification_reason": "provider_version_upgrade" }, "version": 7 } }`,
+        note: "Target harus RELEASED dan tersedia pada shared runtime. Credential tetap terenkripsi, tetapi versi baru wajib melewati Save & verify hingga READY sebelum dapat diaktifkan kembali.",
       },
       {
         method: "DELETE", path: "/api/v1/provider-installations/{id}", title: "Uninstall", description: "Menghapus credential terenkripsi lalu melakukan soft-uninstall installation.",
@@ -773,22 +846,22 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
   {
     id: "refunds",
     title: "Refunds",
-    summary: "Kontrak refund generik; hanya connector yang mengiklankan dan telah mensertifikasi operasi refund yang dapat menjalankannya.",
+    summary: "Kontrak refund return-to-source untuk Emisell Backend. Eksekusi harus lolos policy payment channel dan operation release connector.",
     endpoints: [
       {
-        method: "POST", path: "/api/v1/refunds", title: "Create refund", description: "Membuat refund hanya untuk connector yang mengiklankan operasi create_refund pada manifest runtime. Xendit native v1 belum mengiklankan capability tersebut.",
+        method: "POST", path: "/api/v1/refunds", title: "Create refund", description: "Membuat refund memakai provider, environment, installation, dan credential transaksi asal. Implementasi Xendit QRIS sudah siap, tetapi release gate tetap tertutup sampai sandbox dan webhook evidence tersertifikasi.",
         headers: ["Idempotency-Key: refund-order-123-part-1"],
         body: `{
   "payment_id": "pay_...",
-  "amount": 50000,
-  "reason": "requested_by_customer",
+  "amount": 1000000,
+  "reason": "REQUESTED_BY_CUSTOMER",
   "metadata": { "case_id": "case_123" }
 }`,
-        response: `{ "error": { "code": "REFUND_NOT_SUPPORTED", "message": "refund is not supported by the installed connector version" } }`,
-        note: "Refund tetap ditutup sampai endpoint Unified Refund Xendit lulus conformance native secara terpisah.",
+        response: `{ "data": ${refundBase} }`,
+        note: "Saat ini Xendit mengembalikan REFUND_NOT_SUPPORTED sebelum credential dibuka. Setelah capability tersertifikasi, respons PENDING tetap bukan bukti dana sudah terlihat pada pelanggan; status final harus berasal dari webhook provider.",
       },
       {
-        method: "GET", path: "/api/v1/refunds/{id}", title: "Get refund", description: "Membaca projection refund dan menyinkronkan status langsung ke provider bila connector mendukungnya.",
+        method: "GET", path: "/api/v1/refunds/{id}", title: "Get refund", description: "Membaca projection refund canonical. Xendit Unified Refund diselesaikan melalui webhook; connector tidak mengarang endpoint lookup provider yang tidak terdokumentasi.",
         response: `{ "data": ${refundBase} }`,
       },
     ],
@@ -1046,6 +1119,103 @@ bundle    File    midtrans-connector-emisell-v1.1.0.zip`,
   },
 ];
 
+function scopedGroup(
+  id: string,
+  options: {
+    includeTitles?: string[];
+    excludeTitles?: string[];
+    title?: string;
+    summary?: string;
+  } = {},
+): Group {
+  const source = groups.find((group) => group.id === id);
+  if (!source) throw new Error(`documentation group ${id} is not defined`);
+  const included = options.includeTitles
+    ? options.includeTitles.map((title) => {
+        const endpoint = source.endpoints.find((item) => item.title === title);
+        if (!endpoint) throw new Error(`documentation endpoint ${id}/${title} is not defined`);
+        return endpoint;
+      })
+    : source.endpoints.filter((endpoint) => !(options.excludeTitles ?? []).includes(endpoint.title));
+  return {
+    ...source,
+    title: options.title ?? source.title,
+    summary: options.summary ?? source.summary,
+    endpoints: included,
+  };
+}
+
+const backendGroups: Group[] = [
+  scopedGroup("integration-readiness"),
+  scopedGroup("providers", {
+    title: "Available Providers",
+    summary: "Katalog provider aktif dan schema field credential yang harus dirender Dashboard Merchant.",
+  }),
+  scopedGroup("installations", {
+    excludeTitles: ["Upgrade Provider App"],
+    title: "Merchant Provider Connections",
+    summary: "Lifecycle koneksi merchant: Install → Configure/Verify → Activate. Sandbox dan Live adalah dua slot connection yang terpisah.",
+  }),
+  scopedGroup("payment-options", {
+    summary: "Konfigurasi metode merchant dan daftar opaque payment_option_id yang aman dipakai checkout.",
+  }),
+  scopedGroup("payments", {
+    includeTitles: ["Create payment", "Get payment", "Cancel payment"],
+    summary: "Kontrak pembayaran normalized. Satu endpoint create menangani seluruh provider dan metode melalui payment_option_id.",
+  }),
+  scopedGroup("webhooks", {
+    includeTitles: ["Emisell Backend receiver contract"],
+    title: "Events to Emisell Backend",
+    summary: "Satu receiver canonical yang dimiliki Emisell Backend. Raw webhook dan signature provider ditangani Payment Proxy.",
+  }),
+];
+
+const adminGroups: Group[] = [
+  scopedGroup("provider-apps"),
+  scopedGroup("service-api-keys"),
+  scopedGroup("observability"),
+  scopedGroup("engine-capabilities", {
+    title: "Runtime Diagnostics",
+    summary: "Metadata runtime untuk operator dan Payment Kernel; bukan kontrak yang perlu dipanggil aplikasi merchant.",
+  }),
+  scopedGroup("installations", {
+    includeTitles: ["Upgrade Provider App"],
+    title: "Installation Maintenance",
+    summary: "Upgrade versi connector adalah pekerjaan release/operations, bukan bagian dari alur merchant sehari-hari.",
+  }),
+  scopedGroup("certifications"),
+  scopedGroup("payments", {
+    includeTitles: ["List payments", "Payment timeline"],
+    title: "Payment Operations",
+    summary: "Read model untuk dashboard operasional. Emisell Backend tetap menjadi pemilik daftar order dan tidak wajib memanggil endpoint ini.",
+  }),
+  scopedGroup("webhooks", {
+    includeTitles: [
+      "Read outbound webhook settings",
+      "Save Callback URL and delivery state",
+      "Generate or rotate webhook secret",
+      "Send signed connection test",
+      "List webhook inbox",
+      "List Emisell deliveries",
+      "Replay dead delivery",
+    ],
+    title: "Webhook Operations",
+    summary: "Konfigurasi dan troubleshooting delivery untuk operator. Provider ingress tidak menjadi request dari Emisell Backend.",
+  }),
+  scopedGroup("reconciliation"),
+  scopedGroup("health"),
+];
+
+const omittedEndpointDecisions = [
+  ["Tidak ada endpoint verify terpisah", "PUT/PATCH credential sudah sekaligus memverifikasi akses ke provider."],
+  ["Tidak ada switch-environment endpoint", "Sandbox dan Live adalah dua connection slot; UI hanya berpindah slot."],
+  ["Tidak ada /xendit atau /midtrans API", "Semua provider memakai normalized provider, installation, payment option, dan payment API."],
+  ["Tidak ada merchant runtime/container API", "Runtime Dispatcher memilih shared runtime berdasarkan provider + version secara internal."],
+  ["Tidak ada endpoint membaca secret", "API hanya mengembalikan configured_fields dan metadata verifikasi."],
+  ["Tidak ada create endpoint per metode", "QRIS, VA, e-wallet, dan card memakai POST /payment-sessions dengan payment_option_id."],
+  ["Refund merupakan kontrak inti bersyarat", "Backend hanya memanggilnya untuk channel dengan return-to-source policy dan connector release yang mendukung create_refund."],
+] as const;
+
 const partnerGroups: Group[] = [
   {
     id: "partner-discovery",
@@ -1108,10 +1278,11 @@ const partnerGroups: Group[] = [
         response: `{
   "data": {
     "connector_id": "xendit:ins_01k3...",
+    "environment": "sandbox",
     "webhook_ready": true
   }
 }`,
-        note: "Credential hanya melewati jaringan privat Payment Kernel → Connector Runner untuk verifikasi, tidak dicatat, dan tidak dikembalikan pada response.",
+        note: "Connector mendeteksi mode dari credential provider dan mengembalikannya untuk mencegah key Sandbox dipasang ke slot Live atau sebaliknya. Credential hanya melewati jaringan privat Payment Kernel → Connector Runner, tidak dicatat, dan tidak dikembalikan pada response.",
       },
       {
         method: "POST",
@@ -1213,16 +1384,16 @@ const partnerGroups: Group[] = [
         method: "POST",
         path: "/partner/v1/refunds/create",
         title: "Refund",
-        description: "Membuat full atau partial refund terhadap provider payment ID yang sama.",
+        description: "Membuat refund return-to-source terhadap provider payment ID yang sama hanya bila operation connector sudah lulus certification dan dipublikasikan.",
         body: `{
   "provider_code": "xendit",
   "environment": "sandbox",
   "credentials": { "api_key": "<injected-secret>" },
-  "payment_id": "pay_provider_123",
+  "payment_id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
   "idempotency_key": "refund-payment-123-part-1",
   "amount": 50000,
   "currency": "IDR",
-  "reason": "requested_by_customer",
+  "reason": "REQUESTED_BY_CUSTOMER",
   "metadata": { "case_id": "case_123" }
 }`,
         response: `{ "data": { "id": "ref_provider_123", "status": "PENDING" } }`,
@@ -1231,8 +1402,8 @@ const partnerGroups: Group[] = [
         method: "POST",
         path: "/partner/v1/refunds/get",
         title: "Get refund status",
-        description: "Mengambil status refund dari provider untuk sinkronisasi asynchronous outcome.",
-        body: `{ "provider_code": "xendit", "environment": "sandbox", "credentials": { "api_key": "<injected-secret>" }, "refund_id": "ref_provider_123" }`,
+        description: "Kontrak opsional untuk connector yang mendokumentasikan lookup refund. Xendit tidak mengiklankan get_refund; status final Xendit masuk melalui verified webhook dan dibaca dari projection canonical.",
+        body: `{ "provider_code": "provider_with_get_refund", "environment": "sandbox", "credentials": { "secret": "<injected-secret>" }, "refund_id": "ref_provider_123" }`,
         response: `{ "data": { "id": "ref_provider_123", "status": "SUCCEEDED" } }`,
       },
     ],
@@ -1286,7 +1457,13 @@ const partnerGroups: Group[] = [
 const commonHeaders = [
   "Authorization: Bearer <SERVICE_API_KEY>",
   "X-Emisell-Merchant-ID: merchant_123",
-  "X-Emisell-API-Version: 2026-08-28 (recommended)",
+  "Content-Type: application/json",
+];
+
+const adminHeaders = [
+  "X-Admin-API-Key: <ADMIN_API_KEY>            # /api/v1/admin/*",
+  "Authorization: Bearer <SERVICE_API_KEY>     # tenant operational routes",
+  "X-Emisell-Merchant-ID: merchant_123         # tenant operational routes",
   "Content-Type: application/json",
 ];
 
@@ -1333,7 +1510,7 @@ function postmanRequest(endpoint: Endpoint) {
   if (endpoint.path.startsWith("/api/v1/admin/")) {
     lines.push("X-Admin-API-Key: {{admin_api_key}}");
   } else if (endpoint.path.startsWith("/api/v1/")) {
-    lines.push("Authorization: Bearer {{service_api_key}}", "X-Emisell-Merchant-ID: {{merchant_id}}", "X-Emisell-API-Version: {{api_contract_version}}");
+    lines.push("Authorization: Bearer {{service_api_key}}", "X-Emisell-Merchant-ID: {{merchant_id}}");
   }
   if (endpoint.path.startsWith("/partner/v1/")) {
     lines.push("Authorization: Bearer {{connector_runner_token}}");
@@ -1371,15 +1548,36 @@ export default async function DocsPage({
   searchParams: Promise<{ contract?: string }>;
 }) {
   const query = await searchParams;
-  const contractID: ContractID = query.contract === "partner" ? "partner" : "internal";
+  const contractID: ContractID = query.contract === "partner" ? "partner" : query.contract === "admin" ? "admin" : "backend";
   const activeContract = contracts.find((item) => item.id === contractID) ?? contracts[0];
-  const activeGroups = contractID === "partner" ? partnerGroups : groups;
+  const activeGroups = contractID === "partner" ? partnerGroups : contractID === "admin" ? adminGroups : backendGroups;
   const endpointCount = activeGroups.reduce((total, group) => total + group.endpoints.length, 0);
   await requireDashboardSession(`/docs?contract=${contractID}`);
   const baseURL = process.env.PAYMENT_PROXY_PUBLIC_URL ?? "http://localhost:18080";
-  const apiContractVersion = process.env.API_CONTRACT_VERSION ?? "2026-08-28";
   const health = await getReadiness();
   const healthy = health.status === "ready";
+  const contractVersion = "v1";
+  const activeHeaders = contractID === "partner" ? partnerHeaders : contractID === "admin" ? adminHeaders : commonHeaders;
+  const collectionVariables = contractID === "partner" ? `partner_base_url = http://127.0.0.1:18082
+connector_runner_token = <CONNECTOR_RUNNER_TOKEN>
+installation_id = ins_...
+provider_payment_id = <ID dari provider>
+provider_refund_id = <ID refund dari provider>
+provider_secret = <secret injected only in isolated runtime>` : contractID === "admin" ? `base_url = ${baseURL}
+admin_api_key = <isi dari .env ADMIN_API_KEY>
+service_api_key = <secret epk_ untuk tenant operational routes>
+merchant_id = merchant_postman_demo
+service_api_key_id = <ID metadata sak_ untuk revoke>
+delivery_id = <outbox delivery ID untuk replay>` : `base_url = ${baseURL}
+service_api_key = <secret epk_ dari Payment Proxy>
+merchant_id = merchant_123
+execution_mode = sandbox
+installation_id = ins_...
+payment_option_id = pmo_...
+payment_id = pay_...
+xendit_api_key = <Xendit development Secret API Key>
+xendit_webhook_token = <Xendit webhook verification token>
+midtrans_server_key = <Midtrans Sandbox Server Key>`;
   return (
     <div className="dashboard-app docs-dashboard">
       <AppSidebar active="docs" healthy={healthy} engineStatus={health.status}/>
@@ -1392,7 +1590,7 @@ export default async function DocsPage({
             <div>
               <p className="breadcrumb">Developers / API documentation</p>
               <h1>Payment API Contracts</h1>
-              <p>Dokumentasi dipisah berdasarkan pemanggil: Emisell Backend memakai Internal Gateway, sedangkan vendor connector mengikuti Partner API Contract.</p>
+              <p>Dokumentasi dipisah berdasarkan pemanggil: Emisell Backend, operator Payment Proxy, dan runtime connector memiliki kontrak yang berbeda.</p>
             </div>
             <a className="dashboard-primary-action" href="/postman/Emisell-Payment-Proxy.postman_collection.json" download>Download Postman <Icon name="arrow" size={16}/></a>
           </section>
@@ -1412,7 +1610,7 @@ export default async function DocsPage({
           </section>
 
           <section className="docs-summary-panel">
-            <div><span>STATUS</span><strong>{activeContract.status} · {contractID === "internal" ? apiContractVersion : "v1"}</strong></div>
+            <div><span>STATUS</span><strong>{activeContract.status} · {contractVersion}</strong></div>
             <div><span>AUDIENCE</span><strong>{activeContract.audience}</strong></div>
             <div className="docs-base-url"><span>BASE PATH</span><code>{activeContract.basePath}</code></div>
             <div><span>ENDPOINT</span><strong>{endpointCount} documented</strong></div>
@@ -1425,8 +1623,10 @@ export default async function DocsPage({
               <p>{activeContract.description}</p>
             </div>
             <div className="docs-contract-flow" aria-label={`Alur ${activeContract.label}`}>
-              {contractID === "internal" ? (
+              {contractID === "backend" ? (
                 <><span>Emisell Backend</span><i>→</i><strong>Payment Proxy</strong><i>→</i><span>Canonical response</span></>
+              ) : contractID === "admin" ? (
+                <><span>Operator</span><i>→</i><strong>Control Plane</strong><i>→</i><span>Runtime & operations</span></>
               ) : (
                 <><span>Payment Kernel</span><i>→</i><strong>Connector SDK</strong><i>→</i><span>Provider API</span></>
               )}
@@ -1437,14 +1637,31 @@ export default async function DocsPage({
             <aside className="docs-sidebar">
               <p className="label">CONTENTS</p>
               <a href="#engine-contract">Engine Contract</a>
+              {contractID === "backend" && <a href="#quickstart">10-minute flow</a>}
               <a href="#authentication">Authentication</a>
               <a href="#postman">Postman Collection</a>
+              {contractID === "backend" && <a href="#scope-decisions">Endpoint Decisions</a>}
               {activeGroups.map((group) => <a key={group.id} href={`#${group.id}`}>{group.title}</a>)}
-              {contractID === "internal" && <a href="#conformance">Provider Conformance</a>}
+              {contractID === "admin" && <a href="#conformance">Provider Conformance</a>}
               <a href="#errors">Error contract</a>
             </aside>
 
             <div className="docs-content">
+              {contractID === "backend" && <section className="doc-section" id="quickstart">
+                <p className="label">10-MINUTE SANDBOX FLOW</p>
+                <h2>Satu jalur integrasi, tanpa endpoint per provider</h2>
+                <p>Mulai dari sandbox. Emisell Backend memakai kontrak normalized yang sama untuk Xendit, Midtrans, dan provider berikutnya; perbedaan credential dan payload native tetap berada di connector.</p>
+                <Code>{`1. GET  /providers
+2. POST /provider-installations
+3. PUT  /provider-installations/{id}/credentials
+4. POST /provider-installations/{id}/activate
+5. PUT  /payment-method-assignments → GET /payment-options
+6. POST /payment-sessions (ulang request yang sama dengan Idempotency-Key yang sama)
+7. GET  /payment-sessions/{id} → terima signed payment.updated
+8. GET  /integration-readiness → READY`}</Code>
+                <div className="callout">Selalu kirim Authorization, X-Emisell-Merchant-ID, dan X-Emisell-Execution-Mode. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
+                <div className="postman-card"><div><strong>AI-readable contract</strong><span>Gunakan kontrak ringkas ini untuk coding assistant. Isinya hanya API Emisell Backend dan guardrail keamanan, bukan endpoint admin atau secret provider.</span></div><a className="download-link" href="/docs/llms.txt">Open llms.txt <span>→</span></a></div>
+              </section>}
               <section className="doc-section" id="engine-contract">
                 <p className="label">EMISELL PAYMENT ENGINE</p>
                 <h2>Kernel universal, connector milik provider</h2>
@@ -1476,7 +1693,7 @@ HandleWebhook()`}</Code>
                 <div className="postman-card">
                   <div>
                     <strong>Xendit · reference connector</strong>
-                    <span>Create/get payment, sandbox simulation, installation verification, dan webhook normalization aktif. Capture, cancel, dan refund belum diiklankan.</span>
+                    <span>Create/get payment, sandbox simulation, installation verification, webhook normalization, dan create-refund asynchronous aktif. Refund tetap fail-closed per channel.</span>
                   </div>
                   <span className="version-pill">emisell-xendit-v1</span>
                 </div>
@@ -1489,51 +1706,52 @@ HandleWebhook()`}</Code>
                 </div>
               </section>
 
+              {contractID === "backend" && <section className="doc-section" id="scope-decisions">
+                <p className="label">API SCOPE</p>
+                <h2>Endpoint yang sengaja tidak dibuat</h2>
+                <p>Kontrak backend dijaga kecil. Perbedaan provider, mode credential, runtime, dan webhook native diselesaikan di dalam Payment Proxy, bukan ditambahkan sebagai endpoint baru.</p>
+                <div className="callout">Mencari Provider Apps, certification, observability, atau webhook delivery? Buka <a href="/docs?contract=admin">Admin Control Plane</a>; endpoint tersebut bukan kontrak Emisell Backend.</div>
+                <div className="docs-scope-grid">
+                  {omittedEndpointDecisions.map(([title, reason]) => (
+                    <article key={title}>
+                      <strong>{title}</strong>
+                      <p>{reason}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>}
+
               <section className="doc-section" id="authentication">
                 <p className="label">AUTHENTICATION</p>
-                <h2>{contractID === "internal" ? "Internal service headers" : "Private runner authentication"}</h2>
-                <p>{contractID === "internal"
-                  ? "Semua endpoint /api/v1/* hanya boleh dipanggil Emisell Backend. Service key tidak boleh dikirim ke checkout atau browser."
-                  : "Partner API adalah southbound contract. Browser, checkout, dan Emisell Backend tidak memanggil connector vendor secara langsung."}</p>
-                <Code>{(contractID === "internal" ? commonHeaders : partnerHeaders).join("\n")}</Code>
-                <div className="callout">{contractID === "internal"
-                  ? "Setiap resource dibatasi oleh merchant ID. Pin X-Emisell-API-Version agar perubahan kontrak terdeteksi; versi yang tidak didukung menghasilkan 406. Response selalu membawa X-Request-ID dan versi aktif. Payment mutation juga wajib menyertakan execution mode dan idempotency key."
-                  : "Status ACTIVE. Payment Kernel menemukan manifest saat startup lalu memanggil Connector Runner memakai bearer token khusus service. Endpoint ini hanya untuk jaringan privat; production wajib TLS dan token kuat dari secret manager."}</div>
-                {contractID === "internal" && <div className="callout warning">Response 429 berarti limit request merchant pada replica tercapai; ikuti Retry-After. Response 503 API_BUSY berarti kapasitas concurrent request penuh. Retry mutation hanya dengan Idempotency-Key yang sama.</div>}
+                <h2>{contractID === "backend" ? "Service-to-service headers" : contractID === "admin" ? "Operator authentication" : "Private runner authentication"}</h2>
+                <p>{contractID === "backend"
+                  ? "Endpoint merchant hanya dipanggil Emisell Backend. Service key dan credential provider tidak boleh dikirim ke checkout atau browser."
+                  : contractID === "admin"
+                    ? "Endpoint /api/v1/admin/* memakai admin key. Read model tenant untuk certification dan troubleshooting tetap memakai service key serta Merchant ID."
+                    : "Partner API adalah southbound contract. Browser, checkout, dan Emisell Backend tidak memanggil connector vendor secara langsung."}</p>
+                <Code>{activeHeaders.join("\n")}</Code>
+                <div className="callout">{contractID === "backend"
+                  ? "Setiap resource dibatasi oleh Merchant ID dan kontraknya mengikuti base path /api/v1. Mutation pembayaran wajib memakai Idempotency-Key yang sama ketika retry."
+                  : contractID === "admin"
+                    ? "Admin key tidak boleh dipakai sebagai service key merchant. Endpoint operasional tenant tetap mengikuti isolasi Merchant ID."
+                    : "Payment Kernel menemukan manifest saat startup lalu memanggil Connector Runner memakai bearer token khusus service pada jaringan privat."}</div>
+                {contractID === "backend" && <div className="callout warning">Response 429 berarti limit merchant tercapai; ikuti Retry-After. Response 503 API_BUSY berarti kapasitas concurrent request penuh.</div>}
               </section>
 
               <section className="doc-section" id="postman">
                 <p className="label">POSTMAN</p>
                 <h2>Collection dipisah per kontrak</h2>
-                <p>Folder Internal Gateway memakai satu `base_url` dan satu namespace `/api/v1/*`. Operasi operator berada di `/api/v1/admin/*` dengan admin key; operasi merchant memakai service key. Folder Partner API memanggil Connector Runner terisolasi melalui jaringan privat.</p>
+                <p>Folder Backend hanya berisi integrasi yang diperlukan Main Service. Operasi platform berada di folder Admin, sedangkan folder Partner hanya untuk Connector Runner pada jaringan privat.</p>
                 <div className="postman-card">
                   <div>
                     <strong>Emisell Payment Platform API v1</strong>
-                    <span>2 contract folders · contoh request dan response lengkap</span>
+                    <span>3 contract folders · Backend, Admin, dan Connector</span>
                   </div>
                   <a className="download-link" href="/postman/Emisell-Payment-Proxy.postman_collection.json" download>Download <span>↓</span></a>
                 </div>
                 <h3>Collection variables</h3>
-                <Code>{contractID === "internal" ? `base_url = ${baseURL}
-service_api_key = <secret epk_ dari menu API Keys atau bootstrap SERVICE_API_KEY>
-service_api_key_id = <ID metadata sak_ untuk revoke>
-admin_api_key = <isi dari .env ADMIN_API_KEY>
-merchant_id = merchant_postman_demo
-api_contract_version = ${apiContractVersion}
-execution_mode = sandbox
-xendit_api_key = <Xendit development Secret API Key>
-xendit_webhook_token = <Xendit Payments API v3 webhook token>
-midtrans_server_key = <Midtrans sandbox Server Key>
-payment_option_id = <diisi dari method assignment>
-delivery_id = <outbox delivery ID untuk replay>
-emisell_backend_webhook_url = <receiver URL milik Emisell Backend>
-emisell_backend_webhook_secret = <shared HMAC secret>` : `partner_base_url = http://127.0.0.1:18082
-connector_runner_token = <CONNECTOR_RUNNER_TOKEN>
-installation_id = ins_...
-provider_payment_id = <ID dari provider>
-provider_refund_id = <ID refund dari provider>
-provider_secret = <secret injected only in isolated runtime>`}</Code>
-                <div className="callout warning">Simpan API key hanya sebagai variable bertipe secret. Jangan export collection yang sudah berisi current value credential. `/api/v1/admin/*` wajib memakai `X-Admin-API-Key`; endpoint `/api/v1/*` lainnya memakai service Bearer key.</div>
+                <Code>{collectionVariables}</Code>
+                <div className="callout warning">Simpan semua API key sebagai secret variable. Jangan export current value credential. Gunakan admin key hanya untuk control plane dan service key hanya untuk resource merchant.</div>
               </section>
 
               {activeGroups.map((group) => (
@@ -1541,7 +1759,7 @@ provider_secret = <secret injected only in isolated runtime>`}</Code>
                   <p className="label">{group.title.toUpperCase()}</p>
                   <h2>{group.title}</h2>
                   <p>{group.summary}</p>
-                  {contractID === "internal" && group.id === "webhooks" && (
+                  {contractID === "backend" && group.id === "webhooks" && (
                     <EmisellWebhookContractGuide />
                   )}
                   <div className="endpoint-list">
@@ -1593,7 +1811,7 @@ provider_secret = <secret injected only in isolated runtime>`}</Code>
                 </section>
               ))}
 
-              {contractID === "internal" && <section className="doc-section" id="conformance">
+              {contractID === "admin" && <section className="doc-section" id="conformance">
                 <p className="label">SANDBOX CONFORMANCE</p>
                 <h2>Provider end-to-end test</h2>
                 <p>Gunakan tab Certification pada detail Xendit atau Midtrans untuk menjalankan create, retrieve, simulator/customer action, provider webhook, dan delivery ke Emisell Backend melalui Connector Runner terisolasi.</p>

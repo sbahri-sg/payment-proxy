@@ -1,0 +1,8 @@
+$kind: http-request
+description: Mengembalikan provider registry dan dynamic credential schema.
+url: "{{base_url}}/api/v1/providers"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+examples: ./.resources/List providers.resources/examples
+order: 1000

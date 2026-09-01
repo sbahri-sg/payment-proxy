@@ -1,0 +1,26 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/engine/capabilities"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "engine": "emisell_payment_engine",
+          "contract_version": "2026-08-28",
+          "connector_contract": "v1",
+          "selection_mode": "merchant_assignment",
+          "unknown_policy": "reconcile_same_provider",
+          "connectors": [
+            {"code": "xendit", "name": "Xendit", "version": "emisell-xendit-v1", "runtime": "isolated_container", "operations": ["verify_installation", "disable_installation", "create_payment", "get_payment", "simulate_payment", "handle_webhook"]},
+            {"code": "midtrans", "name": "Midtrans", "version": "emisell-midtrans-v1.1.0", "runtime": "isolated_container", "operations": ["verify_installation", "disable_installation", "create_payment", "get_payment", "handle_webhook"]}
+          ]
+        }
+      }
+order: 1000

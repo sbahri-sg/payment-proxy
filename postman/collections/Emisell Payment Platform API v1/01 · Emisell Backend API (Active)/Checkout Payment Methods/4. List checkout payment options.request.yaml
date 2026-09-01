@@ -1,0 +1,19 @@
+$kind: http-request
+description: Endpoint checkout. Hanya mengembalikan opsi aktif yang terhubung ke installation aktif. Checkout menyimpan id yang opaque, bukan provider_code.
+url: "{{base_url}}/api/v1/payment-options"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  X-Emisell-Execution-Mode: "{{execution_mode}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Checkout options returned', () => pm.expect(pm.response.code).to.eql(200));
+      if (pm.response.code === 200) {
+        const options = pm.response.json().data || [];
+        const qris = options.find((option) => option.payment_method_code === 'qris');
+        if (qris) pm.collectionVariables.set('payment_option_id', qris.id);
+      }
+    language: text/javascript
+examples: ./.resources/4. List checkout payment options.resources/examples
+order: 4000

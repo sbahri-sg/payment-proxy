@@ -1,0 +1,27 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/provider-installations"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    X-Emisell-Execution-Mode: "{{execution_mode}}"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": [
+          {
+            "id": "ins_01k3...",
+            "provider_code": "xendit",
+            "environment": "sandbox",
+            "status": "ACTIVE",
+            "version": 4
+          }
+        ]
+      }
+order: 1000

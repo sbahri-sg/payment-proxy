@@ -1,0 +1,17 @@
+$kind: http-request
+description: Menjalankan create, next action, retrieve, simulator atau customer authorization, direct provider webhook, dan signed delivery ke Emisell Backend. E-wallet dapat mengembalikan BLOCKED sampai halaman sandbox provider diselesaikan.
+url: "{{base_url}}/api/v1/connector-certifications/run"
+method: POST
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  X-Emisell-Execution-Mode: sandbox
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "installation_id": "{{installation_id}}",
+      "payment_method_code": "{{payment_method_code}}"
+    }
+examples: ./.resources/2. Run sandbox certification.resources/examples
+order: 2000

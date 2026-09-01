@@ -32,9 +32,12 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	tenantID := "itest.webhook." + suffix
 	installationID := "ins_itest_" + suffix
 	paymentID := "pay_itest_" + suffix
+	expiredPaymentID := "pay_itest_expired_" + suffix
 	enginePaymentID := "pr-itest-" + suffix
+	expiredEnginePaymentID := "pr-itest-expired-" + suffix
 	eventID := "evt-itest-" + suffix
 	lateEventID := eventID + "-late"
+	lateSuccessEventID := eventID + "-late-success"
 	requestHash := sha256.Sum256([]byte(paymentID))
 	payloadHash := sha256.Sum256([]byte(eventID))
 
@@ -49,9 +52,9 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	}
 	_, err = pool.Exec(ctx, `
 		INSERT INTO payment_sessions(
-			id,tenant_id,installation_id,provider_code,environment,merchant_reference,
+			id,tenant_id,installation_id,provider_code,provider_version,environment,merchant_reference,
 			idempotency_key,request_hash,amount,currency,status,engine_payment_id,execution_engine
-		) VALUES($1,$2,$3,'xendit','sandbox',$4,$5,$6,1000000,'IDR','PENDING',$7,'emisell_native')
+		) VALUES($1,$2,$3,'xendit','emisell-xendit-v1','sandbox',$4,$5,$6,1000000,'IDR','PENDING',$7,'emisell_native')
 	`, paymentID, tenantID, installationID, "order-"+suffix, "idem-"+suffix, requestHash[:], enginePaymentID)
 	if err != nil {
 		t.Fatal(err)
@@ -60,9 +63,10 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM outbox_events WHERE tenant_id=$1`, tenantID)
-		_, _ = pool.Exec(cleanupCtx, `DELETE FROM webhook_inbox WHERE source='xendit' AND external_event_id IN ($1,$2)`, eventID, lateEventID)
-		_, _ = pool.Exec(cleanupCtx, `DELETE FROM payment_status_history WHERE tenant_id=$1 AND payment_id=$2`, tenantID, paymentID)
-		_, _ = pool.Exec(cleanupCtx, `DELETE FROM payment_sessions WHERE tenant_id=$1 AND id=$2`, tenantID, paymentID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM integration_evidence WHERE tenant_id=$1`, tenantID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM webhook_inbox WHERE source='xendit' AND external_event_id IN ($1,$2,$3)`, eventID, lateEventID, lateSuccessEventID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM payment_status_history WHERE tenant_id=$1 AND payment_id IN ($2,$3)`, tenantID, paymentID, expiredPaymentID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM payment_sessions WHERE tenant_id=$1 AND id IN ($2,$3)`, tenantID, paymentID, expiredPaymentID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM provider_installations WHERE tenant_id=$1 AND id=$2`, tenantID, installationID)
 	})
 
@@ -126,5 +130,47 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	}
 	if deliveredSucceeded {
 		t.Fatal("undelivered succeeded event was accepted as Emisell delivery evidence")
+	}
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO payment_sessions(
+			id,tenant_id,installation_id,provider_code,provider_version,environment,merchant_reference,
+			idempotency_key,request_hash,amount,currency,status,engine_payment_id,execution_engine
+		) VALUES($1,$2,$3,'xendit','emisell-xendit-v1','sandbox',$4,$5,$6,1000000,'IDR','EXPIRED',$7,'emisell_native')
+	`, expiredPaymentID, tenantID, installationID, "expired-order-"+suffix, "expired-idem-"+suffix, requestHash[:], expiredEnginePaymentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lateSuccess := WebhookInput{
+		ID: "wh_itest_late_success_" + suffix, Source: "xendit", ExternalEventID: lateSuccessEventID,
+		EventType: "payment.succeeded", EnginePaymentID: expiredEnginePaymentID, Status: model.PaymentSucceeded,
+		PayloadHash: payloadHash[:], PayloadCiphertext: []byte("encrypted-late-success-payload"),
+	}
+	accepted, err = store.ProcessWebhook(ctx, lateSuccess)
+	if err != nil || !accepted {
+		t.Fatalf("late-success webhook was not accepted: accepted=%t err=%v", accepted, err)
+	}
+	expiredPayment, err := store.GetPayment(ctx, tenantID, expiredPaymentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expiredPayment.Status != model.PaymentSucceeded || !contains(expiredPayment.Flags, "late_payment") {
+		t.Fatalf("late payment was not represented canonically: status=%s flags=%#v", expiredPayment.Status, expiredPayment.Flags)
+	}
+	if err = store.RecordIntegrationEvidence(ctx, tenantID, model.EnvironmentSandbox, "idempotency_replay", map[string]any{"payment_id": paymentID}); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.RecordIntegrationEvidence(ctx, tenantID, model.EnvironmentSandbox, "payment_status_read", map[string]any{"payment_id": paymentID}); err != nil {
+		t.Fatal(err)
+	}
+	facts, err := store.GetIntegrationReadinessFacts(ctx, tenantID, model.EnvironmentSandbox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !facts.ResilienceObserved {
+		t.Fatal("late payment was not visible as resilience evidence")
+	}
+	if !facts.ActiveInstallation || !facts.PaymentCreated || !facts.IdempotencyReplay || !facts.PaymentStatusRead {
+		t.Fatalf("readiness evidence was not observed: %#v", facts)
 	}
 }

@@ -51,6 +51,17 @@ func (stubConnector) CreatePayment(_ context.Context, input connector.PaymentInp
 	return connector.PaymentResult{ID: "pay_remote", Status: "pending"}, nil
 }
 
+type versionedStubConnector struct {
+	stubConnector
+	version string
+}
+
+func (c versionedStubConnector) Manifest() connector.Manifest {
+	manifest := c.stubConnector.Manifest()
+	manifest.Version = c.version
+	return manifest
+}
+
 func TestDiscoverAndExecuteThroughAuthenticatedRunner(t *testing.T) {
 	items, err := registry.New(stubConnector{})
 	if err != nil {
@@ -116,5 +127,30 @@ func TestDiscoverWithPrivateConnectorCA(t *testing.T) {
 	}
 	if len(connectors) != 1 || connectors[0].Code() != "stub" {
 		t.Fatalf("unexpected discovered connectors: %#v", connectors)
+	}
+}
+
+func TestDiscoverAcceptsMultipleVersionsOfOneProvider(t *testing.T) {
+	items, err := registry.New(
+		versionedStubConnector{version: "1.0.0"},
+		versionedStubConnector{version: "2.0.0"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, _ := engine.New(items)
+	handler, _ := connectorrunner.New(runtime, "runner-secret", slog.Default())
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	connectors, err := remoteconnector.Discover(context.Background(), server.URL, "runner-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(connectors) != 2 || connectors[0].Code() != "stub" || connectors[1].Code() != "stub" {
+		t.Fatalf("unexpected versioned discovery result: %#v", connectors)
+	}
+	if _, err = registry.New(connectors...); err != nil {
+		t.Fatalf("discovered versions could not be registered together: %v", err)
 	}
 }

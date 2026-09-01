@@ -1,0 +1,43 @@
+$kind: collection
+description: "Three audience-scoped contracts: Emisell Backend API, internal Admin Control Plane, and private Connector Runtime Contract. The Backend folder contains only the canonical endpoints Main Service needs. Secret current values are intentionally not exported."
+variables:
+  base_url: https://payment-proxy.emisell.com
+  partner_base_url: http://127.0.0.1:18082
+  midtrans_partner_base_url: http://127.0.0.1:18083
+  service_api_key: ""
+  admin_api_key: ""
+  service_api_key_id: ""
+  provider_app_id: ""
+  provider_app_code: connector_demo
+  merchant_id: merchant_postman_demo
+  execution_mode: sandbox
+  xendit_api_key: ""
+  midtrans_server_key: ""
+  connector_runner_token: ""
+  midtrans_provider_app_token: ""
+  provider_secret: ""
+  provider_code: xendit
+  provider_payment_id: ""
+  provider_refund_id: ""
+  installation_id: ""
+  installation_version: "0"
+  target_provider_version: emisell-midtrans-v1.1.0
+  payment_option_id: ""
+  card_payment_option_id: ""
+  payment_option_version: "0"
+  payment_method_code: qris
+  payment_id: ""
+  card_payment_id: ""
+  refund_id: ""
+  delivery_id: ""
+  emisell_backend_webhook_url: http://localhost:19090/webhooks/v1/payment-proxy
+  emisell_backend_webhook_secret: ""
+  outbound_event_id: evt_postman_contract_001
+  xendit_webhook_token: ""
+  webhook_id: webhook-postman-001
+auth:
+  - id: 0a9440cf-8667-41df-8539-633307447a06
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{service_api_key}}"

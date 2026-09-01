@@ -1,0 +1,30 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/emisell-webhook"
+  method: PUT
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "callback_url": "{{emisell_backend_webhook_url}}",
+        "enabled": false
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "configured": true,
+          "callback_url": "{{emisell_backend_webhook_url}}",
+          "enabled": false,
+          "secret_configured": true,
+          "source": "database"
+        }
+      }
+order: 1000

@@ -1,0 +1,29 @@
+$kind: http-example
+request:
+  url: "{{partner_base_url}}/partner/v1/installations/verify"
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "installation_id": "{{installation_id}}",
+        "provider_code": "{{provider_code}}",
+        "environment": "{{execution_mode}}",
+        "credentials": {"api_key": "{{provider_secret}}"},
+        "public_webhook_url": "{{base_url}}/webhooks/v1/providers/{{provider_code}}/{{installation_id}}"
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "connector_id": "xendit:ins_01k3...",
+          "webhook_ready": true
+        }
+      }
+order: 1000

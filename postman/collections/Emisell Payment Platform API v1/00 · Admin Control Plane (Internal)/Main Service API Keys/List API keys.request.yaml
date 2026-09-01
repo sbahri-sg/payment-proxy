@@ -1,0 +1,10 @@
+$kind: http-request
+description: Mengembalikan metadata dan fingerprint tersamarkan. Plaintext key tidak pernah dikembalikan.
+url: "{{base_url}}/api/v1/admin/service-api-keys"
+method: GET
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/List API keys.resources/examples
+order: 1000

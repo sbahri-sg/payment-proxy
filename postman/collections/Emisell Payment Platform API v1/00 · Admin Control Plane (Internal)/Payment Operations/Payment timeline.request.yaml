@@ -1,0 +1,6 @@
+$kind: http-request
+description: Durable payment state history with source and timestamps.
+url: "{{base_url}}/api/v1/payment-sessions/{{payment_id}}/timeline"
+method: GET
+examples: ./.resources/Payment timeline.resources/examples
+order: 2000

@@ -1,0 +1,3 @@
+$kind: collection
+description: Endpoint administratif untuk operator Payment Proxy. Jangan dipanggil dari Emisell Backend atau aplikasi publik.
+order: 1000

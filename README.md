@@ -45,22 +45,29 @@ Connector Xendit di isolated runner menggunakan Payments API v3 dan Payment Sess
 - callback token verification dan deduplication menggunakan `webhook-id`;
 - credential terenkripsi AES-256-GCM per installation.
 
-Danamon VA, Kredivo, Akulaku, Indodana, Jenius Pay, refund, dan channel lain tetap `DOCUMENTED` sampai prasyarat provider atau secure-flow masing-masing tersedia dan conformance lulus. Core tidak perlu berubah ketika capability baru ditambahkan; connector dan capability mapping yang diperluas.
+Implementasi Xendit QRIS full refund memakai Unified Refund dan final melalui
+webhook sudah disiapkan, tetapi operation release tetap fail-closed sampai bukti
+sandbox serta webhook tersertifikasi. Refund channel lain juga tetap fail-closed
+sampai policy return-to-source, identifier provider, dan conformance tersedia.
+Danamon VA, Kredivo, Akulaku, Indodana, Jenius Pay, dan channel lain tetap
+`DOCUMENTED`. Core tidak perlu berubah ketika capability baru ditambahkan;
+connector dan capability mapping yang diperluas.
 
 Connector Midtrans `emisell-midtrans-v1.1.0` berjalan sebagai Provider App
 container tersendiri, terpisah dari runner Xendit. Ini membuktikan bahwa kontrak
 engine tidak bergantung pada implementasi atau process provider tertentu:
 
 - Provider Apps memakai alur provider-first: identitas provider dibuat satu
-  kali, lalu setiap ZIP menjadi riwayat versi di bawah provider tersebut;
+  kali, lalu setiap ZIP submission menjadi riwayat versi di bawah provider
+  tersebut; runtime OCI dibangun dan dideploy terpisah;
 
 - credential memakai `server_key` wajib dan `pop_id` opsional yang disimpan
   terenkripsi per installation;
 - QRIS, BCA/BNI/BRI/CIMB/Permata VA, Mandiri Bill, GoPay, dan ShopeePay sudah
   mempunyai mapping Core API v2, create/get, customer next action, serta webhook
   signature normalization;
-- cancel dan refund sudah mempunyai adapter dan contract test, tetapi belum
-  diumumkan di manifest runtime sampai bukti sandbox nyata tersedia;
+- cancel dan refund Midtrans sudah mempunyai adapter dan contract test, tetapi
+  belum diumumkan di manifest runtime sampai bukti sandbox nyata tersedia;
 - channel yang belum diprovisikan tetap fail-closed pada sandbox maupun live;
   connector tidak membuat fallback checkout yang belum terbukti dapat dibayar;
 - capability Midtrans tetap `DOCUMENTED` sampai masing-masing channel lulus
@@ -240,7 +247,7 @@ Semua amount API menggunakan minor unit integer. Untuk IDR, `1000000` berarti Rp
 ## Guardrail utama
 
 - Mutation wajib memakai `Idempotency-Key`.
-- Emisell Backend sebaiknya mem-pin `X-Emisell-API-Version: 2026-08-28`; response selalu mengembalikan versi aktif dan `X-Request-ID`.
+- Versi kontrak ditentukan oleh base path `/api/v1`; setiap response membawa `X-Request-ID` untuk tracing.
 - Rate limit dan max in-flight bersifat per replica; ingress/WAF tetap mengendalikan limit cluster-wide.
 - Timeout/transport error pada mutation menjadi `UNKNOWN`; jangan automatic failover.
 - Credential provider tidak pernah dikembalikan API atau dashboard. Webhook secret hanya dikembalikan satu kali saat generate/rotate, kemudian hanya masked hint yang tersedia.
@@ -253,11 +260,14 @@ Semua amount API menggunakan minor unit integer. Untuk IDR, `1000000` berarti Rp
 
 ## Dokumentasi
 
+- Scope endpoint Emisell Backend: [`docs/backend-api-scope.md`](docs/backend-api-scope.md)
 - Dashboard API documentation: `http://localhost:13000/docs`
+- AI-readable Backend contract: `http://localhost:13000/docs/llms.txt`
 - Dashboard Main Service credentials: `http://localhost:13000/api-keys`
 - [Engine source of truth](docs/emisell-payment-engine.md)
 - [Production readiness](docs/production-readiness.md)
 - [Architecture](docs/architecture.md)
+- [Runtime refactor audit and phased plan](docs/runtime-refactor-audit.md)
 - [Xendit conformance](docs/conformance-xendit.md)
 - [Midtrans conformance](docs/conformance-midtrans.md)
 - [API reference](docs/api.md)

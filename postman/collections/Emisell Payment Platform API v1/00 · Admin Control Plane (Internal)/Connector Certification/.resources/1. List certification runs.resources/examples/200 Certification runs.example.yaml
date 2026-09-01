@@ -1,0 +1,39 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/connector-certifications?provider=xendit&limit=25"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    X-Emisell-Execution-Mode: "{{execution_mode}}"
+  queryParams:
+    provider: xendit
+    limit: "25"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": [
+          {
+            "id": "cert_01k3...",
+            "installation_id": "ins_01k3...",
+            "provider_code": "xendit",
+            "payment_method_code": "qris",
+            "environment": "sandbox",
+            "status": "PASSED",
+            "checks": [
+              {
+                "code": "payment_create",
+                "label": "Sandbox payment create",
+                "status": "PASSED"
+              }
+            ],
+            "payment_id": "pay_01k3..."
+          }
+        ]
+      }
+order: 1000

@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/admin/provider-apps/{{provider_app_id}}/transition"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "expected_status": "VALIDATED",
+      "status": "CERTIFIED",
+      "review_note": "Sandbox conformance and security review passed."
+    }
+auth:
+  type: noauth
+examples: ./.resources/4. Certify Provider App.resources/examples
+order: 4000

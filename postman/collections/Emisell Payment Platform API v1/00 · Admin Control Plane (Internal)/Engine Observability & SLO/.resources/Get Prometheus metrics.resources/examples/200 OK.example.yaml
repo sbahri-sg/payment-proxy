@@ -1,0 +1,16 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/metrics"
+  method: GET
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |
+      emisell_http_requests_total{class="2xx"} 9995
+      emisell_connector_outcomes_total{outcome="unknown"} 0
+      emisell_provider_webhooks_total{outcome="duplicate"} 3
+order: 1000

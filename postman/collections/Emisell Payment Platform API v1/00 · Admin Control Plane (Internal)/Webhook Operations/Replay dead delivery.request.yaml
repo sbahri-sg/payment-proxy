@@ -1,0 +1,16 @@
+$kind: http-request
+description: Hanya delivery DEAD dapat direplay. Consumer Emisell wajib idempotent.
+url: "{{base_url}}/api/v1/webhook-deliveries/{{delivery_id}}/replay"
+method: POST
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  Idempotency-Key: replay-event-123-attempt-1
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "expected_replay_count": 0
+    }
+examples: ./.resources/Replay dead delivery.resources/examples
+order: 7000

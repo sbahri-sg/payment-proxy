@@ -1,0 +1,54 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/connector-certifications/run"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    X-Emisell-Execution-Mode: sandbox
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "installation_id": "{{installation_id}}",
+        "payment_method_code": "{{payment_method_code}}"
+      }
+response:
+  statusCode: 201
+  statusText: Created
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "cert_01k3...",
+          "provider_code": "xendit",
+          "payment_method_code": "va_bca",
+          "status": "PASSED",
+          "checks": [
+            {
+              "code": "payment_create",
+              "status": "PASSED"
+            },
+            {
+              "code": "payment_retrieve",
+              "status": "PASSED"
+            },
+            {
+              "code": "sandbox_simulation",
+              "status": "PASSED"
+            },
+            {
+              "code": "webhook_delivery",
+              "status": "PASSED"
+            },
+            {
+              "code": "emisell_delivery",
+              "status": "PASSED"
+            }
+          ]
+        }
+      }
+order: 2000

@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -257,10 +258,13 @@ func (s *Postgres) GetProviderAppArtifact(ctx context.Context, id string) ([]byt
 }
 
 type ProviderAppTransitionInput struct {
-	ID, ExpectedStatus, Status, ReviewNote, Actor, RequestID string
+	ID, ExpectedStatus, Status, ReviewNote, RuntimeDigest, Actor, RequestID string
 }
 
 func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTransitionInput) (model.ProviderAppVersion, error) {
+	if in.Status == "PUBLISHED" && !validRuntimeDigest(in.RuntimeDigest) {
+		return model.ProviderAppVersion{}, ErrInvalidState
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return model.ProviderAppVersion{}, err
@@ -302,11 +306,11 @@ func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTran
 		}
 		if _, err = tx.Exec(ctx, `
 			INSERT INTO provider_versions(id,provider_code,version,engine_kind,artifact_digest,status,released_at)
-			SELECT id,provider_code,version,runtime,artifact_sha256,'RELEASED',now()
+			SELECT id,provider_code,version,runtime,$2,'RELEASED',now()
 			FROM provider_app_versions WHERE id=$1
 			ON CONFLICT(provider_code,version) DO UPDATE SET engine_kind=EXCLUDED.engine_kind,
 			artifact_digest=EXCLUDED.artifact_digest,status='RELEASED',released_at=now()
-		`, in.ID); err != nil {
+		`, in.ID, in.RuntimeDigest); err != nil {
 			return model.ProviderAppVersion{}, err
 		}
 	}
@@ -326,7 +330,7 @@ func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTran
 		return model.ProviderAppVersion{}, err
 	}
 	if err = audit(ctx, tx, "", in.Actor, "provider_app.transition", "provider_app_version", in.ID, in.RequestID, map[string]any{
-		"provider_code": providerCode, "previous_status": previousStatus, "status": in.Status, "review_note": in.ReviewNote,
+		"provider_code": providerCode, "previous_status": previousStatus, "status": in.Status, "review_note": in.ReviewNote, "runtime_digest": in.RuntimeDigest,
 	}); err != nil {
 		return model.ProviderAppVersion{}, err
 	}
@@ -334,6 +338,14 @@ func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTran
 		return model.ProviderAppVersion{}, err
 	}
 	return s.GetProviderApp(ctx, in.ID)
+}
+
+func validRuntimeDigest(value string) bool {
+	if len(value) != 64 || value != strings.ToLower(value) {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func validProviderAppTransition(from, to string) bool {
@@ -539,6 +551,18 @@ func (s *Postgres) GetProvider(ctx context.Context, code string) (model.Provider
 	`, code).Scan(&item.Code, &item.Name, &item.Description, &item.Available, &item.EngineConnector,
 		&item.CredentialSchema, &item.Environments, &item.PaymentMethods, &item.CreatedAt, &item.UpdatedAt)
 	return item, translateNotFound(err)
+}
+
+func (s *Postgres) GetReleasedProviderVersion(ctx context.Context, providerCode string) (string, error) {
+	var version string
+	err := s.pool.QueryRow(ctx, `
+		SELECT version
+		FROM provider_versions
+		WHERE provider_code=$1 AND status='RELEASED'
+		ORDER BY released_at DESC NULLS LAST,created_at DESC,version DESC
+		LIMIT 1
+	`, providerCode).Scan(&version)
+	return version, translateNotFound(err)
 }
 
 func (s *Postgres) ListPaymentMethods(ctx context.Context) ([]model.PaymentMethodCatalogItem, error) {
@@ -802,19 +826,108 @@ func (s *Postgres) RecordEngineConnector(ctx context.Context, tenantID, id, conn
 	return s.GetInstallation(ctx, tenantID, id)
 }
 
-func (s *Postgres) CompleteCredentialConfig(ctx context.Context, tenantID, id, connectorID string, metadata, paymentMethods []byte, actor string) (model.Installation, error) {
-	tag, err := s.pool.Exec(ctx, `
-		UPDATE provider_installations SET engine_connector_id=$3,credential_metadata=$4,payment_methods=$5,
-		status='READY',last_error='',updated_by=$6,updated_at=now(),version=version+1
-		WHERE tenant_id=$1 AND id=$2 AND status='VERIFYING'
-	`, tenantID, id, connectorID, metadata, paymentMethods, actor)
+type CompleteInstallationVerificationInput struct {
+	ID, TenantID, InstallationID, ProviderCode, ProviderVersion, Environment string
+	ManifestDigest, ConnectorID, Actor, RequestID                            string
+	Metadata, PaymentMethods                                                 []byte
+	WebhookReady                                                             bool
+	VerifiedAt                                                               time.Time
+}
+
+// CompleteInstallationVerification atomically promotes a verified installation
+// to READY and records the immutable runtime evidence used for that decision.
+func (s *Postgres) CompleteInstallationVerification(ctx context.Context, in CompleteInstallationVerificationInput) (model.Installation, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return model.Installation{}, err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `
+		UPDATE provider_installations
+		SET engine_connector_id=$6,credential_metadata=$7,payment_methods=$8,
+		    status='READY',last_error='',updated_by=$9,updated_at=now(),version=version+1
+		WHERE tenant_id=$1 AND id=$2 AND provider_code=$3 AND provider_version=$4
+		  AND environment=$5 AND status='VERIFYING'
+	`, in.TenantID, in.InstallationID, in.ProviderCode, in.ProviderVersion, in.Environment,
+		in.ConnectorID, in.Metadata, in.PaymentMethods, in.Actor)
 	if err != nil {
 		return model.Installation{}, translateConstraint(err)
 	}
 	if tag.RowsAffected() == 0 {
 		return model.Installation{}, ErrInvalidState
 	}
-	return s.GetInstallation(ctx, tenantID, id)
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO installation_verifications
+		(id,tenant_id,installation_id,provider_code,provider_version,environment,
+		 manifest_digest,result,connector_id,webhook_ready,verified_by,request_id,verified_at)
+		VALUES($1,$2,$3,$4,$5,$6,$7,'PASSED',$8,$9,$10,$11,$12)
+	`, in.ID, in.TenantID, in.InstallationID, in.ProviderCode, in.ProviderVersion,
+		in.Environment, in.ManifestDigest, in.ConnectorID, in.WebhookReady, in.Actor,
+		in.RequestID, in.VerifiedAt); err != nil {
+		return model.Installation{}, translateConstraint(err)
+	}
+	if err = audit(ctx, tx, in.TenantID, in.Actor, "provider.credentials.verified", "provider_installation", in.InstallationID, in.RequestID, map[string]any{
+		"verification_id": in.ID, "provider_version": in.ProviderVersion,
+		"manifest_digest": in.ManifestDigest, "environment": in.Environment,
+		"webhook_ready": in.WebhookReady,
+	}); err != nil {
+		return model.Installation{}, err
+	}
+	item, err := scanInstallation(tx.QueryRow(ctx, installationSelect+` WHERE i.tenant_id=$1 AND i.id=$2`, in.TenantID, in.InstallationID))
+	if err != nil {
+		return model.Installation{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return model.Installation{}, err
+	}
+	return item, nil
+}
+
+type FailInstallationVerificationInput struct {
+	ID, TenantID, InstallationID, ProviderCode, ProviderVersion, Environment string
+	ManifestDigest, ErrorCode, ErrorMessage, Actor, RequestID                string
+	VerifiedAt                                                               time.Time
+}
+
+// FailInstallationVerification records a failed provider/runtime verification
+// in the same transaction that moves the installation to ERROR.
+func (s *Postgres) FailInstallationVerification(ctx context.Context, in FailInstallationVerificationInput) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `
+		UPDATE provider_installations
+		SET status='ERROR',last_error=$6,updated_by=$7,updated_at=now(),version=version+1
+		WHERE tenant_id=$1 AND id=$2 AND provider_code=$3 AND provider_version=$4
+		  AND environment=$5 AND status='VERIFYING'
+	`, in.TenantID, in.InstallationID, in.ProviderCode, in.ProviderVersion,
+		in.Environment, truncate(in.ErrorMessage, 1000), in.Actor)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrInvalidState
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO installation_verifications
+		(id,tenant_id,installation_id,provider_code,provider_version,environment,
+		 manifest_digest,result,error_code,error_message,verified_by,request_id,verified_at)
+		VALUES($1,$2,$3,$4,$5,$6,$7,'FAILED',$8,$9,$10,$11,$12)
+	`, in.ID, in.TenantID, in.InstallationID, in.ProviderCode, in.ProviderVersion,
+		in.Environment, in.ManifestDigest, truncate(in.ErrorCode, 128),
+		truncate(in.ErrorMessage, 1000), in.Actor, in.RequestID, in.VerifiedAt); err != nil {
+		return translateConstraint(err)
+	}
+	if err = audit(ctx, tx, in.TenantID, in.Actor, "provider.credentials.verification_failed", "provider_installation", in.InstallationID, in.RequestID, map[string]any{
+		"verification_id": in.ID, "provider_version": in.ProviderVersion,
+		"manifest_digest": in.ManifestDigest, "environment": in.Environment,
+		"error_code": in.ErrorCode,
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Postgres) SaveProviderCredentials(ctx context.Context, tenantID, installationID string, ciphertext []byte) error {
@@ -948,14 +1061,24 @@ func (s *Postgres) UpgradeInstallation(ctx context.Context, tenantID, id, provid
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE provider_installations
-		SET provider_version=$3,status='READY',last_error='',updated_by=$4,updated_at=now(),version=version+1
+		SET provider_version=$3,
+		    engine_connector_id=NULL,
+		    status='CONFIG_REQUIRED',
+		    credential_metadata=(credential_metadata - 'verified_environment' - 'webhook_ready' - 'verification') ||
+		        jsonb_build_object(
+		            'verification_required',true,
+		            'verification_reason','provider_version_upgrade',
+		            'previous_provider_version',$5::text
+		        ),
+		    last_error='',updated_by=$4,updated_at=now(),version=version+1
 		WHERE tenant_id=$1 AND id=$2
-	`, tenantID, id, providerVersion, actor); err != nil {
+	`, tenantID, id, providerVersion, actor, currentVersion); err != nil {
 		return model.Installation{}, err
 	}
 	if err := audit(ctx, tx, tenantID, actor, "provider.upgrade", "provider_installation", id, requestID, map[string]any{
-		"from_version": currentVersion,
-		"to_version":   providerVersion,
+		"from_version":          currentVersion,
+		"to_version":            providerVersion,
+		"verification_required": true,
 	}); err != nil {
 		return model.Installation{}, err
 	}
@@ -1161,9 +1284,9 @@ func (s *Postgres) DeactivatePaymentMethodAssignment(ctx context.Context, tenant
 }
 
 type ReservePaymentInput struct {
-	ID, TenantID, InstallationID, PaymentOptionID, ProviderCode, Environment, MerchantReference, IdempotencyKey, Currency, ExecutionEngine string
-	RequestHash                                                                                                                            []byte
-	Amount                                                                                                                                 int64
+	ID, TenantID, InstallationID, PaymentOptionID, PaymentMethodCode, ProviderCode, ProviderVersion, Environment, MerchantReference, IdempotencyKey, Currency, ExecutionEngine string
+	RequestHash                                                                                                                                                                []byte
+	Amount                                                                                                                                                                     int64
 }
 
 type PaymentListFilter struct {
@@ -1174,6 +1297,84 @@ type PaymentListFilter struct {
 type ReconciliationListFilter struct {
 	Kind, Query   string
 	Limit, Offset int
+}
+
+type IntegrationReadinessFacts struct {
+	ActiveInstallation bool
+	ActiveAssignment   bool
+	PaymentCreated     bool
+	IdempotencyReplay  bool
+	PaymentStatusRead  bool
+	WebhookDelivered   bool
+	ResilienceObserved bool
+}
+
+func (s *Postgres) RecordIntegrationEvidence(ctx context.Context, tenantID, environment, code string, details any) error {
+	if details == nil {
+		details = map[string]any{}
+	}
+	payload, err := json.Marshal(details)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO integration_evidence(tenant_id,environment,code,details)
+		VALUES($1,$2,$3,$4::jsonb)
+		ON CONFLICT(tenant_id,environment,code) DO UPDATE SET
+			observation_count=integration_evidence.observation_count+1,
+			details=EXCLUDED.details,
+			last_observed_at=now()
+	`, tenantID, environment, code, string(payload))
+	return err
+}
+
+func (s *Postgres) GetIntegrationReadinessFacts(ctx context.Context, tenantID, environment string) (IntegrationReadinessFacts, error) {
+	var facts IntegrationReadinessFacts
+	err := s.pool.QueryRow(ctx, `
+		SELECT
+			EXISTS(
+				SELECT 1 FROM provider_installations
+				WHERE tenant_id=$1 AND environment=$2 AND status='ACTIVE'
+			),
+			EXISTS(
+				SELECT 1 FROM payment_method_assignments assignment
+				JOIN provider_installations installation
+				  ON installation.tenant_id=assignment.tenant_id
+				 AND installation.id=assignment.installation_id
+				WHERE assignment.tenant_id=$1 AND assignment.environment=$2
+				  AND assignment.status='ACTIVE' AND installation.status='ACTIVE'
+			),
+			EXISTS(
+				SELECT 1 FROM payment_sessions
+				WHERE tenant_id=$1 AND environment=$2
+			),
+			EXISTS(
+				SELECT 1 FROM integration_evidence
+				WHERE tenant_id=$1 AND environment=$2 AND code='idempotency_replay'
+			),
+			EXISTS(
+				SELECT 1 FROM integration_evidence
+				WHERE tenant_id=$1 AND environment=$2 AND code='payment_status_read'
+			),
+			EXISTS(
+				SELECT 1 FROM outbox_events delivery
+				JOIN payment_sessions payment
+				  ON payment.tenant_id=delivery.tenant_id
+				 AND payment.id=delivery.aggregate_id
+				WHERE delivery.tenant_id=$1 AND payment.environment=$2
+				  AND delivery.event_type='payment.updated' AND delivery.status='DELIVERED'
+			),
+			EXISTS(
+				SELECT 1 FROM payment_sessions
+				WHERE tenant_id=$1 AND environment=$2
+				  AND flags ?| ARRAY['late_payment','provider_delayed_confirmation']
+			)
+	`, tenantID, environment).Scan(
+		&facts.ActiveInstallation, &facts.ActiveAssignment, &facts.PaymentCreated,
+		&facts.IdempotencyReplay, &facts.PaymentStatusRead, &facts.WebhookDelivered,
+		&facts.ResilienceObserved,
+	)
+	return facts, err
 }
 
 func (s *Postgres) ListPayments(ctx context.Context, tenantID string, filter PaymentListFilter) (model.PaymentList, error) {
@@ -1231,9 +1432,9 @@ func (s *Postgres) ReservePayment(ctx context.Context, in ReservePaymentInput) (
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO payment_sessions
-		(id,tenant_id,installation_id,payment_option_id,provider_code,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,execution_engine)
-		VALUES($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,$10,$11,'CREATED',$12)
-	`, in.ID, in.TenantID, in.InstallationID, in.PaymentOptionID, in.ProviderCode, in.Environment, in.MerchantReference, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.ExecutionEngine)
+		(id,tenant_id,installation_id,payment_option_id,payment_method_code,provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,execution_engine)
+		VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,$7,$8,$9,$10,$11,$12,$13,'CREATED',$14)
+	`, in.ID, in.TenantID, in.InstallationID, in.PaymentOptionID, in.PaymentMethodCode, in.ProviderCode, in.ProviderVersion, in.Environment, in.MerchantReference, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.ExecutionEngine)
 	if err != nil {
 		if isUnique(err) {
 			return model.PaymentSession{}, false, ErrConflict
@@ -1260,25 +1461,32 @@ func (s *Postgres) CompletePayment(ctx context.Context, tenantID, id, engineID, 
 	}
 	defer tx.Rollback(ctx)
 	var previous string
-	if err = tx.QueryRow(ctx, `SELECT status FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&previous); err != nil {
+	var existingFlags []string
+	if err = tx.QueryRow(ctx, `SELECT status,flags FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&previous, &existingFlags); err != nil {
 		return model.PaymentSession{}, translateNotFound(err)
 	}
 	applied := canonicalPaymentStatus(previous, status)
+	flags, flagsAdded := canonicalPaymentFlags(existingFlags, previous, applied)
+	flagsJSON, err := json.Marshal(flags)
+	if err != nil {
+		return model.PaymentSession{}, err
+	}
 	err = tx.QueryRow(ctx, `
 		UPDATE payment_sessions SET
 		updated_at=CASE WHEN engine_payment_id IS DISTINCT FROM $3
 		  OR connector_transaction_id IS DISTINCT FROM $4
 		  OR status IS DISTINCT FROM $5
 		  OR next_action IS DISTINCT FROM $6::jsonb
+		  OR flags IS DISTINCT FROM $7::jsonb
 		  OR last_error<>'' THEN now() ELSE updated_at END,
 		engine_payment_id=$3,connector_transaction_id=$4,status=$5,
-		next_action=$6,last_error='' WHERE tenant_id=$1 AND id=$2 RETURNING status
-	`, tenantID, id, engineID, connectorID, applied, nextAction).Scan(&applied)
+		next_action=$6,flags=$7::jsonb,last_error='' WHERE tenant_id=$1 AND id=$2 RETURNING status
+	`, tenantID, id, engineID, connectorID, applied, nextAction, string(flagsJSON)).Scan(&applied)
 	if err != nil {
 		return model.PaymentSession{}, err
 	}
 	if previous != applied {
-		if err = insertPaymentHistory(ctx, tx, tenantID, id, applied, source, map[string]any{"engine_payment_id": engineID}); err != nil {
+		if err = insertPaymentHistory(ctx, tx, tenantID, id, applied, source, map[string]any{"engine_payment_id": engineID, "flags_added": flagsAdded}); err != nil {
 			return model.PaymentSession{}, err
 		}
 	}
@@ -1328,8 +1536,9 @@ func (s *Postgres) ReconcilePayment(ctx context.Context, tenantID, id, actor, re
 	}
 	defer tx.Rollback(ctx)
 	var current, lastKey string
+	var existingFlags []string
 	var reconciliationCount int
-	if err = tx.QueryRow(ctx, `SELECT status,reconciliation_count,last_reconciliation_key FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&current, &reconciliationCount, &lastKey); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT status,flags,reconciliation_count,last_reconciliation_key FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&current, &existingFlags, &reconciliationCount, &lastKey); err != nil {
 		return model.PaymentSession{}, translateNotFound(err)
 	}
 	if lastKey == idempotencyKey {
@@ -1340,16 +1549,21 @@ func (s *Postgres) ReconcilePayment(ctx context.Context, tenantID, id, actor, re
 		return model.PaymentSession{}, ErrInvalidState
 	}
 	applied := canonicalPaymentStatus(current, status)
+	flags, flagsAdded := canonicalPaymentFlags(existingFlags, current, applied)
+	flagsJSON, err := json.Marshal(flags)
+	if err != nil {
+		return model.PaymentSession{}, err
+	}
 	if _, err = tx.Exec(ctx, `
-		UPDATE payment_sessions SET engine_payment_id=$3,connector_transaction_id=$4,status=$5,next_action=$6,
+		UPDATE payment_sessions SET engine_payment_id=$3,connector_transaction_id=$4,status=$5,next_action=$6,flags=$9::jsonb,
 		last_error='',reconciliation_count=reconciliation_count+1,last_reconciled_at=now(),
 		last_reconciled_by=$7,last_reconciliation_key=$8,updated_at=now()
 		WHERE tenant_id=$1 AND id=$2
-	`, tenantID, id, engineID, connectorID, applied, nextAction, actor, idempotencyKey); err != nil {
+	`, tenantID, id, engineID, connectorID, applied, nextAction, actor, idempotencyKey, string(flagsJSON)); err != nil {
 		return model.PaymentSession{}, err
 	}
 	if current != applied {
-		if err = insertPaymentHistory(ctx, tx, tenantID, id, applied, "operator.reconcile", map[string]any{"engine_payment_id": engineID}); err != nil {
+		if err = insertPaymentHistory(ctx, tx, tenantID, id, applied, "operator.reconcile", map[string]any{"engine_payment_id": engineID, "flags_added": flagsAdded}); err != nil {
 			return model.PaymentSession{}, err
 		}
 	}
@@ -1471,9 +1685,11 @@ func (s *Postgres) FindPaymentByIdempotency(ctx context.Context, tenantID, envir
 }
 
 type ReserveRefundInput struct {
-	ID, TenantID, PaymentID, IdempotencyKey, Currency, ExecutionEngine string
-	RequestHash                                                        []byte
-	Amount                                                             int64
+	ID, TenantID, PaymentID, PaymentMethodCode, IdempotencyKey, Currency, ExecutionEngine string
+	Reason, RequestedBy, RequestID                                                        string
+	RequestHash                                                                           []byte
+	Amount                                                                                int64
+	AllowPartial, AllowMultiple                                                           bool
 }
 
 func (s *Postgres) ReserveRefund(ctx context.Context, in ReserveRefundInput) (model.Refund, bool, error) {
@@ -1499,6 +1715,7 @@ func (s *Postgres) ReserveRefund(ctx context.Context, in ReserveRefundInput) (mo
 		return model.Refund{}, false, err
 	}
 	var paymentAmount, reservedAmount int64
+	var reservedCount int
 	var paymentStatus string
 	if err = tx.QueryRow(ctx, `SELECT amount,status FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, in.TenantID, in.PaymentID).Scan(&paymentAmount, &paymentStatus); err != nil {
 		return model.Refund{}, false, translateNotFound(err)
@@ -1506,17 +1723,23 @@ func (s *Postgres) ReserveRefund(ctx context.Context, in ReserveRefundInput) (mo
 	if paymentStatus != model.PaymentSucceeded {
 		return model.Refund{}, false, ErrInvalidState
 	}
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM refunds WHERE tenant_id=$1 AND payment_id=$2 AND status <> 'FAILED'`, in.TenantID, in.PaymentID).Scan(&reservedAmount); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(amount),0),count(*) FROM refunds WHERE tenant_id=$1 AND payment_id=$2 AND status <> 'FAILED'`, in.TenantID, in.PaymentID).Scan(&reservedAmount, &reservedCount); err != nil {
 		return model.Refund{}, false, err
 	}
-	if in.Amount <= 0 || reservedAmount+in.Amount > paymentAmount {
+	if in.Amount <= 0 || reservedAmount+in.Amount > paymentAmount || (!in.AllowPartial && in.Amount != paymentAmount) || (!in.AllowMultiple && reservedCount > 0) {
 		return model.Refund{}, false, ErrInvalidState
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO refunds(id,tenant_id,payment_id,idempotency_key,request_hash,amount,currency,status,execution_engine) VALUES($1,$2,$3,$4,$5,$6,$7,'CREATED',$8)`, in.ID, in.TenantID, in.PaymentID, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.ExecutionEngine)
+	_, err = tx.Exec(ctx, `INSERT INTO refunds(id,tenant_id,payment_id,payment_method_code,idempotency_key,request_hash,amount,currency,reason,requested_by,status,execution_engine) VALUES($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,$10,'CREATED',$11)`, in.ID, in.TenantID, in.PaymentID, in.PaymentMethodCode, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.Reason, in.RequestedBy, in.ExecutionEngine)
 	if err != nil {
 		if isUnique(err) {
 			return model.Refund{}, false, ErrConflict
 		}
+		return model.Refund{}, false, err
+	}
+	if err = audit(ctx, tx, in.TenantID, in.RequestedBy, "refund.create", "refund", in.ID, in.RequestID, map[string]any{
+		"payment_id": in.PaymentID, "payment_method_code": in.PaymentMethodCode,
+		"amount": in.Amount, "currency": in.Currency, "reason": in.Reason,
+	}); err != nil {
 		return model.Refund{}, false, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -1542,6 +1765,45 @@ func (s *Postgres) FailRefund(ctx context.Context, tenantID, id, status, message
 func (s *Postgres) GetRefund(ctx context.Context, tenantID, id string) (model.Refund, error) {
 	item, _, err := scanRefund(s.pool.QueryRow(ctx, refundSelect+` WHERE tenant_id=$1 AND id=$2`, tenantID, id))
 	return item, translateNotFound(err)
+}
+
+// HasOpenRefundLiability prevents credential destruction while a successful
+// payment is still inside a documented provider refund window or a refund is
+// awaiting its provider-confirmed terminal status.
+func (s *Postgres) HasOpenRefundLiability(ctx context.Context, tenantID, installationID string) (bool, error) {
+	var found bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM payment_sessions payment
+			JOIN provider_payment_method_capabilities capability
+			  ON capability.provider_code=payment.provider_code
+			 AND capability.payment_method_code=payment.payment_method_code
+			WHERE payment.tenant_id=$1
+			  AND payment.installation_id=$2
+			  AND payment.status='SUCCEEDED'
+			  AND COALESCE((capability.metadata #>> '{refund,supported}')::boolean,false)
+			  AND (
+				EXISTS (
+					SELECT 1 FROM refunds pending
+					WHERE pending.tenant_id=payment.tenant_id AND pending.payment_id=payment.id
+					  AND pending.status IN ('CREATED','PROCESSING','PENDING','UNKNOWN')
+				)
+				OR (
+					(
+						NULLIF(capability.metadata #>> '{refund,window_days}','') IS NULL
+						OR payment.updated_at + ((capability.metadata #>> '{refund,window_days}') || ' days')::interval > now()
+					)
+					AND COALESCE((
+						SELECT sum(refund.amount) FROM refunds refund
+						WHERE refund.tenant_id=payment.tenant_id AND refund.payment_id=payment.id
+						  AND refund.status <> 'FAILED'
+					),0) < payment.amount
+				)
+			  )
+		)
+	`, tenantID, installationID).Scan(&found)
+	return found, err
 }
 func (s *Postgres) getRefundByIdempotency(ctx context.Context, tenantID, key string) (model.Refund, []byte, error) {
 	item, hash, err := scanRefund(s.pool.QueryRow(ctx, refundSelect+` WHERE tenant_id=$1 AND idempotency_key=$2`, tenantID, key))
@@ -1701,21 +1963,31 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 	}
 	processed := false
 	matchedTenant, aggregateType, aggregateID := "", "", ""
-	if in.EnginePaymentID != "" {
+	// Refund provider events commonly contain both the original payment ID and
+	// the refund ID. The refund resource must win, otherwise a refund callback
+	// would be consumed as an ordinary payment update and never reach the
+	// canonical refund or Emisell Backend.
+	if in.EnginePaymentID != "" && in.EngineRefundID == "" {
 		var tenantID, localID string
 		var amount int64
 		var currency, reference, environment string
 		var previousStatus, appliedStatus string
-		err = tx.QueryRow(ctx, `SELECT tenant_id,id,amount,currency,merchant_reference,environment,status FROM payment_sessions WHERE engine_payment_id=$1 FOR UPDATE`, in.EnginePaymentID).Scan(&tenantID, &localID, &amount, &currency, &reference, &environment, &previousStatus)
+		var existingFlags []string
+		err = tx.QueryRow(ctx, `SELECT tenant_id,id,amount,currency,merchant_reference,environment,status,flags FROM payment_sessions WHERE engine_payment_id=$1 FOR UPDATE`, in.EnginePaymentID).Scan(&tenantID, &localID, &amount, &currency, &reference, &environment, &previousStatus, &existingFlags)
 		if err == nil {
 			matchedTenant, aggregateType, aggregateID = tenantID, "payment", localID
 			appliedStatus = canonicalPaymentStatus(previousStatus, in.Status)
+			flags, flagsAdded := canonicalPaymentFlags(existingFlags, previousStatus, appliedStatus)
+			flagsJSON, marshalErr := json.Marshal(flags)
+			if marshalErr != nil {
+				return false, marshalErr
+			}
 			eventCreatedAt := time.Now().UTC()
-			if _, err = tx.Exec(ctx, `UPDATE payment_sessions SET status=$2,updated_at=$3 WHERE engine_payment_id=$1`, in.EnginePaymentID, appliedStatus, eventCreatedAt); err != nil {
+			if _, err = tx.Exec(ctx, `UPDATE payment_sessions SET status=$2,flags=$3::jsonb,updated_at=$4 WHERE engine_payment_id=$1`, in.EnginePaymentID, appliedStatus, string(flagsJSON), eventCreatedAt); err != nil {
 				return false, err
 			}
 			if previousStatus != appliedStatus {
-				if err = insertPaymentHistory(ctx, tx, tenantID, localID, appliedStatus, "webhook."+in.Source, map[string]any{"event_id": in.ExternalEventID, "event_type": in.EventType}); err != nil {
+				if err = insertPaymentHistory(ctx, tx, tenantID, localID, appliedStatus, "webhook."+in.Source, map[string]any{"event_id": in.ExternalEventID, "event_type": in.EventType, "flags_added": flagsAdded}); err != nil {
 					return false, err
 				}
 			}
@@ -1723,7 +1995,7 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 				"payment": map[string]any{
 					"id": localID, "merchant_reference": reference, "amount": amount,
 					"currency": currency, "environment": environment, "status": appliedStatus,
-					"updated_at": eventCreatedAt,
+					"flags": flags, "updated_at": eventCreatedAt,
 				},
 				"previous_status": previousStatus,
 			}
@@ -1738,15 +2010,17 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 	if !processed && in.EngineRefundID != "" {
 		var tenantID, localID, paymentID string
 		var amount int64
-		var currency string
+		var currency, paymentMethodCode, reason, requestedBy string
 		var appliedStatus string
 		eventCreatedAt := time.Now().UTC()
-		err = tx.QueryRow(ctx, `UPDATE refunds SET status=CASE WHEN refunds.status='SUCCEEDED' AND $2<>'SUCCEEDED' THEN refunds.status WHEN refunds.status='FAILED' AND $2<>'SUCCEEDED' THEN refunds.status ELSE $2 END,updated_at=$3 WHERE engine_refund_id=$1 RETURNING tenant_id,id,payment_id,amount,currency,status`, in.EngineRefundID, in.Status, eventCreatedAt).Scan(&tenantID, &localID, &paymentID, &amount, &currency, &appliedStatus)
+		err = tx.QueryRow(ctx, `UPDATE refunds SET status=CASE WHEN refunds.status='SUCCEEDED' AND $2<>'SUCCEEDED' THEN refunds.status WHEN refunds.status='FAILED' AND $2<>'SUCCEEDED' THEN refunds.status ELSE $2 END,updated_at=$3 WHERE engine_refund_id=$1 RETURNING tenant_id,id,payment_id,amount,currency,COALESCE(payment_method_code,''),reason,requested_by,status`, in.EngineRefundID, in.Status, eventCreatedAt).Scan(&tenantID, &localID, &paymentID, &amount, &currency, &paymentMethodCode, &reason, &requestedBy, &appliedStatus)
 		if err == nil {
 			matchedTenant, aggregateType, aggregateID = tenantID, "refund", localID
 			data := map[string]any{"refund": map[string]any{
 				"id": localID, "payment_id": paymentID, "amount": amount,
-				"currency": currency, "status": appliedStatus, "updated_at": eventCreatedAt,
+				"currency": currency, "payment_method_code": paymentMethodCode,
+				"reason": reason, "requested_by": requestedBy,
+				"status": appliedStatus, "updated_at": eventCreatedAt,
 			}}
 			if err = insertOutbox(ctx, tx, tenantID, "refund.updated", "refund", localID, in.Source+":"+in.ExternalEventID, eventCreatedAt, data); err != nil {
 				return false, err
@@ -1888,23 +2162,23 @@ func scanConnectorCertificationRun(row scanner) (model.ConnectorCertificationRun
 	return item, err
 }
 
-const paymentSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_option_id,''),provider_code,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,COALESCE(next_action,'null'::jsonb),last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
-const paymentListSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_option_id,''),provider_code,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,NULL::jsonb,last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
+const paymentSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,COALESCE(next_action,'null'::jsonb),last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
+const paymentListSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,NULL::jsonb,last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
 
 func scanPayment(row scanner) (model.PaymentSession, []byte, error) {
 	var i model.PaymentSession
 	var hash []byte
-	err := row.Scan(&i.ID, &i.TenantID, &i.InstallationID, &i.PaymentOptionID, &i.ProviderCode, &i.Environment, &i.MerchantReference, &i.IdempotencyKey, &hash, &i.Amount, &i.Currency, &i.Status, &i.EnginePaymentID, &i.ConnectorTxnID, &i.ExecutionEngine, &i.NextAction, &i.LastError, &i.ReconciliationCount, &i.LastReconciledAt, &i.LastReconciledBy, &i.LastReconciliationKey, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(&i.ID, &i.TenantID, &i.InstallationID, &i.PaymentOptionID, &i.PaymentMethodCode, &i.ProviderCode, &i.ProviderVersion, &i.Environment, &i.MerchantReference, &i.IdempotencyKey, &hash, &i.Amount, &i.Currency, &i.Status, &i.Flags, &i.EnginePaymentID, &i.ConnectorTxnID, &i.ExecutionEngine, &i.NextAction, &i.LastError, &i.ReconciliationCount, &i.LastReconciledAt, &i.LastReconciledBy, &i.LastReconciliationKey, &i.CreatedAt, &i.UpdatedAt)
 	return i, hash, err
 }
 
-const refundSelect = `SELECT id,tenant_id,payment_id,idempotency_key,request_hash,amount,currency,status,COALESCE(engine_refund_id,''),execution_engine,last_error,created_at,updated_at FROM refunds`
+const refundSelect = `SELECT id,tenant_id,payment_id,COALESCE(payment_method_code,''),idempotency_key,request_hash,amount,currency,reason,requested_by,status,COALESCE(engine_refund_id,''),execution_engine,last_error,created_at,updated_at FROM refunds`
 
 func scanRefund(row scanner) (model.Refund, []byte, error) {
 	var i model.Refund
 	var key string
 	var hash []byte
-	err := row.Scan(&i.ID, &i.TenantID, &i.PaymentID, &key, &hash, &i.Amount, &i.Currency, &i.Status, &i.EngineRefundID, &i.ExecutionEngine, &i.LastError, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(&i.ID, &i.TenantID, &i.PaymentID, &i.PaymentMethodCode, &key, &hash, &i.Amount, &i.Currency, &i.Reason, &i.RequestedBy, &i.Status, &i.EngineRefundID, &i.ExecutionEngine, &i.LastError, &i.CreatedAt, &i.UpdatedAt)
 	return i, hash, err
 }
 
@@ -1944,6 +2218,28 @@ func canonicalPaymentStatus(current, incoming string) string {
 		return current
 	}
 	return incoming
+}
+
+func canonicalPaymentFlags(existing []string, previous, applied string) ([]string, []string) {
+	flags := make([]string, len(existing))
+	copy(flags, existing)
+	added := make([]string, 0, 1)
+	add := func(value string) {
+		if contains(flags, value) {
+			return
+		}
+		flags = append(flags, value)
+		added = append(added, value)
+	}
+	if applied == model.PaymentSucceeded {
+		switch previous {
+		case model.PaymentExpired:
+			add("late_payment")
+		case model.PaymentUnknown:
+			add("provider_delayed_confirmation")
+		}
+	}
+	return flags, added
 }
 func insertOutbox(ctx context.Context, tx pgx.Tx, tenant, eventType, aggregateType, aggregateID, dedup string, createdAt time.Time, data any) error {
 	id, err := ids.New("evt")

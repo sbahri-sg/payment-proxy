@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{partner_base_url}}/partner/v1/payments/get"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "provider_code": "{{provider_code}}",
+      "environment": "{{execution_mode}}",
+      "credentials": {"api_key": "{{provider_secret}}"},
+      "payment_id": "{{provider_payment_id}}"
+    }
+examples: ./.resources/GetStatus.resources/examples
+order: 2000

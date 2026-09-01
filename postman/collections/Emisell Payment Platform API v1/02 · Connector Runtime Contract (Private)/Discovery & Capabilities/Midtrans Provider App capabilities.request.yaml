@@ -1,0 +1,10 @@
+$kind: http-request
+description: Runtime Midtrans terpisah. Manifest version dan executable_sha256 dipakai publish gate untuk membuktikan container identik dengan ZIP certified.
+url: "{{midtrans_partner_base_url}}/partner/v1/capabilities"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{midtrans_provider_app_token}}"
+examples: ./.resources/Midtrans Provider App capabilities.resources/examples
+order: 3000

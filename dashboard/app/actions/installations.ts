@@ -15,10 +15,10 @@ function actionError(error: unknown): InstallationActionState {
   return { status: "error", message: "Operasi tidak dapat diselesaikan. Periksa konfigurasi dashboard dan coba kembali." };
 }
 
-function refreshManagementPages() {
+function refreshManagementPages(providerCode?: string) {
   revalidatePath("/");
   revalidatePath("/providers");
-  revalidatePath("/installations");
+  if (providerCode && /^[a-z0-9_-]{2,48}$/.test(providerCode)) revalidatePath(`/providers/${providerCode}`);
 }
 
 export async function installProviderAction(_: InstallationActionState, form: FormData): Promise<InstallationActionState> {
@@ -31,11 +31,10 @@ export async function installProviderAction(_: InstallationActionState, form: Fo
   try {
     await createInstallation(session.subject, {
       provider_code: providerCode,
-      provider_version: `emisell-${providerCode}-v1`,
       environment,
     });
-    refreshManagementPages();
-    return { status: "success", message: `${providerCode.toUpperCase()} ${environment} berhasil di-install. Lanjutkan dengan konfigurasi credential.` };
+    refreshManagementPages(providerCode);
+    return { status: "success", message: `Connection ${providerCode.toUpperCase()} ${environment} berhasil dibuat. Lanjutkan dengan konfigurasi credential.` };
   } catch (error) {
     return actionError(error);
   }
@@ -53,9 +52,9 @@ export async function configureCredentialsAction(_: InstallationActionState, for
   }
   if (!Object.values(credentials).some(Boolean)) return { status: "error", message: "Credential wajib diisi." };
   try {
-    await configureInstallation(session.subject, installationID, credentials);
+    const installation = await configureInstallation(session.subject, installationID, credentials);
     for (const key of Object.keys(credentials)) credentials[key] = "";
-    refreshManagementPages();
+    refreshManagementPages(installation.provider_code);
     return { status: "success", message: "Credential diverifikasi, disimpan terenkripsi, dan installation berstatus READY." };
   } catch (error) {
     for (const key of Object.keys(credentials)) credentials[key] = "";
@@ -73,13 +72,14 @@ export async function installationOperationAction(_: InstallationActionState, fo
   }
   try {
     if (operation === "activate" || operation === "deactivate") {
-      await transitionInstallation(session.subject, installationID, operation, version);
+      const installation = await transitionInstallation(session.subject, installationID, operation, version);
+      refreshManagementPages(installation.provider_code);
     } else if (operation === "uninstall") {
-      await uninstallInstallation(session.subject, installationID);
+      const installation = await uninstallInstallation(session.subject, installationID);
+      refreshManagementPages(installation.provider_code);
     } else {
       return { status: "error", message: "Operasi tidak didukung." };
     }
-    refreshManagementPages();
     const message = operation === "activate" ? "Installation berhasil diaktifkan." : operation === "deactivate" ? "Installation berhasil dinonaktifkan." : "Installation berhasil di-uninstall dan credential connector dihapus.";
     return { status: "success", message };
   } catch (error) {

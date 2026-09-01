@@ -85,12 +85,16 @@ func (c *Client) VerifyInstallation(ctx context.Context, input connector.Install
 	if err != nil {
 		return connector.InstallationResult{}, err
 	}
+	environment, err := midtransEnvironment(credentials.serverKey)
+	if err != nil {
+		return connector.InstallationResult{}, err
+	}
 	probeID := "emisell-credential-check-" + strings.TrimPrefix(input.InstallationID, "ins_")
 	if len(probeID) > 50 {
 		probeID = probeID[:50]
 	}
 	var response map[string]any
-	err = c.do(ctx, input.Environment, http.MethodGet, "/v2/"+url.PathEscape(probeID)+"/status", credentials, nil, &response, false)
+	err = c.do(ctx, environment, http.MethodGet, "/v2/"+url.PathEscape(probeID)+"/status", credentials, nil, &response, false)
 	if err != nil {
 		var apiErr *connector.APIError
 		if !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound {
@@ -103,9 +107,21 @@ func (c *Client) VerifyInstallation(ctx context.Context, input connector.Install
 	}
 	return connector.InstallationResult{
 		ConnectorID:       "midtrans:" + input.InstallationID,
+		Environment:       environment,
 		StoredCredentials: storedCredentials,
 		WebhookReady:      strings.TrimSpace(input.PublicWebhookURL) != "",
 	}, nil
+}
+
+func midtransEnvironment(serverKey string) (string, error) {
+	switch {
+	case strings.HasPrefix(serverKey, "SB-Mid-server-"):
+		return "sandbox", nil
+	case strings.HasPrefix(serverKey, "Mid-server-"):
+		return "live", nil
+	default:
+		return "", fmt.Errorf("%w: Midtrans Server Key must identify a sandbox or production account", connector.ErrInvalidCredential)
+	}
 }
 
 func (c *Client) DisableInstallation(context.Context, connector.InstallationInput) error { return nil }
@@ -242,8 +258,11 @@ func (c *Client) CreateRefund(ctx context.Context, input connector.RefundInput) 
 		return connector.RefundResult{}, err
 	}
 	return connector.RefundResult{
-		ID:     input.PaymentID + "|" + refundKey,
-		Status: refundStatus(firstString(response, "transaction_status", "refund_status", "status_code")),
+		ID: input.PaymentID + "|" + refundKey,
+		// The regular Refund API acknowledges the request before the acquiring
+		// bank/payment provider confirms it. Midtrans recommends waiting for the
+		// later notification carrying bank_confirmed_at.
+		Status: midtransRefundStatus(firstString(response, "transaction_status", "refund_status", "status_code"), firstString(response, "bank_confirmed_at")),
 	}, nil
 }
 
@@ -268,7 +287,7 @@ func (c *Client) GetRefund(ctx context.Context, input connector.RefundLookup) (c
 			if status == "" {
 				status = firstString(response, "transaction_status")
 			}
-			return connector.RefundResult{ID: input.RefundID, Status: refundStatus(status)}, nil
+			return connector.RefundResult{ID: input.RefundID, Status: midtransRefundStatus(status, firstString(item, "bank_confirmed_at"))}, nil
 		}
 	}
 	return connector.RefundResult{}, &connector.APIError{Provider: "midtrans", Status: http.StatusNotFound, Code: "REFUND_NOT_FOUND", Message: "refund was not found in Midtrans transaction status"}
@@ -296,7 +315,7 @@ func (c *Client) HandleWebhook(_ context.Context, input connector.WebhookInput) 
 		return connector.WebhookEvent{}, &connector.APIError{Provider: "midtrans", Status: http.StatusUnauthorized, Code: "INVALID_WEBHOOK_SIGNATURE"}
 	}
 	transactionStatus := firstString(payload, "transaction_status")
-	refundKey := firstString(payload, "refund_key")
+	refundKey, refundProviderStatus, bankConfirmedAt := midtransRefundDetails(payload)
 	eventType := "payment.updated"
 	refundID := ""
 	if refundKey != "" || transactionStatus == "refund" || transactionStatus == "partial_refund" {
@@ -305,15 +324,44 @@ func (c *Client) HandleWebhook(_ context.Context, input connector.WebhookInput) 
 			refundID = orderID + "|" + refundKey
 		}
 	}
-	eventID := firstString(payload, "transaction_id") + ":" + transactionStatus + ":" + refundKey
+	eventID := firstString(payload, "transaction_id") + ":" + transactionStatus + ":" + refundKey + ":" + bankConfirmedAt
 	if strings.Trim(eventID, ":") == "" {
 		digest := sha256.Sum256(input.Body)
 		eventID = hex.EncodeToString(digest[:])
 	}
+	status := paymentStatus(transactionStatus, firstString(payload, "fraud_status"))
+	if eventType == "refund.updated" {
+		status = midtransRefundStatus(refundProviderStatus, bankConfirmedAt)
+	}
 	return connector.WebhookEvent{
 		ID: eventID, Type: eventType, PaymentID: orderID, RefundID: refundID,
-		Status: paymentStatus(transactionStatus, firstString(payload, "fraud_status")),
+		Status: status,
 	}, nil
+}
+
+func midtransRefundDetails(payload map[string]any) (refundKey, status, bankConfirmedAt string) {
+	refundKey = firstString(payload, "refund_key")
+	status = firstString(payload, "refund_status", "transaction_status")
+	bankConfirmedAt = firstString(payload, "bank_confirmed_at")
+	refunds, _ := payload["refunds"].([]any)
+	for index := len(refunds) - 1; index >= 0; index-- {
+		item, _ := refunds[index].(map[string]any)
+		candidateKey := firstString(item, "refund_key")
+		if refundKey != "" && candidateKey != refundKey {
+			continue
+		}
+		if refundKey == "" {
+			refundKey = candidateKey
+		}
+		if itemStatus := firstString(item, "refund_status", "status"); itemStatus != "" {
+			status = itemStatus
+		}
+		if confirmed := firstString(item, "bank_confirmed_at"); confirmed != "" {
+			bankConfirmedAt = confirmed
+		}
+		break
+	}
+	return refundKey, status, bankConfirmedAt
 }
 
 func (c *Client) do(ctx context.Context, environment, method, path string, credentials apiCredentials, payload, target any, mutation bool) error {
@@ -588,15 +636,15 @@ func paymentStatus(status, fraudStatus string) string {
 	}
 }
 
-func refundStatus(status string) string {
+func midtransRefundStatus(status, bankConfirmedAt string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "refund", "partial_refund", "settlement", "success", "200":
-		return "SUCCEEDED"
 	case "deny", "failure", "failed":
 		return "FAILED"
-	default:
-		return "PENDING"
 	}
+	if strings.TrimSpace(bankConfirmedAt) != "" {
+		return "SUCCEEDED"
+	}
+	return "PENDING"
 }
 
 func nextAction(response map[string]any, method string) map[string]any {

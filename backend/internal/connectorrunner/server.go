@@ -21,8 +21,8 @@ const maxRequestBody = 1 << 20
 type Engine interface {
 	Ping(context.Context) error
 	Manifests() []connector.Manifest
-	ValidatePaymentMethod(string, connector.PaymentMethodMapping) error
-	ValidatePayment(string, connector.PaymentValidation) error
+	ValidatePaymentMethodVersion(string, string, connector.PaymentMethodMapping) error
+	ValidatePaymentVersion(string, string, connector.PaymentValidation) error
 	VerifyInstallation(context.Context, connector.InstallationInput) (connector.InstallationResult, error)
 	DisableInstallation(context.Context, connector.InstallationInput) error
 	CreatePayment(context.Context, connector.PaymentInput) (connector.PaymentResult, error)
@@ -106,13 +106,14 @@ func (s *Server) capabilities(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) validatePaymentMethod(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		ProviderCode string                         `json:"provider_code"`
-		Input        connector.PaymentMethodMapping `json:"input"`
+		ProviderCode    string                         `json:"provider_code"`
+		ProviderVersion string                         `json:"provider_version,omitempty"`
+		Input           connector.PaymentMethodMapping `json:"input"`
 	}
 	if !decode(w, r, &input) {
 		return
 	}
-	if err := s.engine.ValidatePaymentMethod(input.ProviderCode, input.Input); err != nil {
+	if err := s.engine.ValidatePaymentMethodVersion(input.ProviderCode, input.ProviderVersion, input.Input); err != nil {
 		s.connectorError(w, err)
 		return
 	}
@@ -121,13 +122,14 @@ func (s *Server) validatePaymentMethod(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) validatePayment(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		ProviderCode string                      `json:"provider_code"`
-		Input        connector.PaymentValidation `json:"input"`
+		ProviderCode    string                      `json:"provider_code"`
+		ProviderVersion string                      `json:"provider_version,omitempty"`
+		Input           connector.PaymentValidation `json:"input"`
 	}
 	if !decode(w, r, &input) {
 		return
 	}
-	if err := s.engine.ValidatePayment(input.ProviderCode, input.Input); err != nil {
+	if err := s.engine.ValidatePaymentVersion(input.ProviderCode, input.ProviderVersion, input.Input); err != nil {
 		s.connectorError(w, err)
 		return
 	}
@@ -276,6 +278,9 @@ func (s *Server) connectorError(w http.ResponseWriter, err error) {
 	case errors.Is(err, connector.ErrNotSupported):
 		problem.Code = "OPERATION_NOT_SUPPORTED"
 		problem.Message = "connector operation is not supported"
+	case errors.Is(err, connector.ErrInvalidCredential):
+		problem.Code = "INVALID_PROVIDER_CREDENTIAL"
+		problem.Message = "provider credential is invalid or its mode cannot be detected"
 	default:
 		var apiErr *connector.APIError
 		if errors.As(err, &apiErr) {

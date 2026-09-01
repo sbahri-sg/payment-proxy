@@ -1,0 +1,25 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/provider-installations/{{installation_id}}"
+  method: DELETE
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "ins_01k3...",
+          "provider_code": "xendit",
+          "environment": "sandbox",
+          "status": "UNINSTALLED",
+          "version": 6,
+          "uninstalled_at": "2026-08-28T03:09:00Z"
+        }
+      }
+order: 1000

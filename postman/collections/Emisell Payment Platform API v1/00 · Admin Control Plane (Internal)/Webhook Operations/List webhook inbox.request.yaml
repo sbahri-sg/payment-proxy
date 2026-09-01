@@ -1,0 +1,12 @@
+$kind: http-request
+description: Metadata webhook tenant-scoped. Raw payload tetap encrypted dan tidak dikirim dalam response.
+url: "{{base_url}}/api/v1/webhook-inbox?status=PROCESSED&limit=25&offset=0"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+queryParams:
+  status: PROCESSED
+  limit: "25"
+  offset: "0"
+examples: ./.resources/List webhook inbox.resources/examples
+order: 5000

@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -35,6 +38,11 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	digest, err := executableSHA256()
+	if err != nil {
+		return err
+	}
+	xenditConnector.SetExecutableSHA256(digest)
 	connectorRegistry, err := registry.New(xenditConnector)
 	if err != nil {
 		return err
@@ -57,7 +65,7 @@ func run(logger *slog.Logger) error {
 	defer stop()
 	errorsChannel := make(chan error, 1)
 	go func() {
-		logger.Info("connector runner started", "address", server.Addr, "connectors", runtime.ConnectorCodes())
+		logger.Info("connector runner started", "address", server.Addr, "connectors", runtime.ConnectorCodes(), "executable_sha256", digest)
 		errorsChannel <- listen(server, cfg.TLSCertPEM, cfg.TLSKeyPEM)
 	}()
 	select {
@@ -71,6 +79,23 @@ func run(logger *slog.Logger) error {
 		}
 		return err
 	}
+}
+
+func executableSHA256() (string, error) {
+	path, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	digest := sha256.New()
+	if _, err = io.Copy(digest, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
 func listen(server *http.Server, certPEM, keyPEM []byte) error {

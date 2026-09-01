@@ -1,0 +1,19 @@
+$kind: http-request
+description: ACTIVE ingress milik Payment Proxy. Payload dan signature mengikuti provider.
+url: "{{base_url}}/webhooks/v1/providers/{{provider_code}}/{{installation_id}}"
+method: POST
+headers:
+  x-callback-token: "{{xendit_webhook_token}}"
+  webhook-id: "{{webhook_id}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "event": "payment.capture",
+      "data": {"payment_request_id": "{{provider_payment_id}}", "status": "SUCCEEDED"}
+    }
+auth:
+  type: noauth
+examples: ./.resources/Provider webhook ingress (Active).resources/examples
+order: 1000

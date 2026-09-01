@@ -1,0 +1,9 @@
+$kind: http-request
+description: Daftar konfigurasi metode pembayaran merchant, termasuk assignment yang sedang inactive.
+url: "{{base_url}}/api/v1/payment-method-assignments"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  X-Emisell-Execution-Mode: "{{execution_mode}}"
+examples: ./.resources/3. List method assignments.resources/examples
+order: 3000

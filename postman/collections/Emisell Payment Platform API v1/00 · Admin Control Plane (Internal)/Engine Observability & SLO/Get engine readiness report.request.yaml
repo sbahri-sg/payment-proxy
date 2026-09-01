@@ -1,0 +1,10 @@
+$kind: http-request
+description: Database, connector registry, runtime configuration, dan request guard efektif tanpa secret.
+url: "{{base_url}}/api/v1/admin/engine/readiness"
+method: GET
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/Get engine readiness report.resources/examples
+order: 3000

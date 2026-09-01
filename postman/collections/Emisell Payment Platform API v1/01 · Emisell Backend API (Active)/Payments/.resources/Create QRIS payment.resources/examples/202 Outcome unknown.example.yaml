@@ -1,0 +1,48 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-sessions"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    X-Emisell-Execution-Mode: "{{execution_mode}}"
+    Idempotency-Key: checkout-{{$guid}}
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "payment_option_id": "{{payment_option_id}}",
+        "merchant_reference": "order_{{$timestamp}}",
+        "amount": 1000000,
+        "currency": "IDR",
+        "confirm": true,
+        "capture_method": "automatic",
+        "payment_method_data": {
+          "real_time_payment": {
+            "qris": {}
+          }
+        },
+        "return_url": "https://shop.example/payments/return",
+        "metadata": {
+          "source": "postman"
+        }
+      }
+response:
+  statusCode: 202
+  statusText: Accepted
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "OUTCOME_UNKNOWN",
+          "message": "payment engine outcome is unknown; query the resource before retrying"
+        },
+        "data": {
+          "id": "pay_01k3...",
+          "status": "UNKNOWN"
+        }
+      }
+order: 2000

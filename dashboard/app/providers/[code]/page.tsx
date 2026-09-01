@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AppSidebar, AppTopbar, Icon } from "../../components/app-shell";
 import { BrandLogo } from "../../components/brand-logo";
 import { CertificationAction } from "../../components/management/certification-action";
+import { ProviderAppVersionManager, ProviderReleaseWorkspaceSetup } from "../../components/management/provider-app-manager";
 import { getReadiness } from "../../lib/readiness";
-import { listConnectorCertifications, listInstallations, listPaymentMethods, listProviders, type Provider } from "../../lib/payment-proxy";
+import { getEngineCapabilities, listConnectorCertifications, listInstallations, listPaymentMethods, listProviderAppProviders, listProviderApps, listProviders, type Provider, type ProviderAppProvider, type ProviderAppVersion, type RuntimeConnector } from "../../lib/payment-proxy";
 import { requireDashboardSession } from "../../lib/session";
 
 export const dynamic = "force-dynamic";
 
-type ProviderTab = "overview" | "methods" | "certification";
+type ProviderTab = "overview" | "methods" | "certification" | "releases";
 
 function cleanProviderCode(value: string) {
   const code = value.toLowerCase().trim();
@@ -20,9 +21,8 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(value));
 }
 
-function providerHref(code: string, tab: ProviderTab, environment: "sandbox" | "live" = "sandbox") {
+function providerHref(code: string, tab: ProviderTab) {
   const query = new URLSearchParams({ tab });
-  if (tab === "certification") query.set("environment", environment);
   return `/providers/${encodeURIComponent(code)}?${query}`;
 }
 
@@ -46,22 +46,26 @@ export default async function ProviderDetailPage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ tab?: string; environment?: string }>;
+  searchParams: Promise<{ tab?: string; environment?: string; connect?: string }>;
 }) {
   const route = await params;
   const query = await searchParams;
   const providerCode = cleanProviderCode(route.code);
   if (!providerCode) notFound();
-  const tab: ProviderTab = query.tab === "methods" || query.tab === "certification" ? query.tab : "overview";
-  const environment: "sandbox" | "live" = query.environment === "live" ? "live" : "sandbox";
+  if (query.tab === "connection") redirect(`/providers/${encodeURIComponent(providerCode)}?tab=overview`);
+  const tab: ProviderTab = query.tab === "methods" || query.tab === "certification" || query.tab === "releases" ? query.tab : "overview";
+  const environment = "sandbox" as const;
   const session = await requireDashboardSession(`/providers/${providerCode}?tab=${tab}`);
   const health = await getReadiness();
   const healthy = health.status === "ready";
-  const [providersResult, methodsResult, installationsResult, runsResult] = await Promise.allSettled([
+  const [providersResult, methodsResult, installationsResult, runsResult, releaseProvidersResult, releaseVersionsResult, runtimeResult] = await Promise.allSettled([
     listProviders(session.subject),
     listPaymentMethods(session.subject),
-    listInstallations(session.subject),
+    tab === "certification" ? listInstallations(session.subject, "sandbox") : Promise.resolve([]),
     listConnectorCertifications(session.subject, { environment, provider: providerCode, limit: 30 }),
+    listProviderAppProviders(session.subject),
+    listProviderApps(session.subject),
+    getEngineCapabilities(session.subject),
   ]);
   const providers = providersResult.status === "fulfilled" ? providersResult.value : [];
   const matchedProvider = providers.find((item) => item.code === providerCode);
@@ -81,20 +85,24 @@ export default async function ProviderDetailPage({
   }
   const certified = capabilities.filter(({ provider: item }) => item.support_status === "CERTIFIED").length;
   const documented = capabilities.filter(({ provider: item }) => item.support_status === "DOCUMENTED").length;
-  const dataError = providersResult.status === "rejected" || methodsResult.status === "rejected" || installationsResult.status === "rejected" || runsResult.status === "rejected";
+  const releaseProvider: ProviderAppProvider | undefined = releaseProvidersResult.status === "fulfilled" ? releaseProvidersResult.value.find((item) => item.provider_code === providerCode) : undefined;
+  const releaseVersions: ProviderAppVersion[] = releaseVersionsResult.status === "fulfilled" ? releaseVersionsResult.value.filter((item) => item.provider_code === providerCode) : [];
+  const runtimeConnector: RuntimeConnector | undefined = runtimeResult.status === "fulfilled" ? runtimeResult.value.connectors.find((item) => item.code === providerCode) : undefined;
+  const releaseError = releaseProvidersResult.status === "rejected" || releaseVersionsResult.status === "rejected" || runtimeResult.status === "rejected";
+  const dataError = providersResult.status === "rejected" || methodsResult.status === "rejected" || runsResult.status === "rejected" || (tab === "certification" && installationsResult.status === "rejected") || (tab === "releases" && releaseError);
 
   return (
     <div className="dashboard-app">
       <AppSidebar active="providers" healthy={healthy} engineStatus={health.status}/>
       <div className="dashboard-main">
-        <AppTopbar healthy={healthy} searchPlaceholder={`Search ${provider.name} capabilities...`}/>
+        <AppTopbar healthy={healthy} searchPlaceholder={tab === "releases" ? `Search ${provider.name} release versions...` : `Search ${provider.name} capabilities...`}/>
         <main className="dashboard-content management-content provider-detail-content">
           <section className="provider-detail-heading">
             <div className="provider-detail-identity">
               <Link className="provider-back-link" href="/providers"><Icon name="arrow" size={14}/> All providers</Link>
               <div><BrandLogo code={provider.code} label={provider.name} className={`provider-detail-logo ${provider.code}`}/><span><span className={`availability-badge ${provider.available ? "available" : "planned"}`}><i/>{provider.available ? "Available connector" : "Planned connector"}</span><h1>{provider.name}</h1><p>{provider.description}</p></span></div>
             </div>
-            <Link className="dashboard-primary-action" href={`/installations?provider=${provider.code}`}>{installations.length ? "Manage installations" : "Install provider"}<Icon name="arrow" size={16}/></Link>
+            <Link className="dashboard-primary-action" href={providerHref(provider.code, "releases")}>Manage releases<Icon name="arrow" size={16}/></Link>
           </section>
 
           {dataError && <div className="dashboard-alert error"><strong>Provider detail belum lengkap.</strong><span>Sebagian data Payment Proxy tidak dapat dimuat. Tidak ada perubahan state yang dilakukan.</span></div>}
@@ -102,42 +110,40 @@ export default async function ProviderDetailPage({
           <nav className="provider-detail-tabs" aria-label={`${provider.name} detail sections`}>
             <Link className={tab === "overview" ? "active" : ""} href={providerHref(provider.code, "overview")}><Icon name="overview" size={15}/><span>Overview</span></Link>
             <Link className={tab === "methods" ? "active" : ""} href={providerHref(provider.code, "methods")}><Icon name="wallet" size={15}/><span>Payment methods</span><b>{capabilities.length}</b></Link>
-            <Link className={tab === "certification" ? "active" : ""} href={providerHref(provider.code, "certification", environment)}><Icon name="activity" size={15}/><span>Certification</span><b>{runs.length}</b></Link>
+            <Link className={tab === "certification" ? "active" : ""} href={providerHref(provider.code, "certification")}><Icon name="activity" size={15}/><span>Certification</span><b>{runs.length}</b></Link>
+            <Link className={tab === "releases" ? "active" : ""} href={providerHref(provider.code, "releases")}><Icon name="route" size={15}/><span>Releases</span><b>{releaseVersions.length}</b></Link>
           </nav>
 
           {tab === "overview" && <>
             <section className="management-metrics provider-detail-metrics">
               <article><span>CAPABILITIES</span><strong>{capabilities.length}</strong><small>canonical payment methods</small></article>
               <article><span>CERTIFIED</span><strong>{certified}</strong><small>available for assignment</small></article>
-              <article><span>INSTALLATIONS</span><strong>{installations.length}</strong><small>{installations.filter((item) => item.status === "ACTIVE").length} active</small></article>
-              <article><span>CREDENTIAL FIELDS</span><strong>{provider.credential_schema.length}</strong><small>stored encrypted per installation</small></article>
+              <article><span>SHARED RUNTIME</span><strong>{runtimeConnector ? "Running" : "Not loaded"}</strong><small>{runtimeConnector?.version || "no published runtime"}</small></article>
+              <article><span>MERCHANT SETUP</span><strong>{provider.credential_schema.length}</strong><small>credential fields requested on install</small></article>
             </section>
             <section className="provider-overview-grid">
               <article className="dashboard-panel provider-overview-card">
                 <div className="panel-heading"><div><p className="panel-kicker">CONNECTOR PROFILE</p><h2>Provider integration</h2><p>Provider-specific behavior remains isolated inside the Emisell connector.</p></div><em>{provider.connector_code || provider.code}</em></div>
-                <dl><div><dt>Runtime status</dt><dd>{provider.available ? "Available" : "Planned"}</dd></div><div><dt>Environments</dt><dd>{provider.environments.join(" · ") || "Not configured"}</dd></div><div><dt>Certified methods</dt><dd>{certified} of {capabilities.length}</dd></div><div><dt>Documented backlog</dt><dd>{documented}</dd></div></dl>
-                <div className="provider-credential-fields"><span>CREDENTIAL SCHEMA</span>{provider.credential_schema.map((field) => <article key={field.code}><Icon name={field.secret ? "key" : "settings"} size={15}/><span><strong>{field.label}</strong><small>{field.code} · {field.secret ? "encrypted secret" : field.input_type}</small></span><b>{field.required ? "REQUIRED" : "OPTIONAL"}</b></article>)}{provider.credential_schema.length === 0 && <p>No credential schema has been registered.</p>}</div>
+                <dl><div><dt>Runtime status</dt><dd>{runtimeConnector ? "Running" : "Not loaded"}</dd></div><div><dt>Connector code</dt><dd>{provider.connector_code || provider.code}</dd></div><div><dt>Certified methods</dt><dd>{certified} of {capabilities.length}</dd></div><div><dt>Documented backlog</dt><dd>{documented}</dd></div></dl>
+                <div className="provider-credential-fields"><span>MERCHANT INSTALL SCHEMA</span>{provider.credential_schema.map((field) => <article key={field.code}><Icon name={field.secret ? "key" : "settings"} size={15}/><span><strong>{field.label}</strong><small>{field.code} · requested from merchant during installation</small></span><b>{field.required ? "REQUIRED" : "OPTIONAL"}</b></article>)}{provider.credential_schema.length === 0 && <p>No credential schema has been registered.</p>}</div>
               </article>
               <article className="dashboard-panel provider-readiness-card">
                 <div className="panel-heading"><div><p className="panel-kicker">RELEASE READINESS</p><h2>Certification coverage</h2><p>Only certified methods can be assigned to checkout.</p></div><span>{capabilities.length ? Math.round(certified / capabilities.length * 100) : 0}%</span></div>
                 <div className="provider-progress"><i style={{ width: `${capabilities.length ? certified / capabilities.length * 100 : 0}%` }}/></div>
                 <div className="provider-readiness-counts"><span><i className="certified"/><strong>{certified}</strong><small>Certified</small></span><span><i className="documented"/><strong>{documented}</strong><small>Documented</small></span><span><i className="disabled"/><strong>{capabilities.length - certified - documented}</strong><small>Disabled</small></span></div>
-                <Link className="catalog-action" href={providerHref(provider.code, "certification", "sandbox")}>Open certification evidence<Icon name="arrow" size={15}/></Link>
+                <Link className="catalog-action" href={providerHref(provider.code, "certification")}>Open certification evidence<Icon name="arrow" size={15}/></Link>
               </article>
             </section>
-            <section className="dashboard-panel provider-installation-panel">
-              <div className="panel-heading"><div><p className="panel-kicker">MERCHANT CONNECTIONS</p><h2>Provider installations</h2><p>Credentials and environment remain isolated for each installation.</p></div><Link href={`/installations?provider=${provider.code}`}>Manage all <Icon name="arrow" size={13}/></Link></div>
-              <div className="provider-installation-head"><span>Merchant ID</span><span>Installation</span><span>Credential</span><span>Status</span></div>
-              <div className="provider-installation-list">{installations.map((item) => {
-                const configuredFields = item.credential_metadata.configured_fields?.filter((field) => field.configured).length ?? 0;
-                return <article key={item.id}>
-                  <span className="provider-merchant-identity"><i className={item.status === "ACTIVE" ? "online" : "offline"}/><span><strong>{item.merchant_id}</strong><small>Tenant-scoped connection</small></span></span>
-                  <span className="provider-installation-identity"><strong>{item.environment}</strong><small>{item.id}</small></span>
-                  <span className="provider-credential-state"><Icon name="key" size={14}/><span><strong>{configuredFields ? `${configuredFields} configured` : "Not configured"}</strong><small>{item.credential_metadata.configured_at ? formatTime(item.credential_metadata.configured_at) : "Secret never displayed"}</small></span></span>
-                  <span className="provider-installation-state"><em className={`status-badge ${item.status === "ACTIVE" ? "success" : item.status === "ERROR" ? "failed" : "neutral"}`}>{item.status}</em><small>API key hidden</small></span>
-                </article>;
-              })}{installations.length === 0 && <div className="management-empty"><span><Icon name="install" size={24}/></span><h3>No installation yet</h3><p>Create sandbox installation before running connector certification.</p></div>}</div>
+          </>}
+
+          {tab === "releases" && <>
+            <section className="provider-app-context-grid">
+              <article><small>PROVIDER CATALOG</small><strong className={provider.available ? "is-ready" : "is-pending"}>{provider.available ? "Available" : "Unavailable"}</strong><span>Merchant-facing provider identity.</span></article>
+              <article><small>SHARED RUNTIME</small><strong className={runtimeConnector ? "is-ready" : "is-pending"}>{runtimeConnector ? "Running" : "Not loaded"}</strong><span>{runtimeConnector?.version || "No runtime version loaded"}</span></article>
+              <article><small>PUBLISHED RELEASE</small><strong className={releaseProvider?.status === "ACTIVE" ? "is-ready" : "is-pending"}>{releaseProvider?.status === "ACTIVE" ? "Published" : "Awaiting publish"}</strong><span>{releaseProvider?.active_version || "No release published"}</span></article>
             </section>
+            <section className="provider-app-security"><Icon name="settings" size={18}/><div><strong>One provider, separate lifecycle controls</strong><p>Submission review and runtime publication belong to {provider.name}. Publishing a release never duplicates the provider or silently changes an active merchant connection.</p></div><b>25 MB MAX</b></section>
+            {releaseProvider ? <ProviderAppVersionManager provider={releaseProvider} initialApps={releaseVersions}/> : <ProviderReleaseWorkspaceSetup provider={provider}/>}
           </>}
 
           {tab === "methods" && <section className="dashboard-panel provider-method-panel">
@@ -149,8 +155,8 @@ export default async function ProviderDetailPage({
 
           {tab === "certification" && <>
             <section className="installation-toolbar method-toolbar provider-certification-toolbar">
-              <nav aria-label="Environment filter"><Link className={environment === "sandbox" ? "active" : ""} href={providerHref(provider.code, "certification", "sandbox")}>Sandbox</Link><Link className={environment === "live" ? "active" : ""} href={providerHref(provider.code, "certification", "live")}>Live</Link></nav>
-              <span><i className={healthy ? "online" : "offline"}/>{activeInstallations.length} active {provider.name} installation</span>
+              <span><i className={healthy ? "online" : "offline"}/>Certification runner connected</span>
+              <span>{activeInstallations.length} active test credential</span>
             </section>
             <section className="management-metrics certification-metrics">
               <article><span>CAPABILITIES</span><strong>{capabilities.length}</strong><small>{provider.name} catalog</small></article>
@@ -158,9 +164,9 @@ export default async function ProviderDetailPage({
               <article><span>PENDING</span><strong>{capabilities.length - certified}</strong><small>release gate incomplete</small></article>
               <article><span>RECENT RUNS</span><strong>{runs.length}</strong><small>durable evidence</small></article>
             </section>
-            <section className="certification-callout"><Icon name="activity" size={23}/><div><strong>{provider.name} connector certification</strong><p>Every channel is tested through the universal Emisell connector contract. Certification belongs to this provider and the selected sandbox installation.</p></div><span>EMISELL NATIVE</span></section>
+            <section className="certification-callout"><Icon name="activity" size={23}/><div><strong>{provider.name} connector certification</strong><p>Admin memvalidasi normalized payment contract. Endpoint dan mode pengujian ditentukan otomatis oleh connector extension; credential merchant tidak dikonfigurasi di sini.</p></div><span>EMISELL NATIVE</span></section>
             <section className="dashboard-panel certification-panel">
-              <div className="panel-heading"><div><p className="panel-kicker">RELEASE GATE MATRIX</p><h2>{provider.name} capabilities</h2><p>Sandbox tests never run on live credentials. A complete PASS creates tenant-scoped audit evidence.</p></div><span>{capabilities.length} methods</span></div>
+              <div className="panel-heading"><div><p className="panel-kicker">RELEASE GATE MATRIX</p><h2>{provider.name} capabilities</h2><p>Connector tests use internal certification credentials. A complete PASS creates durable audit evidence.</p></div><span>{capabilities.length} methods</span></div>
               <div className="certification-head"><span>Payment method</span><span>Connector mapping</span><span>Release status</span><span>Latest evidence</span><span>Action</span></div>
               {capabilities.map(({ method, provider: item }) => {
                 const latest = latestByMethod.get(method.code);
@@ -172,14 +178,14 @@ export default async function ProviderDetailPage({
                   <span><code>{item.provider_method}</code><small>{item.provider_method_type}</small></span>
                   <span><em className={`certification-status ${item.support_status.toLowerCase()}`}>{item.support_status}</em>{engineBlocked && <small>{item.metadata?.blocker_code}</small>}</span>
                   <span>{latest ? <><em className={`certification-status ${latest.status.toLowerCase()}`}>{latest.status}</em><small>{formatTime(latest.completed_at)} · {latest.checks.length} checks</small>{method.code === "ewallet_ovo" && latest.status === "BLOCKED" && <small>Waiting for OVO app approval</small>}</> : <><strong>Not run</strong><small>No tenant evidence yet</small></>}</span>
-                  <span>{engineBlocked ? <small>Connector method not implemented</small> : environment === "sandbox" && installation ? <CertificationAction providerCode={provider.code} installationID={installation.id} paymentMethodCode={method.code} blocked={false} paymentID={resumablePaymentID} mobileApproval={method.code === "ewallet_ovo" && Boolean(resumablePaymentID)}/> : <small>{environment === "live" ? "Sandbox only" : "Activate sandbox installation first"}</small>}</span>
+                  <span>{engineBlocked ? <small>Connector method not implemented</small> : installation ? <CertificationAction providerCode={provider.code} installationID={installation.id} paymentMethodCode={method.code} blocked={false} paymentID={resumablePaymentID} mobileApproval={method.code === "ewallet_ovo" && Boolean(resumablePaymentID)}/> : <small>Certification credential is not configured</small>}</span>
                 </article>;
               })}
             </section>
             <section className="dashboard-panel certification-history">
-              <div className="panel-heading"><div><p className="panel-kicker">AUDITABLE RUNS</p><h2>Recent {provider.name} evidence</h2><p>Every result is tenant-scoped and linked to the provider installation used by the test.</p></div><span>{runs.length} runs</span></div>
-              {runs.map((run) => <details key={run.id} className="certification-run"><summary><span><BrandLogo code={run.provider_code} label={run.provider_name} className="provider-badge-logo"/><span><strong>{run.payment_method_name}</strong><small>{run.id}</small></span></span><em className={`certification-status ${run.status.toLowerCase()}`}>{run.status}</em><time>{formatTime(run.completed_at)}</time><b>⌄</b></summary><div>{run.message && <p>{run.message}</p>}<ol>{run.checks.map((check) => <li key={check.code}><i className={check.status.toLowerCase()}/><span><strong>{check.label}</strong><small>{check.detail || check.status}</small></span></li>)}</ol>{run.payment_id && <Link href={`/payments/${run.payment_id}`}>Open sandbox payment <Icon name="arrow" size={13}/></Link>}</div></details>)}
-              {runs.length === 0 && <div className="management-empty"><span><Icon name="activity" size={25}/></span><h3>No certification run yet</h3><p>Activate a sandbox installation, then run a test for a documented capability.</p></div>}
+              <div className="panel-heading"><div><p className="panel-kicker">AUDITABLE RUNS</p><h2>Recent {provider.name} evidence</h2><p>Every result is linked to the internal certification credential used by the test.</p></div><span>{runs.length} runs</span></div>
+              {runs.map((run) => <details key={run.id} className="certification-run"><summary><span><BrandLogo code={run.provider_code} label={run.provider_name} className="provider-badge-logo"/><span><strong>{run.payment_method_name}</strong><small>{run.id}</small></span></span><em className={`certification-status ${run.status.toLowerCase()}`}>{run.status}</em><time>{formatTime(run.completed_at)}</time><b>⌄</b></summary><div>{run.message && <p>{run.message}</p>}<ol>{run.checks.map((check) => <li key={check.code}><i className={check.status.toLowerCase()}/><span><strong>{check.label}</strong><small>{check.detail || check.status}</small></span></li>)}</ol>{run.payment_id && <Link href={`/payments/${run.payment_id}`}>Open test payment <Icon name="arrow" size={13}/></Link>}</div></details>)}
+              {runs.length === 0 && <div className="management-empty"><span><Icon name="activity" size={25}/></span><h3>No certification run yet</h3><p>Configure the certification credential, then run a documented capability test.</p></div>}
             </section>
           </>}
         </main>

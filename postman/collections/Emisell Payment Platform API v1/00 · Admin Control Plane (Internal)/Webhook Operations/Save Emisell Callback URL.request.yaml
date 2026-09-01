@@ -1,0 +1,18 @@
+$kind: http-request
+description: Callback URL is entered manually. Keep enabled=false until the receiver has the generated secret and the signed test succeeds.
+url: "{{base_url}}/api/v1/admin/emisell-webhook"
+method: PUT
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "callback_url": "{{emisell_backend_webhook_url}}",
+      "enabled": false
+    }
+auth:
+  type: noauth
+examples: ./.resources/Save Emisell Callback URL.resources/examples
+order: 2000

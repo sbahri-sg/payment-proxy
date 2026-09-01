@@ -1,0 +1,29 @@
+$kind: http-example
+request:
+  url: "{{partner_base_url}}/partner/v1/payments/cancel"
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "input": {
+          "provider_code": "{{provider_code}}",
+          "environment": "{{execution_mode}}",
+          "credentials": {"api_key": "{{provider_secret}}"},
+          "payment_id": "{{provider_payment_id}}"
+        },
+        "idempotency_key": "cancel-payment-123-attempt-1",
+        "reason": "requested_by_customer"
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": { "id": "{{provider_payment_id}}", "status": "CANCELLED" }
+      }
+order: 1000

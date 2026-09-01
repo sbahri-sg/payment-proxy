@@ -1,0 +1,8 @@
+$kind: http-request
+description: Menghapus ciphertext credential lalu melakukan soft-uninstall. Installation ACTIVE harus dideaktivasi terlebih dahulu; riwayat transaksi dan audit tetap dipertahankan.
+url: "{{base_url}}/api/v1/provider-installations/{{installation_id}}"
+method: DELETE
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+examples: ./.resources/6. Uninstall.resources/examples
+order: 8000

@@ -1,0 +1,50 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-sessions"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    X-Emisell-Execution-Mode: "{{execution_mode}}"
+    Idempotency-Key: checkout-card-{{$guid}}
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "payment_option_id": "{{card_payment_option_id}}",
+        "merchant_reference": "card-order-{{$timestamp}}",
+        "amount": 1000000,
+        "currency": "IDR",
+        "description": "Hosted card sandbox payment",
+        "customer": {
+          "name": "Budi Santoso",
+          "email": "budi@example.com"
+        },
+        "return_url": "https://shop.example/payments/return",
+        "metadata": {
+          "source": "postman-card-hosted"
+        }
+      }
+response:
+  statusCode: 201
+  statusText: Created
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "payment": {
+            "id": "pay_01k3...",
+            "provider_code": "xendit",
+            "status": "PENDING",
+            "provider_payment_id": "ps-6a915387...",
+            "next_action": {
+              "type": "redirect",
+              "redirect_url": "https://dev.xen.to/..."
+            }
+          }
+        }
+      }
+order: 1000

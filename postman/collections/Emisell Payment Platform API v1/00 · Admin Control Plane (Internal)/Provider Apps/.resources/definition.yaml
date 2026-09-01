@@ -1,0 +1,3 @@
+$kind: collection
+description: Provider-first registry dan lifecycle connector bundle. Buat identitas provider, lalu upload versi ZIP di bawah provider tersebut; binary tidak disimpan di collection export.
+order: 2000

@@ -52,7 +52,7 @@ func TestMidtransInstallationAndQRISPayment(t *testing.T) {
 		Credentials:      map[string]string{"server_key": "SB-Mid-server-test"},
 		PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/midtrans/ins_1",
 	})
-	if err != nil || installation.ConnectorID != "midtrans:ins_1" || !installation.WebhookReady {
+	if err != nil || installation.ConnectorID != "midtrans:ins_1" || installation.Environment != "sandbox" || !installation.WebhookReady {
 		t.Fatalf("unexpected installation: %#v, %v", installation, err)
 	}
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
@@ -63,6 +63,21 @@ func TestMidtransInstallationAndQRISPayment(t *testing.T) {
 	})
 	if err != nil || result.ID != "pay_1" || result.Status != "PENDING" || !strings.Contains(string(result.NextAction), "qr_code_url") {
 		t.Fatalf("unexpected payment: %#v, %v", result, err)
+	}
+}
+
+func TestMidtransCredentialEnvironment(t *testing.T) {
+	for key, expected := range map[string]string{
+		"SB-Mid-server-example": "sandbox",
+		"Mid-server-example":    "live",
+	} {
+		actual, err := midtransEnvironment(key)
+		if err != nil || actual != expected {
+			t.Fatalf("key %q: environment=%q err=%v", key, actual, err)
+		}
+	}
+	if _, err := midtransEnvironment("unknown-key"); !errors.Is(err, connector.ErrInvalidCredential) {
+		t.Fatalf("unknown Midtrans key was not rejected: %v", err)
 	}
 }
 
@@ -157,7 +172,7 @@ func TestMidtransCancelAndRefund(t *testing.T) {
 			}
 			_, _ = io.WriteString(w, `{"order_id":"pay_1","transaction_status":"refund","refund_key":"refund-1"}`)
 		case "/v2/pay_1/status":
-			_, _ = io.WriteString(w, `{"order_id":"pay_1","transaction_status":"refund","refunds":[{"refund_key":"refund-1","refund_status":"success"}]}`)
+			_, _ = io.WriteString(w, `{"order_id":"pay_1","transaction_status":"refund","refunds":[{"refund_key":"refund-1","refund_status":"success","bank_confirmed_at":"2026-08-31 10:00:00"}]}`)
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -173,7 +188,7 @@ func TestMidtransCancelAndRefund(t *testing.T) {
 		Environment: "sandbox", Credentials: lookup.Credentials, PaymentID: "pay_1", IdempotencyKey: "refund-1",
 		Amount: 50_000, Currency: "IDR", Reason: "customer request",
 	})
-	if err != nil || refunded.Status != "SUCCEEDED" || refunded.ID != "pay_1|refund-1" {
+	if err != nil || refunded.Status != "PENDING" || refunded.ID != "pay_1|refund-1" {
 		t.Fatalf("unexpected refund: %#v, %v", refunded, err)
 	}
 	status, err := client.GetRefund(context.Background(), connector.RefundLookup{
@@ -199,6 +214,26 @@ func TestMidtransWebhookSignature(t *testing.T) {
 	body = []byte(strings.Replace(string(body), hex.EncodeToString(digest[:]), "invalid", 1))
 	if _, err = client.HandleWebhook(context.Background(), connector.WebhookInput{Credentials: map[string]string{"server_key": key}, Body: body}); err == nil {
 		t.Fatal("invalid Midtrans signature was accepted")
+	}
+}
+
+func TestMidtransRefundWebhookWaitsForBankConfirmation(t *testing.T) {
+	key := "SB-Mid-server-test"
+	orderID, statusCode, grossAmount := "pay_1", "200", "10000.00"
+	digest := sha512.Sum512([]byte(orderID + statusCode + grossAmount + key))
+	signature := hex.EncodeToString(digest[:])
+	client, _ := New("https://api.sandbox.midtrans.test", "https://api.midtrans.test", time.Second)
+
+	pendingBody := []byte(`{"transaction_id":"mid-1","order_id":"pay_1","status_code":"200","gross_amount":"10000.00","transaction_status":"refund","signature_key":"` + signature + `","refunds":[{"refund_key":"refund-1","refund_status":"success"}]}`)
+	pending, err := client.HandleWebhook(context.Background(), connector.WebhookInput{Credentials: map[string]string{"server_key": key}, Body: pendingBody})
+	if err != nil || pending.Type != "refund.updated" || pending.RefundID != "pay_1|refund-1" || pending.Status != "PENDING" {
+		t.Fatalf("unexpected pending refund webhook: %#v, %v", pending, err)
+	}
+
+	confirmedBody := []byte(`{"transaction_id":"mid-1","order_id":"pay_1","status_code":"200","gross_amount":"10000.00","transaction_status":"refund","signature_key":"` + signature + `","refunds":[{"refund_key":"refund-1","refund_status":"success","bank_confirmed_at":"2026-08-31 10:00:00"}]}`)
+	confirmed, err := client.HandleWebhook(context.Background(), connector.WebhookInput{Credentials: map[string]string{"server_key": key}, Body: confirmedBody})
+	if err != nil || confirmed.Status != "SUCCEEDED" || confirmed.ID == pending.ID {
+		t.Fatalf("unexpected confirmed refund webhook: %#v, %v", confirmed, err)
 	}
 }
 
@@ -246,7 +281,7 @@ func TestMidtransSendsOptionalPoPID(t *testing.T) {
 	client, _ := New(server.URL, server.URL, time.Second)
 	result, err := client.VerifyInstallation(context.Background(), connector.InstallationInput{
 		InstallationID: "ins_pop", Environment: "sandbox",
-		Credentials: map[string]string{"server_key": "server", "pop_id": "merchant-pop-id"},
+		Credentials: map[string]string{"server_key": "SB-Mid-server-example", "pop_id": "merchant-pop-id"},
 	})
 	if err != nil || result.StoredCredentials["pop_id"] != "merchant-pop-id" {
 		t.Fatalf("unexpected PoP credential result: %#v, err=%v", result, err)

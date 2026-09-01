@@ -1,0 +1,21 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/service-api-keys/{{service_api_key_id}}/revoke"
+  method: POST
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "id": "{{service_api_key_id}}",
+          "status": "REVOKED",
+          "revoked_by": "payment-proxy-admin",
+          "revoked_at": "2026-08-28T08:10:00Z"
+        }
+      }
+order: 1000

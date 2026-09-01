@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM build-base AS build-connector-runner
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/connector-runner ./cmd/connector-runner
+    CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/connector-runner ./cmd/connector-runner
 
 FROM build-base AS build-midtrans-provider-app
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -35,6 +35,13 @@ ENTRYPOINT ["/usr/local/bin/midtrans-provider-app"]
 
 FROM scratch AS midtrans-provider-app-artifact
 COPY --from=build-midtrans-provider-app /out/midtrans-provider-app /connector
+
+FROM scratch AS xendit-provider-runtime-artifact
+COPY --from=build-connector-runner /out/connector-runner /connector
+
+# Backward-compatible build target. New Provider App ZIPs are source-only;
+# this target exports the separately managed runtime executable.
+FROM xendit-provider-runtime-artifact AS xendit-provider-app-artifact
 
 FROM runtime-base AS payment-proxy
 COPY --from=build-payment-proxy /out/payment-proxy /usr/local/bin/payment-proxy

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/emisell/api-payment-proxy/internal/midtrans"
+	"github.com/emisell/api-payment-proxy/internal/xendit"
 )
 
 func validBundle(t *testing.T) []byte {
@@ -42,8 +43,97 @@ func TestValidateBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	entrypointHash := sha256.Sum256([]byte("connector-placeholder"))
-	if !result.Report.Passed || result.Manifest.Code != "midtrans" || result.Manifest.Version != "0.1.0" || result.ArtifactSHA256 == "" || result.Report.EntrypointSHA256 != hex.EncodeToString(entrypointHash[:]) {
+	if !result.Report.Passed || result.Manifest.PackageFormat != PackageFormatLegacyBundle || result.Report.PackageFormat != PackageFormatLegacyBundle || result.Manifest.Code != "midtrans" || result.Manifest.Version != "0.1.0" || result.ArtifactSHA256 == "" || result.Report.EntrypointSHA256 != hex.EncodeToString(entrypointHash[:]) {
 		t.Fatalf("unexpected validation result: %#v", result)
+	}
+}
+
+func submissionBundle(t *testing.T, extra map[string][]byte) []byte {
+	t.Helper()
+	files := map[string][]byte{
+		"emisell-extension.yaml": []byte(`schema_version: "1"
+provider:
+  code: xendit
+  name: Xendit
+release:
+  version: emisell-xendit-v1
+connector:
+  contract_version: v1
+  runtime: isolated_container
+  sdk_version: v1
+operations: [verify_installation, create_payment, get_payment, handle_webhook]
+credentials:
+  fields:
+    - {code: api_key, label: Secret API key, input_type: password, secret: true, required: true}
+certification_profiles:
+  qris: {code: xendit-payments-v3/qris, automated: true}
+environments:
+  - {code: live, label: Live, description: Production payment processing.}
+  - {code: sandbox, label: Sandbox, description: Emisell simulation flow.}
+payment_methods: [qris]
+outbound_hosts: [api.xendit.co]
+`),
+		"openapi.yaml": []byte(`openapi: 3.0.3
+info: {title: Xendit connector, version: 1.0.0}
+paths:
+  /health: {get: {responses: {"200": {description: Ready}}}}
+  /capabilities: {get: {responses: {"200": {description: Capabilities}}}}
+  /payment-methods/validate: {post: {responses: {"200": {description: Valid}}}}
+  /payments/validate: {post: {responses: {"200": {description: Valid}}}}
+  /installations/verify: {post: {responses: {"200": {description: Verified}}}}
+  /payments/create: {post: {responses: {"200": {description: Created}}}}
+  /payments/get: {post: {responses: {"200": {description: Payment}}}}
+  /webhooks/normalize: {post: {responses: {"200": {description: Event}}}}
+`),
+		"README.md":   []byte("# Xendit Provider App\n"),
+		"SECURITY.md": []byte("# Security\nNo credentials are packaged.\n"),
+	}
+	for name, content := range extra {
+		files[name] = content
+	}
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for name, content := range files {
+		file, err := writer.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = file.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buffer.Bytes()
+}
+
+func TestValidateSubmissionBundle(t *testing.T) {
+	result, err := ValidateBundle(submissionBundle(t, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Report.Passed || result.Manifest.PackageFormat != PackageFormatSubmissionV1 || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Manifest.Entrypoint != "" || result.Report.EntrypointSHA256 != "" {
+		t.Fatalf("unexpected submission result: %#v", result)
+	}
+}
+
+func TestValidateSubmissionRejectsNativeBinary(t *testing.T) {
+	if _, err := ValidateBundle(submissionBundle(t, map[string][]byte{"connector.bin": []byte("native")})); err == nil {
+		t.Fatal("submission with native binary was accepted")
+	}
+}
+
+func TestValidateSubmissionRequiresDeclaredOpenAPIOperations(t *testing.T) {
+	bundle := submissionBundle(t, map[string][]byte{
+		"openapi.yaml": []byte(`openapi: 3.0.3
+info: {title: Incomplete, version: 1.0.0}
+paths:
+  /health: {get: {responses: {"200": {description: Ready}}}}
+`),
+	})
+	if _, err := ValidateBundle(bundle); err == nil {
+		t.Fatal("submission with incomplete OpenAPI contract was accepted")
 	}
 }
 
@@ -81,6 +171,40 @@ func TestMidtransProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
 	}
 	if result.Manifest.Code != "midtrans" || result.Manifest.Version != client.Manifest().Version || len(result.Manifest.CredentialFields) != 2 {
 		t.Fatalf("Midtrans Provider App manifest diverged from runtime release: %#v", result.Manifest)
+	}
+}
+
+func TestXenditSubmissionMatchesRuntimeRelease(t *testing.T) {
+	paths := []string{"emisell-extension.yaml", "openapi.yaml", "README.md", "SECURITY.md", "contract-tests/README.md"}
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for _, name := range paths {
+		content, err := os.ReadFile("../../../provider-apps/xendit/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := writer.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = file.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	result, err := ValidateBundle(buffer.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := xendit.New("", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeManifest := client.Manifest()
+	if result.Manifest.Code != runtimeManifest.Code || result.Manifest.Name != runtimeManifest.Name || result.Manifest.Version != runtimeManifest.Version || result.Manifest.Runtime != runtimeManifest.Runtime {
+		t.Fatalf("Xendit submission diverged from runtime release: submission=%#v runtime=%#v", result.Manifest, runtimeManifest)
 	}
 }
 

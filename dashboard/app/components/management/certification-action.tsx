@@ -13,8 +13,8 @@ export function CertificationAction({ providerCode, installationID, paymentMetho
       <input type="hidden" name="installation_id" value={installationID}/>
       <input type="hidden" name="payment_method_code" value={paymentMethodCode}/>
       {paymentID && <input type="hidden" name="payment_id" value={paymentID}/>}
-      <button className={blocked || paymentID ? "secondary-button" : "dashboard-primary-button"} type="submit" disabled={pending}>{pending ? "Checking..." : paymentID && mobileApproval ? "Check OVO approval" : paymentID ? "Verify completed payment" : blocked ? "Verify blocker" : "Run sandbox test"}</button>
-      {paymentID && mobileApproval && <small className="certification-action-help">Approve this payment in the OVO sandbox app first. Xendit did not return a browser simulator URL.</small>}
+      <button className={blocked || paymentID ? "secondary-button" : "dashboard-primary-button"} type="submit" disabled={pending}>{pending ? "Checking..." : paymentID && mobileApproval ? "Check OVO approval" : paymentID ? "Verify completed payment" : blocked ? "Verify blocker" : "Run connector test"}</button>
+      {paymentID && mobileApproval && <small className="certification-action-help">Approve this payment in the OVO test app first. Xendit did not return a browser simulator URL.</small>}
       {state.message && <div className={`form-message ${state.status === "blocked" ? "error" : state.status}`} role="status">{state.message}</div>}
     </form>
   );

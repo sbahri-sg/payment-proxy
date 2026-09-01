@@ -1,0 +1,10 @@
+$kind: http-request
+description: Sends a signed canonical webhook.test event without customer, order, payment, or provider credential data.
+url: "{{base_url}}/api/v1/admin/emisell-webhook/test"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+auth:
+  type: noauth
+examples: ./.resources/Test Emisell webhook connection.resources/examples
+order: 4000

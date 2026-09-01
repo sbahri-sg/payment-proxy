@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/provider-installations"
+method: POST
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "provider_code": "xendit",
+      "provider_version": "emisell-xendit-v1",
+      "environment": "{{execution_mode}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Provider installed', () => pm.expect(pm.response.code).to.eql(201));
+      if (pm.response.code === 201) {
+        const data = pm.response.json().data;
+        pm.collectionVariables.set('installation_id', data.id);
+        pm.collectionVariables.set('installation_version', String(data.version));
+      }
+    language: text/javascript
+examples: ./.resources/1. Install provider.resources/examples
+order: 1000

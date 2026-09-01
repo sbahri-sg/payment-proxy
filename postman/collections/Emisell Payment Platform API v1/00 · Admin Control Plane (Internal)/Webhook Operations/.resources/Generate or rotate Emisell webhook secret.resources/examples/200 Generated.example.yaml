@@ -1,0 +1,19 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/emisell-webhook/secret"
+  method: POST
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "settings": {"enabled": false, "secret_configured": true, "secret_hint": "whsec_Abc••••••••9Xyz"},
+          "secret": "whsec_<one-time-plaintext>"
+        }
+      }
+order: 1000

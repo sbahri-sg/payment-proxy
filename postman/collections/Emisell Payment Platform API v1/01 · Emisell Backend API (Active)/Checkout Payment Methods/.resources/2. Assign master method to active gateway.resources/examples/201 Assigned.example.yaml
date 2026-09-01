@@ -1,0 +1,41 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-method-assignments"
+  method: PUT
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    X-Emisell-Execution-Mode: "{{execution_mode}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "installation_id": "{{installation_id}}",
+        "payment_method_code": "{{payment_method_code}}",
+        "label": "QRIS",
+        "version": {{payment_option_version}}
+      }
+response:
+  statusCode: 201
+  statusText: Created
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "pmo_01k3...",
+          "environment": "sandbox",
+          "payment_method_code": "qris",
+          "payment_method": "real_time_payment",
+          "payment_method_type": "qris",
+          "installation_id": "ins_01k3...",
+          "provider_code": "xendit",
+          "provider_name": "Xendit",
+          "label": "QRIS",
+          "status": "ACTIVE",
+          "version": 1
+        }
+      }
+order: 1000

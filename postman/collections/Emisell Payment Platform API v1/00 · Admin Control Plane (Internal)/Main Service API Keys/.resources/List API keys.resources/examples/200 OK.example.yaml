@@ -1,0 +1,26 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/service-api-keys"
+  method: GET
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": [
+          {
+            "id": "sak_01k...",
+            "name": "Emisell Backend Production",
+            "key_hint": "epk_AbCd...9xYz",
+            "scopes": ["gateway:full"],
+            "status": "ACTIVE",
+            "created_by": "payment-proxy-admin",
+            "created_at": "2026-08-28T08:00:00Z"
+          }
+        ]
+      }
+order: 1000

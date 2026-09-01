@@ -1,0 +1,9 @@
+$kind: collection
+description: ACTIVE private contract from Payment Kernel to the isolated Connector Runner on /partner/v1/*. All requests use CONNECTOR_RUNNER_TOKEN and must remain on a private network; production requires TLS.
+auth:
+  - id: a41c6f90-e2eb-4acc-9061-a42cdd62feaa
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{connector_runner_token}}"
+order: 3000

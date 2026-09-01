@@ -1,0 +1,24 @@
+$kind: http-request
+description: Memindai ZIP dan memastikan manifest code/name cocok dengan provider pada URL. Bundle tidak dieksekusi di Payment Kernel.
+url: "{{base_url}}/api/v1/admin/provider-app-providers/{{provider_app_code}}/versions"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+body:
+  type: formdata
+  content:
+    - type: file
+      key: bundle
+      src:
+        - ""
+      description: Pilih Provider App .zip maksimum 25 MB
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Provider App uploaded', () => pm.expect(pm.response.code).to.eql(201));
+      if (pm.response.code === 201) pm.collectionVariables.set('provider_app_id', pm.response.json().data.id);
+    language: text/javascript
+examples: ./.resources/2. Upload Provider Version.resources/examples
+order: 2000

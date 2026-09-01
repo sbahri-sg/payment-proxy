@@ -1,0 +1,29 @@
+$kind: http-example
+request:
+  url: "{{partner_base_url}}/partner/v1/refunds/create"
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "provider_code": "{{provider_code}}",
+        "environment": "{{execution_mode}}",
+        "credentials": {"api_key": "{{provider_secret}}"},
+        "payment_id": "{{provider_payment_id}}",
+        "idempotency_key": "refund-payment-123-part-1",
+        "amount": 50000,
+        "currency": "IDR",
+        "reason": "requested_by_customer"
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": { "id": "ref_provider_123", "status": "PENDING" }
+      }
+order: 1000

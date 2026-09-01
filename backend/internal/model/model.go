@@ -107,6 +107,24 @@ type Installation struct {
 	UninstalledAt      *time.Time      `json:"uninstalled_at,omitempty"`
 }
 
+type InstallationVerification struct {
+	ID              string    `json:"id"`
+	TenantID        string    `json:"-"`
+	InstallationID  string    `json:"installation_id"`
+	ProviderCode    string    `json:"provider_code"`
+	ProviderVersion string    `json:"provider_version"`
+	Environment     string    `json:"environment"`
+	ManifestDigest  string    `json:"manifest_digest,omitempty"`
+	Result          string    `json:"result"`
+	ConnectorID     string    `json:"connector_id,omitempty"`
+	WebhookReady    bool      `json:"webhook_ready"`
+	ErrorCode       string    `json:"error_code,omitempty"`
+	ErrorMessage    string    `json:"error_message,omitempty"`
+	VerifiedBy      string    `json:"verified_by"`
+	RequestID       string    `json:"request_id,omitempty"`
+	VerifiedAt      time.Time `json:"verified_at"`
+}
+
 type PaymentMethodAssignment struct {
 	ID                string    `json:"id"`
 	TenantID          string    `json:"-"`
@@ -186,13 +204,16 @@ type PaymentSession struct {
 	TenantID              string          `json:"-"`
 	InstallationID        string          `json:"installation_id"`
 	PaymentOptionID       string          `json:"payment_option_id,omitempty"`
+	PaymentMethodCode     string          `json:"payment_method_code,omitempty"`
 	ProviderCode          string          `json:"provider_code"`
+	ProviderVersion       string          `json:"provider_version"`
 	Environment           string          `json:"environment"`
 	MerchantReference     string          `json:"merchant_reference"`
 	IdempotencyKey        string          `json:"-"`
 	Amount                int64           `json:"amount"`
 	Currency              string          `json:"currency"`
 	Status                string          `json:"status"`
+	Flags                 []string        `json:"flags"`
 	EnginePaymentID       string          `json:"provider_payment_id,omitempty"`
 	ConnectorTxnID        string          `json:"connector_transaction_id,omitempty"`
 	ExecutionEngine       string          `json:"execution_engine"`
@@ -204,6 +225,23 @@ type PaymentSession struct {
 	LastReconciliationKey string          `json:"-"`
 	CreatedAt             time.Time       `json:"created_at"`
 	UpdatedAt             time.Time       `json:"updated_at"`
+}
+
+type IntegrationReadinessCheck struct {
+	Code   string `json:"code"`
+	Label  string `json:"label"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
+type IntegrationReadiness struct {
+	Environment        string                      `json:"environment"`
+	Status             string                      `json:"status"`
+	Passed             int                         `json:"passed"`
+	Total              int                         `json:"total"`
+	ResilienceEvidence bool                        `json:"resilience_evidence"`
+	RecommendedAction  string                      `json:"recommended_action,omitempty"`
+	Checks             []IntegrationReadinessCheck `json:"checks"`
 }
 
 type PaymentList struct {
@@ -224,17 +262,20 @@ type PaymentStatusEvent struct {
 }
 
 type Refund struct {
-	ID              string    `json:"id"`
-	TenantID        string    `json:"-"`
-	PaymentID       string    `json:"payment_id"`
-	Amount          int64     `json:"amount"`
-	Currency        string    `json:"currency"`
-	Status          string    `json:"status"`
-	EngineRefundID  string    `json:"provider_refund_id,omitempty"`
-	ExecutionEngine string    `json:"execution_engine"`
-	LastError       string    `json:"last_error,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                string    `json:"id"`
+	TenantID          string    `json:"-"`
+	PaymentID         string    `json:"payment_id"`
+	PaymentMethodCode string    `json:"payment_method_code,omitempty"`
+	Amount            int64     `json:"amount"`
+	Currency          string    `json:"currency"`
+	Reason            string    `json:"reason"`
+	RequestedBy       string    `json:"requested_by"`
+	Status            string    `json:"status"`
+	EngineRefundID    string    `json:"provider_refund_id,omitempty"`
+	ExecutionEngine   string    `json:"execution_engine"`
+	LastError         string    `json:"last_error,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type OutboxEvent struct {

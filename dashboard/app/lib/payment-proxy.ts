@@ -22,13 +22,14 @@ export type Provider = {
 };
 
 export type ProviderAppManifest = {
+  package_format?: "provider_submission_v1" | "legacy_runtime_bundle";
   contract_version: "v1";
   code: string;
   name: string;
   version: string;
   runtime: "isolated_container" | "remote_http";
   sdk_version: "v1";
-  entrypoint: string;
+  entrypoint?: string;
   operations: string[];
   credential_fields: CredentialField[];
   certification_profiles: Record<string, { code: string; automated: boolean; webhook_setup_hint?: string }>;
@@ -38,6 +39,7 @@ export type ProviderAppManifest = {
 };
 
 export type ProviderAppScanReport = {
+  package_format?: "provider_submission_v1" | "legacy_runtime_bundle";
   passed: boolean;
   file_count: number;
   uncompressed_size: number;
@@ -86,6 +88,25 @@ export type ProviderAppProvider = {
   updated_at: string;
 };
 
+export type RuntimeConnector = {
+  code: string;
+  name: string;
+  version: string;
+  runtime: string;
+  executable_sha256?: string;
+  operations: string[];
+};
+
+export type EngineCapabilities = {
+  engine: string;
+  contract_version: string;
+  connector_contract: string;
+  selection_mode: string;
+  unknown_policy: string;
+  connectors: RuntimeConnector[];
+  integration_invariants: string[];
+};
+
 export type ConfiguredCredential = { code: string; configured: boolean };
 
 export type Installation = {
@@ -102,8 +123,20 @@ export type Installation = {
   credential_metadata: {
     configured_fields?: ConfiguredCredential[];
     configured_at?: string;
+    execution_engine?: string;
+    verified_environment?: "sandbox" | "live";
     webhook_ready?: boolean;
     public_webhook_url?: string;
+    verification_required?: boolean;
+    verification_reason?: string;
+    previous_provider_version?: string;
+    verification?: {
+      id: string;
+      result: "PASSED";
+      provider_version: string;
+      manifest_digest?: string;
+      verified_at: string;
+    };
   };
   payment_methods: unknown[];
   last_error?: string;
@@ -188,12 +221,15 @@ export type PaymentSession = {
   id: string;
   installation_id: string;
   payment_option_id?: string;
+  payment_method_code?: string;
   provider_code: string;
+  provider_version: string;
   environment: "sandbox" | "live";
   merchant_reference: string;
   amount: number;
   currency: string;
   status: PaymentStatus;
+  flags: ("late_payment" | "provider_delayed_confirmation" | string)[];
   provider_payment_id?: string;
   connector_transaction_id?: string;
   execution_engine: "emisell_native" | "legacy_external";
@@ -468,11 +504,15 @@ export function listProviders(actor: string) {
   return proxyRequest<Provider[]>("/api/v1/providers", actor);
 }
 
+export function getEngineCapabilities(actor: string) {
+  return proxyRequest<EngineCapabilities>("/api/v1/engine/capabilities", actor);
+}
+
 export function listInstallations(actor: string, environment?: string) {
   return proxyRequest<Installation[]>("/api/v1/provider-installations", actor, environment ? { headers: { "X-Emisell-Execution-Mode": environment } } : undefined);
 }
 
-export function createInstallation(actor: string, input: { provider_code: string; provider_version: string; environment: string }) {
+export function createInstallation(actor: string, input: { provider_code: string; provider_version?: string; environment: string }) {
   return proxyRequest<Installation>("/api/v1/provider-installations", actor, { method: "POST", body: JSON.stringify(input) });
 }
 
@@ -480,6 +520,17 @@ export function configureInstallation(actor: string, id: string, credentials: Re
   return proxyRequest<Installation>(`/api/v1/provider-installations/${encodeURIComponent(id)}/credentials`, actor, {
     method: "PUT",
     body: JSON.stringify({ credentials, payment_methods: [] }),
+  });
+}
+
+export function editInstallationCredentials(
+  actor: string,
+  id: string,
+  input: { credentials?: Record<string, string>; clear_fields?: string[]; payment_methods?: Array<Record<string, unknown>> },
+) {
+  return proxyRequest<Installation>(`/api/v1/provider-installations/${encodeURIComponent(id)}/credentials`, actor, {
+    method: "PATCH",
+    body: JSON.stringify(input),
   });
 }
 

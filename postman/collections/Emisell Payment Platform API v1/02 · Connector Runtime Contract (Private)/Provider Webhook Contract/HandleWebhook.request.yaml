@@ -1,0 +1,17 @@
+$kind: http-request
+description: ACTIVE. Connector mengembalikan event minimal canonical; raw payload tidak diteruskan ke Emisell Backend.
+url: "{{partner_base_url}}/partner/v1/webhooks/normalize"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "provider_code": "{{provider_code}}",
+      "credentials": {"webhook_verification_token": "{{xendit_webhook_token}}"},
+      "headers": {"webhook-id": ["{{webhook_id}}"], "x-callback-token": ["{{xendit_webhook_token}}"]},
+      "body": "eyJldmVudCI6InBheW1lbnQuY2FwdHVyZSJ9"
+    }
+examples: ./.resources/HandleWebhook.resources/examples
+order: 2000

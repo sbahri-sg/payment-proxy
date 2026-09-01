@@ -1,0 +1,23 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/emisell-webhook"
+  method: GET
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "configured": true,
+          "callback_url": "https://api.emisell.com/webhooks/v1/payment-proxy",
+          "enabled": true,
+          "secret_configured": true,
+          "secret_hint": "whsec_Abc••••••••9Xyz",
+          "source": "database"
+        }
+      }
+order: 1000

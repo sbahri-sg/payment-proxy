@@ -1,0 +1,29 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-method-assignments/{{payment_option_id}}/deactivate"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "version": {{payment_option_version}}
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "pmo_01k3...",
+          "status": "INACTIVE",
+          "version": 2
+        }
+      }
+order: 1000

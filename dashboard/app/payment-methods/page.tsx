@@ -34,8 +34,8 @@ export default async function PaymentMethodsPage({ searchParams }: { searchParam
         <AppTopbar healthy={healthy} searchPlaceholder="Search payment method or gateway..."/>
         <main className="dashboard-content management-content">
           <section className="dashboard-heading">
-            <div><p className="breadcrumb">Connections / Checkout methods</p><h1>Checkout payment methods</h1><p>Choose which installed gateway processes each payment method. No automatic routing or failover.</p></div>
-            <Link className="secondary-button" href="/installations">Manage installations <Icon name="arrow" size={15}/></Link>
+            <div><p className="breadcrumb">Payment setup / Checkout methods</p><h1>Checkout payment methods</h1><p>Choose which connected provider processes each payment method. No automatic routing or failover.</p></div>
+            <Link className="secondary-button" href="/providers">Manage providers <Icon name="arrow" size={15}/></Link>
           </section>
           {dataError && <div className="dashboard-alert error"><strong>Payment method data belum dapat dimuat.</strong><span>Periksa koneksi API dan migration database.</span></div>}
           <section className="installation-toolbar method-toolbar">
@@ -49,7 +49,7 @@ export default async function PaymentMethodsPage({ searchParams }: { searchParam
             <article><span>SELECTION MODE</span><strong>Explicit</strong><small>Merchant-controlled mapping</small></article>
           </section>
           <PaymentMethodCatalog methods={catalog}/>
-          {installations.length === 0 ? <div className="dashboard-alert error"><strong>No active {environment} gateway.</strong><span>Configure and activate an installation before assigning checkout methods.</span><Link href={`/installations?environment=${environment}`}>Open installations <Icon name="arrow" size={14}/></Link></div> : (
+          {installations.length === 0 ? <div className="dashboard-alert error"><strong>No active {environment} provider.</strong><span>Connect and activate a provider before assigning checkout methods.</span><Link href="/providers">Open providers <Icon name="arrow" size={14}/></Link></div> : (
             <details className="install-composer method-composer" open={assignments.length === 0}>
               <summary><span className="composer-icon"><Icon name="wallet"/></span><span><strong>Assign a payment method</strong><small>Map one checkout method to one active gateway in {environment}.</small></span><b>⌄</b></summary>
               <div className="composer-body"><PaymentMethodAssignmentForm environment={environment} installations={installations} assignments={assignments} catalog={catalog}/></div>

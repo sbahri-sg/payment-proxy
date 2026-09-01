@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/providers"
+method: GET
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+examples: ./.resources/Unauthorized example.resources/examples
+order: 1000

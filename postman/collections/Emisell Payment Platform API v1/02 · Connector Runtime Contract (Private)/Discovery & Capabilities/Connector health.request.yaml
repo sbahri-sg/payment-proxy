@@ -1,0 +1,6 @@
+$kind: http-request
+description: ACTIVE. Probe ringan tanpa memanggil provider upstream.
+url: "{{partner_base_url}}/partner/v1/health"
+method: GET
+examples: ./.resources/Connector health.resources/examples
+order: 1000

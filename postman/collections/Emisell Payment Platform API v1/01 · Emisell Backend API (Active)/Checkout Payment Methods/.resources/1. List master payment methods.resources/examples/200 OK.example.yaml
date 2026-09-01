@@ -1,0 +1,41 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/payment-methods"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": [
+          {
+            "code": "qris",
+            "category": "QR_CODE",
+            "name": "QRIS",
+            "currencies": [
+              "IDR"
+            ],
+            "providers": [
+              {
+                "provider_code": "xendit",
+                "provider_name": "Xendit",
+                "support_status": "CERTIFIED",
+                "provider_channel_code": "QRIS"
+              },
+              {
+                "provider_code": "midtrans",
+                "provider_name": "Midtrans",
+                "support_status": "DOCUMENTED",
+                "provider_channel_code": "other_qris"
+              }
+            ]
+          }
+        ]
+      }
+order: 1000

@@ -1,0 +1,28 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/provider-apps/{{provider_app_id}}/transition"
+  method: POST
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "expected_status": "CERTIFIED",
+        "status": "PUBLISHED",
+        "review_note": "Isolated runtime 0.1.0 deployed and health checked."
+      }
+response:
+  statusCode: 409
+  statusText: Conflict
+  body:
+    type: text
+    content: |-
+      {
+        "error": {
+          "code": "CONNECTOR_RUNTIME_NOT_READY",
+          "message": "deploy the isolated connector runtime with this exact manifest version before publish"
+        }
+      }
+order: 1000

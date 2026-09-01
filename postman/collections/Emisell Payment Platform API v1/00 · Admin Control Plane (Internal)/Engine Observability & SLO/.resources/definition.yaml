@@ -1,0 +1,3 @@
+$kind: collection
+description: Snapshot process dan format Prometheus. Gunakan admin key melalui header, bukan query string.
+order: 3000

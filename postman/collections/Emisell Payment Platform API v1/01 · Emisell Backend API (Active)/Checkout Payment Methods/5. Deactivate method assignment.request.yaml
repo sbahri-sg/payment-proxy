@@ -1,0 +1,24 @@
+$kind: http-request
+description: Menutup opsi checkout baru. Payment lama tetap terikat ke installation yang dipilih ketika payment dibuat.
+url: "{{base_url}}/api/v1/payment-method-assignments/{{payment_option_id}}/deactivate"
+method: POST
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "version": {{payment_option_version}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Payment method deactivated', () => pm.expect(pm.response.code).to.eql(200));
+      if (pm.response.code === 200) {
+        const data = pm.response.json().data;
+        pm.collectionVariables.set('payment_option_version', String(data.version));
+      }
+    language: text/javascript
+examples: ./.resources/5. Deactivate method assignment.resources/examples
+order: 5000

@@ -1,0 +1,39 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/webhook-deliveries?limit=25&offset=0"
+  method: GET
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+  queryParams:
+    limit: "25"
+    offset: "0"
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "items": [
+            {
+              "id": "evt_01k3...",
+              "event_type": "payment.updated",
+              "status": "DEAD",
+              "attempt_count": 8,
+              "max_attempts": 8,
+              "replay_count": 0
+            }
+          ],
+          "counts": {
+            "DEAD": 1
+          },
+          "total": 1,
+          "limit": 25,
+          "offset": 0,
+          "has_more": false
+        }
+      }
+order: 1000

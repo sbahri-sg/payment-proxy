@@ -1,8 +1,8 @@
 # Provider Apps
 
 Provider Apps adalah control plane untuk mengirim, memvalidasi, mensertifikasi,
-dan menerbitkan versi connector baru. Konsep lifecycle mengikuti API Kurir,
-tetapi artifact pembayaran tidak pernah dimuat ke process Payment Kernel.
+dan menerbitkan versi connector baru. Konsep lifecycle mengikuti API Kurir:
+ZIP adalah paket submission untuk review, bukan runtime yang dieksekusi.
 
 Alurnya **provider-first**. Operator membuat identitas provider satu kali,
 kemudian seluruh ZIP dan riwayat submission berada di bawah provider tersebut.
@@ -15,16 +15,19 @@ Dashboard
         │ create provider identity
         ▼
 Provider Registry
-        │ provider-bound ZIP upload (dashboard / partner CI)
+        │ provider-bound submission ZIP (dashboard / partner CI)
         ▼
 Version Registry ── immutable artifact + SHA-256 + audit
         │
         ├── static validation
         ├── conformance/security approval
-        └── publish gate ── exact runtime manifest version required
+        └── publish gate ── exact runtime manifest version + digest required
                                 │
                                 ▼
-                         Isolated Connector Runner
+                  Runtime Dispatcher (provider + version)
+                                │
+                                ▼
+                  Shared isolated provider runtime
                                 │
                                 ▼
                         Native provider endpoint
@@ -77,32 +80,33 @@ Contoh response `201 Created`:
 Saat upload, validator memastikan `manifest.code` dan `manifest.name` sama
 dengan provider pada URL. Bundle tidak dapat menyamar sebagai provider lain.
 
-## Bundle contract
+## Submission contract v1
 
-ZIP maksimum 25 MB dan maksimum 128 file. Expanded size maksimum 64 MB. Bundle
-wajib memiliki:
-
-```text
-provider-connector.zip
-├── manifest.json
-├── connector
-└── checksums.txt
-```
-
-Contoh minimal untuk belajar validator tersedia di `docs/examples/provider-app`.
-Sumber Provider App Midtrans yang benar berada di `provider-apps/midtrans` dan
-bundle release dibangun memakai `./scripts/build-midtrans-provider-app.sh`.
-
-`checksums.txt` menggunakan format:
+ZIP maksimum 25 MB dan maksimum 128 file. Expanded size maksimum 64 MB.
+Seperti API Kurir, submission wajib memiliki dua file kontrak pada root:
 
 ```text
-<64-character-sha256>  manifest.json
-<64-character-sha256>  connector
+provider-submission.zip
+├── emisell-extension.yaml
+├── openapi.yaml
+├── README.md
+├── SECURITY.md
+└── contract-tests/
 ```
 
-Semua file selain `checksums.txt` harus tercantum tepat satu kali. Path absolut,
-path traversal, symlink, duplicate entry, checksum mismatch, host berupa IP,
-dan runtime `native_go` akan ditolak.
+Sumber submission Xendit berada di `provider-apps/xendit` dan dibangun dengan
+`./scripts/build-xendit-provider-app.sh`. Hasilnya kecil dan portable karena
+tidak berisi binary Linux. Runtime Xendit dibangun terpisah sebagai OCI image
+dari `backend/Dockerfile`, lalu dideploy satu kali untuk setiap versi provider.
+
+Path absolut, path traversal, symlink, duplicate entry, zip bomb, native binary,
+file `.env`, private key, pola secret, host berupa IP, dan runtime `native_go`
+akan ditolak. `openapi.yaml` harus memakai OpenAPI 3.x dan mendeklarasikan semua
+operasi canonical yang dipilih manifest.
+
+Bundle lama (`manifest.json + connector + checksums.txt`) masih diterima sebagai
+`legacy_runtime_bundle` selama masa transisi. Submission baru wajib memakai
+`provider_submission_v1`; builder baru tidak lagi menghasilkan bundle binary.
 
 ## Lifecycle
 
@@ -114,8 +118,9 @@ UPLOADED → VALIDATED → CERTIFIED → PUBLISHED → DEPRECATED
 - `UPLOADED`: ZIP aman untuk disimpan dan manifest dapat dibaca.
 - `VALIDATED`: artifact dibaca ulang dari database dan digest/contract cocok.
 - `CERTIFIED`: operator mencatat conformance dan security approval.
-- `PUBLISHED`: hanya dapat dicapai jika runtime memuat provider dan versi yang
-  sama persis. Metadata provider/version baru kemudian dirilis.
+- `PUBLISHED`: hanya dapat dicapai jika shared runtime memuat provider dan versi
+  yang sama persis serta melaporkan digest executable immutable. Digest runtime
+  disimpan di release registry, terpisah dari digest ZIP submission.
 - `DEPRECATED`: release lama tidak ditawarkan untuk instalasi baru.
 - `DISABLED`: artifact ditahan dari lifecycle selanjutnya.
 
@@ -134,7 +139,7 @@ Pada **Body → form-data**:
 
 | Key | Type | Value |
 |---|---|---|
-| `bundle` | File | `midtrans-connector-emisell-v1.1.0.zip` |
+| `bundle` | File | `xendit-provider-app-emisell-v1.zip` |
 
 Contoh response `201 Created`:
 
@@ -148,25 +153,27 @@ Contoh response `201 Created`:
     "status": "UPLOADED",
     "runtime": "isolated_container",
     "sdk_version": "v1",
-    "file_name": "midtrans-connector-emisell-v1.1.0.zip",
-    "artifact_size": 1843200,
+    "file_name": "xendit-provider-app-emisell-v1.zip",
+    "artifact_size": 11220,
     "artifact_sha256": "a791f4...9d2c",
     "manifest": {
+      "package_format": "provider_submission_v1",
       "contract_version": "v1",
-      "code": "midtrans",
-      "version": "emisell-midtrans-v1.1.0",
-      "entrypoint": "connector",
+      "code": "xendit",
+      "version": "emisell-xendit-v1",
       "environments": ["sandbox", "live"],
-      "payment_methods": ["qris", "va_bca", "va_mandiri", "va_bni", "va_bri", "va_permata", "va_cimb", "ewallet_gopay", "ewallet_shopeepay"],
-      "outbound_hosts": ["api.midtrans.com", "api.sandbox.midtrans.com"]
+      "payment_methods": ["qris", "card", "va_bca", "va_mandiri", "ewallet_ovo", "ewallet_dana"],
+      "outbound_hosts": ["api.xendit.co"]
     },
     "scan_report": {
       "passed": true,
-      "file_count": 3,
+      "package_format": "provider_submission_v1",
+      "file_count": 5,
       "checks": [
         { "code": "archive_safety", "status": "PASSED" },
+        { "code": "source_only", "status": "PASSED" },
         { "code": "manifest_contract", "status": "PASSED" },
-        { "code": "artifact_checksums", "status": "PASSED" },
+        { "code": "openapi_contract", "status": "PASSED" },
         { "code": "credential_separation", "status": "PASSED" }
       ]
     }
@@ -228,18 +235,19 @@ Publish sebelum runtime siap menghasilkan:
 - Admin API authentication dan dashboard operator session.
 - Strict multipart and request-size limits.
 - ZIP path traversal, symlink, duplicate path, file count, and zip-bomb guard.
-- SHA-256 untuk archive dan setiap file.
+- SHA-256 immutable untuk archive submission dan digest terpisah untuk runtime.
 - Artifact immutable; list API tidak mengembalikan binary.
 - Unique provider/version dan storage quota 250 MB per provider.
 - Audit actor, request ID, digest, transition, dan review note.
 - Credential schema only; tidak ada credential value pada bundle.
-- Publish memerlukan exact runtime version dan SHA-256 executable runtime harus
-  sama dengan entrypoint di ZIP yang sudah divalidasi.
+- Publish memerlukan exact runtime version dan digest executable runtime.
+- Legacy bundle tetap memerlukan SHA-256 runtime sama dengan entrypoint ZIP;
+  submission v1 tidak memiliki entrypoint karena runtime dikelola terpisah.
 
 Setelah release baru dipublish, installation lama tidak berubah otomatis:
 
 ```text
-ACTIVE → deactivate → INACTIVE → upgrade → READY → activate → ACTIVE
+ACTIVE → deactivate → INACTIVE → upgrade → CONFIG_REQUIRED → configure/verify → READY → activate → ACTIVE
 ```
 
 `POST /api/v1/provider-installations/{id}/upgrade` menerima optimistic

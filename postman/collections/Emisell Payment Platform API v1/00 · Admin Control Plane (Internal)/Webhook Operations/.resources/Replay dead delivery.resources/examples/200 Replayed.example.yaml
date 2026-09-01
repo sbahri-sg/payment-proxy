@@ -1,0 +1,31 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/webhook-deliveries/{{delivery_id}}/replay"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Idempotency-Key: replay-event-123-attempt-1
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "expected_replay_count": 0
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "evt_01k3...",
+          "status": "PENDING",
+          "attempt_count": 0,
+          "replay_count": 1
+        }
+      }
+order: 1000

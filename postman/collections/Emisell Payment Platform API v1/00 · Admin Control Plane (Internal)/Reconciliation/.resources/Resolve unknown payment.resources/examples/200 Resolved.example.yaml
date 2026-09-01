@@ -1,0 +1,31 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/reconciliation/payments/{{payment_id}}/resolve"
+  method: POST
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Idempotency-Key: reconcile-payment-123-attempt-1
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "expected_reconciliation_count": 0
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "pay_01k3...",
+          "status": "PENDING",
+          "reconciliation_count": 1,
+          "last_reconciled_by": "payment-proxy-admin"
+        }
+      }
+order: 1000

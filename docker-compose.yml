@@ -182,7 +182,6 @@ services:
       PAYMENT_PROXY_PUBLIC_URL: ${PAYMENT_PROXY_PUBLIC_BASE_URL:-http://localhost:${API_PORT:-8080}}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-local-admin-key-change-before-production}
       SERVICE_API_KEY: ${SERVICE_API_KEY:-local-service-key-change-before-production}
-      API_CONTRACT_VERSION: "2026-08-28"
       DASHBOARD_MERCHANT_ID: ${DASHBOARD_MERCHANT_ID:-merchant_dashboard_demo}
       DASHBOARD_ADMIN_PASSWORD: ${DASHBOARD_ADMIN_PASSWORD:-local-dashboard-password}
       DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:-local-dashboard-session-secret-change-before-production}

@@ -1,0 +1,48 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/provider-installations/{{installation_id}}/credentials"
+  method: PUT
+  headers:
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "credentials": {
+          "api_key": "{{xendit_api_key}}",
+          "webhook_verification_token": "{{xendit_webhook_token}}"
+        },
+        "payment_methods": []
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "id": "ins_01k3...",
+          "provider_code": "xendit",
+          "environment": "sandbox",
+          "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3...",
+          "connector_id": "mca_...",
+          "status": "READY",
+          "credential_metadata": {
+            "configured_fields": [
+              {
+                "code": "api_key",
+                "configured": true
+              }
+            ],
+            "configured_at": "2026-08-28T03:05:00Z",
+            "webhook_ready": true,
+            "public_webhook_url": "https://payments.example.com/webhooks/v1/providers/xendit/ins_01k3..."
+          },
+          "version": 4
+        }
+      }
+order: 1000

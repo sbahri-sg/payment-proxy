@@ -1,0 +1,16 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/provider-app-providers/{{provider_app_code}}/versions"
+  method: GET
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": []
+      }
+order: 1000

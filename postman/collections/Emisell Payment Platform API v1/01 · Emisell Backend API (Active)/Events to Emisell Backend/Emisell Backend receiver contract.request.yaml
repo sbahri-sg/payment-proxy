@@ -1,0 +1,60 @@
+$kind: http-request
+description: Contract test untuk endpoint yang harus dibangun di Emisell Backend. Signature dihitung dari timestamp + '.' + raw body. Gunakan receiver development lokal atau URL backend sandbox; jangan gunakan endpoint provider ingress.
+url: "{{emisell_backend_webhook_url}}"
+method: POST
+headers:
+  X-Emisell-Webhook-ID: "{{outbound_event_id}}"
+  X-Emisell-Webhook-Timestamp: "{{emisell_webhook_timestamp}}"
+  X-Emisell-Webhook-Signature: "{{emisell_webhook_signature}}"
+  X-Emisell-Webhook-Version: "1"
+  X-Emisell-Event-Type: payment.updated
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  Idempotency-Key: "{{outbound_event_id}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "id": "{{outbound_event_id}}",
+      "object": "event",
+      "api_version": "2026-08-28",
+      "type": "payment.updated",
+      "created_at": "{{outbound_created_at}}",
+      "merchant_id": "{{merchant_id}}",
+      "resource": {
+        "type": "payment",
+        "id": "pay_postman_contract_001"
+      },
+      "data": {
+        "payment": {
+          "id": "pay_postman_contract_001",
+          "merchant_reference": "order_postman_contract_001",
+          "amount": 1000000,
+          "currency": "IDR",
+          "environment": "sandbox",
+          "status": "SUCCEEDED",
+          "updated_at": "{{outbound_created_at}}"
+        },
+        "previous_status": "PENDING"
+      }
+    }
+auth:
+  type: noauth
+scripts:
+  - type: beforeRequest
+    code: |-
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      pm.collectionVariables.set('outbound_created_at', new Date().toISOString());
+      const body = pm.variables.replaceIn(pm.request.body.raw);
+      const secret = pm.collectionVariables.get('emisell_backend_webhook_secret');
+      const digest = CryptoJS.HmacSHA256(`${timestamp}.${body}`, secret).toString(CryptoJS.enc.Hex);
+      pm.variables.set('emisell_webhook_timestamp', timestamp);
+      pm.variables.set('emisell_webhook_signature', `v1=${digest}`);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Emisell receiver accepted canonical event', () => pm.expect([200, 202]).to.include(pm.response.code));
+      if ([200, 202].includes(pm.response.code)) pm.expect(pm.response.json().event_id).to.eql(pm.collectionVariables.get('outbound_event_id'));
+    language: text/javascript
+examples: ./.resources/Emisell Backend receiver contract.resources/examples
+order: 1000

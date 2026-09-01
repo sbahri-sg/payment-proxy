@@ -1,0 +1,19 @@
+$kind: http-request
+description: Publish hanya berhasil bila runtime memuat provider code dan exact manifest version yang sama.
+url: "{{base_url}}/api/v1/admin/provider-apps/{{provider_app_id}}/transition"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "expected_status": "CERTIFIED",
+      "status": "PUBLISHED",
+      "review_note": "Isolated runtime 0.1.0 deployed and health checked."
+    }
+auth:
+  type: noauth
+examples: ./.resources/5. Publish Provider App.resources/examples
+order: 5000

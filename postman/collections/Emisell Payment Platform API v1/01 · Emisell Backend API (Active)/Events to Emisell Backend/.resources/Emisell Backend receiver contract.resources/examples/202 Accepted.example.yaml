@@ -1,0 +1,54 @@
+$kind: http-example
+request:
+  url: "{{emisell_backend_webhook_url}}"
+  method: POST
+  headers:
+    X-Emisell-Webhook-ID: "{{outbound_event_id}}"
+    X-Emisell-Webhook-Timestamp: "{{emisell_webhook_timestamp}}"
+    X-Emisell-Webhook-Signature: "{{emisell_webhook_signature}}"
+    X-Emisell-Webhook-Version: "1"
+    X-Emisell-Event-Type: payment.updated
+    X-Emisell-Merchant-ID: "{{merchant_id}}"
+    Idempotency-Key: "{{outbound_event_id}}"
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "id": "{{outbound_event_id}}",
+        "object": "event",
+        "api_version": "2026-08-28",
+        "type": "payment.updated",
+        "created_at": "{{outbound_created_at}}",
+        "merchant_id": "{{merchant_id}}",
+        "resource": {
+          "type": "payment",
+          "id": "pay_postman_contract_001"
+        },
+        "data": {
+          "payment": {
+            "id": "pay_postman_contract_001",
+            "merchant_reference": "order_postman_contract_001",
+            "amount": 1000000,
+            "currency": "IDR",
+            "environment": "sandbox",
+            "status": "SUCCEEDED",
+            "updated_at": "{{outbound_created_at}}"
+          },
+          "previous_status": "PENDING"
+        }
+      }
+response:
+  statusCode: 202
+  statusText: Accepted
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "accepted": true,
+        "duplicate": false,
+        "event_id": "evt_postman_contract_001"
+      }
+order: 1000

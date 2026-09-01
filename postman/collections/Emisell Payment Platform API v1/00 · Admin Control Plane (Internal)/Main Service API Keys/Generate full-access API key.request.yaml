@@ -1,0 +1,27 @@
+$kind: http-request
+description: Membuat random 256-bit key berprefix epk_. Postman menyimpan secret ke collection variable agar endpoint /api/v1/* dapat langsung diuji. Salin ke secret manager Emisell sebelum response ditutup.
+url: "{{base_url}}/api/v1/admin/service-api-keys"
+method: POST
+headers:
+  X-Admin-API-Key: "{{admin_api_key}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Emisell Backend Production"
+    }
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('API key generated', () => pm.expect(pm.response.code).to.eql(201));
+      if (pm.response.code === 201) {
+        const data = pm.response.json().data;
+        pm.collectionVariables.set('service_api_key_id', data.api_key.id);
+        pm.collectionVariables.set('service_api_key', data.secret);
+      }
+    language: text/javascript
+examples: ./.resources/Generate full-access API key.resources/examples
+order: 2000

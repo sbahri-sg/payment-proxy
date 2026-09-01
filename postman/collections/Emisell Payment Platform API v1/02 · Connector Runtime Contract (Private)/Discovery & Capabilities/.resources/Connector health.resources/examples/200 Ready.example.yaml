@@ -1,0 +1,15 @@
+$kind: http-example
+request:
+  url: "{{partner_base_url}}/partner/v1/health"
+  method: GET
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "status": "ready",
+        "connector_count": 1
+      }
+order: 1000

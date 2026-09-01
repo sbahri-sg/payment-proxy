@@ -1,0 +1,80 @@
+schema_version: "1"
+provider:
+  code: xendit
+  name: Xendit
+release:
+  version: emisell-xendit-v1
+connector:
+  contract_version: v1
+  runtime: isolated_container
+  sdk_version: v1
+operations:
+  - verify_installation
+  - disable_installation
+  - create_payment
+  - get_payment
+  - simulate_payment
+  - handle_webhook
+credentials:
+  fields:
+    - code: api_key
+      label: Secret API key
+      input_type: password
+      secret: true
+      required: true
+    - code: webhook_verification_token
+      label: Webhook verification token
+      input_type: password
+      secret: true
+      required: true
+certification_profiles:
+  qris: {code: xendit-payments-v3/qris, automated: true}
+  card: {code: xendit-payment-session/card, automated: true}
+  va_bca: {code: xendit-payments-v3/va_bca, automated: true}
+  va_mandiri: {code: xendit-payments-v3/va_mandiri, automated: true}
+  va_bni: {code: xendit-payments-v3/va_bni, automated: true}
+  va_bri: {code: xendit-payments-v3/va_bri, automated: true}
+  va_permata: {code: xendit-payments-v3/va_permata, automated: true}
+  va_cimb: {code: xendit-payments-v3/va_cimb, automated: true}
+  va_danamon: {code: xendit-payments-v3/va_danamon, automated: true}
+  va_bsi: {code: xendit-payments-v3/va_bsi, automated: true}
+  va_muamalat: {code: xendit-payments-v3/va_muamalat, automated: true}
+  ewallet_ovo: {code: xendit-payments-v3/ewallet_ovo, automated: true}
+  ewallet_dana: {code: xendit-payments-v3/ewallet_dana, automated: true}
+  ewallet_shopeepay: {code: xendit-payments-v3/ewallet_shopeepay, automated: true}
+  ewallet_linkaja: {code: xendit-payments-v3/ewallet_linkaja, automated: true}
+  ewallet_astrapay: {code: xendit-payments-v3/ewallet_astrapay, automated: true}
+  digital_banking_jenius: {code: xendit-payments-v3/digital_banking_jenius, automated: true}
+  paylater_kredivo: {code: xendit-payments-v3/paylater_kredivo, automated: true}
+  paylater_akulaku: {code: xendit-payments-v3/paylater_akulaku, automated: true}
+  paylater_indodana: {code: xendit-payments-v3/paylater_indodana, automated: true}
+environments:
+  - code: live
+    label: Live
+    description: Transaksi diteruskan ke Xendit production.
+  - code: sandbox
+    label: Sandbox
+    description: Alur sertifikasi dan simulasi Emisell tanpa transaksi production.
+payment_methods:
+  - qris
+  - card
+  - va_bca
+  - va_mandiri
+  - va_bni
+  - va_bri
+  - va_permata
+  - va_cimb
+  - va_danamon
+  - va_bsi
+  - va_muamalat
+  - ewallet_ovo
+  - ewallet_dana
+  - ewallet_shopeepay
+  - ewallet_linkaja
+  - ewallet_astrapay
+  - digital_banking_jenius
+  - paylater_kredivo
+  - paylater_akulaku
+  - paylater_indodana
+outbound_hosts:
+  - api.xendit.co

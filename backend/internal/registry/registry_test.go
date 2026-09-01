@@ -55,7 +55,7 @@ func TestRegistryProvidesImmutableManifestAndCapabilities(t *testing.T) {
 	}
 	supported, err = items.Supports("xendit", connector.OperationCreateRefund)
 	if err != nil || supported {
-		t.Fatalf("uncertified operation was advertised: %v", err)
+		t.Fatalf("refund operation was advertised before sandbox certification: %v", err)
 	}
 	manifest, err := items.Manifest("xendit")
 	if err != nil {
@@ -71,5 +71,29 @@ func TestRegistryProvidesImmutableManifestAndCapabilities(t *testing.T) {
 	var apiErr *connector.APIError
 	if !errors.As(err, &apiErr) || apiErr.Code != "CONNECTOR_NOT_AVAILABLE" {
 		t.Fatalf("unexpected missing connector error: %v", err)
+	}
+}
+
+func TestRegistryResolvesSharedRuntimeByProviderVersion(t *testing.T) {
+	base, _ := xendit.New("https://api.xendit.test", time.Second)
+	secondManifest := base.Manifest()
+	secondManifest.Version = "emisell-xendit-v2"
+	second := manifestConnector{Connector: base, code: "xendit", manifest: secondManifest}
+
+	items, err := registry.New(base, second)
+	if err != nil {
+		t.Fatalf("versioned runtimes were rejected: %v", err)
+	}
+	if codes := items.Codes(); len(codes) != 1 || codes[0] != "xendit" {
+		t.Fatalf("provider codes must remain unique: %#v", codes)
+	}
+	manifest, err := items.ManifestVersion("xendit", "emisell-xendit-v2")
+	if err != nil || manifest.Version != "emisell-xendit-v2" {
+		t.Fatalf("versioned runtime was not resolved: %#v, %v", manifest, err)
+	}
+	_, err = items.Manifest("xendit")
+	var apiErr *connector.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "CONNECTOR_VERSION_REQUIRED" {
+		t.Fatalf("ambiguous unversioned lookup was accepted: %v", err)
 	}
 }

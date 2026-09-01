@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	ErrOutcomeUnknown = errors.New("connector outcome is unknown")
-	ErrNotSupported   = errors.New("connector operation is not supported")
+	ErrOutcomeUnknown    = errors.New("connector outcome is unknown")
+	ErrNotSupported      = errors.New("connector operation is not supported")
+	ErrInvalidCredential = errors.New("provider credential is invalid")
 )
 
 type APIError struct {
@@ -35,6 +36,7 @@ func (e *UnknownOutcomeError) Is(target error) bool {
 type InstallationInput struct {
 	InstallationID   string            `json:"installation_id"`
 	ProviderCode     string            `json:"provider_code"`
+	ProviderVersion  string            `json:"provider_version,omitempty"`
 	Environment      string            `json:"environment"`
 	Credentials      map[string]string `json:"credentials"`
 	PublicWebhookURL string            `json:"public_webhook_url,omitempty"`
@@ -42,6 +44,7 @@ type InstallationInput struct {
 
 type InstallationResult struct {
 	ConnectorID       string            `json:"connector_id"`
+	Environment       string            `json:"environment"`
 	StoredCredentials map[string]string `json:"stored_credentials,omitempty"`
 	WebhookReady      bool              `json:"webhook_ready"`
 }
@@ -63,6 +66,7 @@ type Item struct {
 
 type PaymentInput struct {
 	ProviderCode      string            `json:"provider_code"`
+	ProviderVersion   string            `json:"provider_version,omitempty"`
 	Environment       string            `json:"environment"`
 	Credentials       map[string]string `json:"credentials"`
 	InstallationID    string            `json:"installation_id"`
@@ -83,20 +87,22 @@ type PaymentInput struct {
 }
 
 type PaymentLookup struct {
-	ProviderCode string            `json:"provider_code"`
-	Environment  string            `json:"environment"`
-	Credentials  map[string]string `json:"credentials"`
-	PaymentID    string            `json:"payment_id"`
+	ProviderCode    string            `json:"provider_code"`
+	ProviderVersion string            `json:"provider_version,omitempty"`
+	Environment     string            `json:"environment"`
+	Credentials     map[string]string `json:"credentials"`
+	PaymentID       string            `json:"payment_id"`
 }
 
 type CaptureInput struct {
-	ProviderCode   string            `json:"provider_code"`
-	Environment    string            `json:"environment"`
-	Credentials    map[string]string `json:"credentials"`
-	PaymentID      string            `json:"payment_id"`
-	IdempotencyKey string            `json:"idempotency_key"`
-	Amount         int64             `json:"amount"`
-	Currency       string            `json:"currency"`
+	ProviderCode    string            `json:"provider_code"`
+	ProviderVersion string            `json:"provider_version,omitempty"`
+	Environment     string            `json:"environment"`
+	Credentials     map[string]string `json:"credentials"`
+	PaymentID       string            `json:"payment_id"`
+	IdempotencyKey  string            `json:"idempotency_key"`
+	Amount          int64             `json:"amount"`
+	Currency        string            `json:"currency"`
 }
 
 type PaymentResult struct {
@@ -108,22 +114,24 @@ type PaymentResult struct {
 }
 
 type RefundInput struct {
-	ProviderCode   string            `json:"provider_code"`
-	Environment    string            `json:"environment"`
-	Credentials    map[string]string `json:"credentials"`
-	PaymentID      string            `json:"payment_id"`
-	IdempotencyKey string            `json:"idempotency_key"`
-	Amount         int64             `json:"amount"`
-	Currency       string            `json:"currency"`
-	Reason         string            `json:"reason,omitempty"`
-	Metadata       map[string]any    `json:"metadata,omitempty"`
+	ProviderCode    string            `json:"provider_code"`
+	ProviderVersion string            `json:"provider_version,omitempty"`
+	Environment     string            `json:"environment"`
+	Credentials     map[string]string `json:"credentials"`
+	PaymentID       string            `json:"payment_id"`
+	IdempotencyKey  string            `json:"idempotency_key"`
+	Amount          int64             `json:"amount"`
+	Currency        string            `json:"currency"`
+	Reason          string            `json:"reason,omitempty"`
+	Metadata        map[string]any    `json:"metadata,omitempty"`
 }
 
 type RefundLookup struct {
-	ProviderCode string            `json:"provider_code"`
-	Environment  string            `json:"environment"`
-	Credentials  map[string]string `json:"credentials"`
-	RefundID     string            `json:"refund_id"`
+	ProviderCode    string            `json:"provider_code"`
+	ProviderVersion string            `json:"provider_version,omitempty"`
+	Environment     string            `json:"environment"`
+	Credentials     map[string]string `json:"credentials"`
+	RefundID        string            `json:"refund_id"`
 }
 
 type RefundResult struct {
@@ -132,10 +140,11 @@ type RefundResult struct {
 }
 
 type WebhookInput struct {
-	ProviderCode string            `json:"provider_code"`
-	Credentials  map[string]string `json:"credentials"`
-	Headers      http.Header       `json:"headers"`
-	Body         []byte            `json:"body"`
+	ProviderCode    string            `json:"provider_code"`
+	ProviderVersion string            `json:"provider_version,omitempty"`
+	Credentials     map[string]string `json:"credentials"`
+	Headers         http.Header       `json:"headers"`
+	Body            []byte            `json:"body"`
 }
 
 type WebhookEvent struct {

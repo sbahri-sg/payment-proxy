@@ -32,16 +32,16 @@ func (r *Runtime) ConnectorCodes() []string {
 	return r.registry.Codes()
 }
 
-func (r *Runtime) connector(code string) (connector.Connector, error) {
-	return r.registry.Connector(code)
+func (r *Runtime) connector(code, version string) (connector.Connector, error) {
+	return r.registry.ConnectorVersion(code, version)
 }
 
-func (r *Runtime) connectorForOperation(code string, operation connector.Operation) (connector.Connector, error) {
-	item, err := r.connector(code)
+func (r *Runtime) connectorForOperation(code, version string, operation connector.Operation) (connector.Connector, error) {
+	item, err := r.connector(code, version)
 	if err != nil {
 		return nil, err
 	}
-	supported, err := r.registry.Supports(code, operation)
+	supported, err := r.registry.SupportsVersion(code, version, operation)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +55,10 @@ func (r *Runtime) Manifest(code string) (connector.Manifest, error) {
 	return r.registry.Manifest(code)
 }
 
+func (r *Runtime) ManifestVersion(code, version string) (connector.Manifest, error) {
+	return r.registry.ManifestVersion(code, version)
+}
+
 func (r *Runtime) Manifests() []connector.Manifest {
 	return r.registry.Manifests()
 }
@@ -63,8 +67,16 @@ func (r *Runtime) Supports(code string, operation connector.Operation) (bool, er
 	return r.registry.Supports(code, operation)
 }
 
+func (r *Runtime) SupportsVersion(code, version string, operation connector.Operation) (bool, error) {
+	return r.registry.SupportsVersion(code, version, operation)
+}
+
 func (r *Runtime) ValidatePaymentMethod(code string, input connector.PaymentMethodMapping) error {
-	item, err := r.connector(code)
+	return r.ValidatePaymentMethodVersion(code, "", input)
+}
+
+func (r *Runtime) ValidatePaymentMethodVersion(code, version string, input connector.PaymentMethodMapping) error {
+	item, err := r.connector(code, version)
 	if err != nil {
 		return err
 	}
@@ -72,7 +84,11 @@ func (r *Runtime) ValidatePaymentMethod(code string, input connector.PaymentMeth
 }
 
 func (r *Runtime) ValidatePayment(code string, input connector.PaymentValidation) error {
-	item, err := r.connector(code)
+	return r.ValidatePaymentVersion(code, "", input)
+}
+
+func (r *Runtime) ValidatePaymentVersion(code, version string, input connector.PaymentValidation) error {
+	item, err := r.connector(code, version)
 	if err != nil {
 		return err
 	}
@@ -80,7 +96,7 @@ func (r *Runtime) ValidatePayment(code string, input connector.PaymentValidation
 }
 
 func (r *Runtime) VerifyInstallation(ctx context.Context, input connector.InstallationInput) (connector.InstallationResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationVerifyInstallation)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationVerifyInstallation)
 	if err != nil {
 		return connector.InstallationResult{}, err
 	}
@@ -88,7 +104,7 @@ func (r *Runtime) VerifyInstallation(ctx context.Context, input connector.Instal
 }
 
 func (r *Runtime) DisableInstallation(ctx context.Context, input connector.InstallationInput) error {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationDisableInstallation)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationDisableInstallation)
 	if err != nil {
 		return err
 	}
@@ -96,7 +112,7 @@ func (r *Runtime) DisableInstallation(ctx context.Context, input connector.Insta
 }
 
 func (r *Runtime) CreatePayment(ctx context.Context, input connector.PaymentInput) (connector.PaymentResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationCreatePayment)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationCreatePayment)
 	if err != nil {
 		return connector.PaymentResult{}, err
 	}
@@ -111,7 +127,7 @@ func (r *Runtime) CreatePayment(ctx context.Context, input connector.PaymentInpu
 }
 
 func (r *Runtime) GetPayment(ctx context.Context, input connector.PaymentLookup) (connector.PaymentResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationGetPayment)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationGetPayment)
 	if err != nil {
 		return connector.PaymentResult{}, err
 	}
@@ -119,7 +135,7 @@ func (r *Runtime) GetPayment(ctx context.Context, input connector.PaymentLookup)
 }
 
 func (r *Runtime) CapturePayment(ctx context.Context, input connector.CaptureInput) (connector.PaymentResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationCapturePayment)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationCapturePayment)
 	if err != nil {
 		return connector.PaymentResult{}, err
 	}
@@ -127,7 +143,7 @@ func (r *Runtime) CapturePayment(ctx context.Context, input connector.CaptureInp
 }
 
 func (r *Runtime) CancelPayment(ctx context.Context, input connector.PaymentLookup, key, reason string) (connector.PaymentResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationCancelPayment)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationCancelPayment)
 	if err != nil {
 		return connector.PaymentResult{}, err
 	}
@@ -135,7 +151,7 @@ func (r *Runtime) CancelPayment(ctx context.Context, input connector.PaymentLook
 }
 
 func (r *Runtime) SimulatePayment(ctx context.Context, input connector.PaymentLookup, amount int64, currency string) error {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationSimulatePayment)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationSimulatePayment)
 	if err != nil {
 		return err
 	}
@@ -143,7 +159,7 @@ func (r *Runtime) SimulatePayment(ctx context.Context, input connector.PaymentLo
 }
 
 func (r *Runtime) CreateRefund(ctx context.Context, input connector.RefundInput) (connector.RefundResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationCreateRefund)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationCreateRefund)
 	if err != nil {
 		return connector.RefundResult{}, err
 	}
@@ -151,7 +167,7 @@ func (r *Runtime) CreateRefund(ctx context.Context, input connector.RefundInput)
 }
 
 func (r *Runtime) GetRefund(ctx context.Context, input connector.RefundLookup) (connector.RefundResult, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationGetRefund)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationGetRefund)
 	if err != nil {
 		return connector.RefundResult{}, err
 	}
@@ -159,7 +175,7 @@ func (r *Runtime) GetRefund(ctx context.Context, input connector.RefundLookup) (
 }
 
 func (r *Runtime) HandleWebhook(ctx context.Context, input connector.WebhookInput) (connector.WebhookEvent, error) {
-	item, err := r.connectorForOperation(input.ProviderCode, connector.OperationHandleWebhook)
+	item, err := r.connectorForOperation(input.ProviderCode, input.ProviderVersion, connector.OperationHandleWebhook)
 	if err != nil {
 		return connector.WebhookEvent{}, err
 	}

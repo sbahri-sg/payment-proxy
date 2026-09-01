@@ -1,0 +1,37 @@
+$kind: http-example
+request:
+  url: "{{partner_base_url}}/partner/v1/payments/create"
+  method: POST
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "provider_code": "{{provider_code}}",
+        "installation_id": "{{installation_id}}",
+        "local_payment_id": "{{payment_id}}",
+        "merchant_reference": "order_2026_0001",
+        "environment": "{{execution_mode}}",
+        "credentials": {"api_key": "{{provider_secret}}"},
+        "idempotency_key": "payment-order-123-attempt-1",
+        "amount": 1000000,
+        "currency": "IDR",
+        "payment_method_code": "qris",
+        "channel_code": "QRIS",
+        "customer": {"name": "Budi Santoso", "email": "budi@example.com"}
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
+          "status": "PENDING",
+          "next_action": {"type": "qr_code_information", "raw_qr_data": "00020101..."}
+        }
+      }
+order: 1000

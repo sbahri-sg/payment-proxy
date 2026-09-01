@@ -42,7 +42,7 @@ func TestNativeQRISPayment(t *testing.T) {
 		t.Fatal(err)
 	}
 	installation, err := client.VerifyInstallation(context.Background(), connector.InstallationInput{InstallationID: "ins_1", ProviderCode: "xendit", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/xendit/ins_1", Credentials: map[string]string{"api_key": "xnd_development_secret", "webhook_verification_token": "callback-secret"}})
-	if err != nil || installation.ConnectorID != "xendit:ins_1" {
+	if err != nil || installation.ConnectorID != "xendit:ins_1" || installation.Environment != "sandbox" {
 		t.Fatalf("unexpected installation: %#v, %v", installation, err)
 	}
 	if !installation.WebhookReady {
@@ -54,6 +54,21 @@ func TestNativeQRISPayment(t *testing.T) {
 	})
 	if err != nil || result.ID == "" || string(result.NextAction) == "" {
 		t.Fatalf("unexpected payment: %#v, %v", result, err)
+	}
+}
+
+func TestXenditCredentialEnvironment(t *testing.T) {
+	for key, expected := range map[string]string{
+		"xnd_development_example": "sandbox",
+		"xnd_production_example":  "live",
+	} {
+		actual, err := xenditEnvironment(key)
+		if err != nil || actual != expected {
+			t.Fatalf("key %q: environment=%q err=%v", key, actual, err)
+		}
+	}
+	if _, err := xenditEnvironment("unknown-key"); !errors.Is(err, connector.ErrInvalidCredential) {
+		t.Fatalf("unknown Xendit key was not rejected: %v", err)
 	}
 }
 
@@ -326,12 +341,51 @@ func TestManifestConformance(t *testing.T) {
 	if manifest.Code != client.Code() || !manifest.Supports(connector.OperationCreatePayment) || !manifest.Supports(connector.OperationHandleWebhook) {
 		t.Fatalf("unexpected manifest capabilities: %#v", manifest)
 	}
-	if manifest.Supports(connector.OperationCreateRefund) {
-		t.Fatal("refund must not be advertised before its connector implementation is certified")
+	if manifest.Supports(connector.OperationCreateRefund) || manifest.Supports(connector.OperationGetRefund) {
+		t.Fatal("refund implementation must remain release-gated until sandbox and webhook evidence are certified")
+	}
+	digest := strings.Repeat("a", 64)
+	client.SetExecutableSHA256(digest)
+	if client.Manifest().ExecutableSHA256 != digest {
+		t.Fatal("Xendit runtime manifest did not expose the executable digest")
 	}
 	profile, ok := manifest.CertificationProfile("card")
 	if !ok || profile.Code != "xendit-payment-session/card" || !profile.Automated {
 		t.Fatalf("unexpected card certification profile: %#v", profile)
+	}
+}
+
+func TestXenditCreateRefundIsAsynchronousAndReturnToSource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/refunds" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if r.Header.Get("Idempotency-Key") != "refund-1" {
+			t.Fatalf("missing provider idempotency key: %#v", r.Header)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["payment_request_id"] != "pr-pay-1" || body["reference_id"] != "refund-1" || body["amount"] != float64(500) || body["reason"] != "REQUESTED_BY_CUSTOMER" {
+			t.Fatalf("unexpected refund payload: %#v", body)
+		}
+		_, _ = io.WriteString(w, `{"id":"rfd-1","payment_request_id":"pr-pay-1","status":"PENDING"}`)
+	}))
+	defer server.Close()
+	client, _ := New(server.URL, time.Second)
+	result, err := client.CreateRefund(context.Background(), connector.RefundInput{
+		Credentials: map[string]string{"api_key": "xnd_development_test"}, PaymentID: "pr-pay-1",
+		IdempotencyKey: "refund-1", Amount: 50_000, Currency: "IDR", Reason: "REQUESTED_BY_CUSTOMER",
+	})
+	if err != nil || result.ID != "rfd-1" || result.Status != "PENDING" {
+		t.Fatalf("unexpected refund result: %#v, %v", result, err)
+	}
+	if _, err = client.CreateRefund(context.Background(), connector.RefundInput{
+		Credentials: map[string]string{"api_key": "xnd_development_test"}, PaymentID: "ps-session-1",
+		IdempotencyKey: "refund-2", Amount: 50_000, Currency: "IDR", Reason: "REQUESTED_BY_CUSTOMER",
+	}); err == nil {
+		t.Fatal("a payment session ID was accepted as a Unified Refund payment_request_id")
 	}
 }
 

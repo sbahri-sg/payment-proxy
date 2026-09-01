@@ -28,6 +28,7 @@ export async function uploadProviderAppAction(_: ProviderAppActionState, form: F
     const providerApp = await uploadProviderApp(session.subject, providerCode, bundle);
     revalidatePath("/provider-apps");
     revalidatePath(`/provider-apps/${providerCode}`);
+    revalidatePath(`/providers/${providerCode}`);
     return { status: "success", message: `${providerApp.provider_name} ${providerApp.version} berhasil di-upload dan lolos pemeriksaan awal.`, providerApp };
   } catch (error) {
     return actionError(error);
@@ -55,6 +56,8 @@ export async function createProviderAppProviderAction(_: ProviderAppActionState,
       support_email: supportEmail,
     });
     revalidatePath("/provider-apps");
+    revalidatePath("/providers");
+    revalidatePath(`/providers/${providerCode}`);
     return { status: "success", message: `${provider.provider_name} berhasil dibuat. Upload versi connector dari detail provider.`, provider };
   } catch (error) {
     return actionError(error);
@@ -73,6 +76,7 @@ export async function transitionProviderAppAction(_: ProviderAppActionState, for
     revalidatePath("/provider-apps");
     revalidatePath(`/provider-apps/${providerApp.provider_code}`);
     revalidatePath("/providers");
+    revalidatePath(`/providers/${providerApp.provider_code}`);
     return { status: "success", message: `${providerApp.provider_name} ${providerApp.version} sekarang berstatus ${providerApp.status}.`, providerApp };
   } catch (error) {
     return actionError(error);

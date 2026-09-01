@@ -1,0 +1,24 @@
+$kind: http-example
+request:
+  url: "{{midtrans_partner_base_url}}/partner/v1/capabilities"
+  method: GET
+response:
+  statusCode: 200
+  statusText: OK
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "contract_version": "v1",
+          "connectors": [{
+            "code": "midtrans",
+            "name": "Midtrans",
+            "version": "emisell-midtrans-v1.1.0",
+            "runtime": "isolated_container",
+            "executable_sha256": "a069ea...82a",
+            "operations": ["verify_installation", "disable_installation", "create_payment", "get_payment", "handle_webhook"]
+          }]
+        }
+      }
+order: 1000

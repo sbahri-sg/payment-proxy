@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{base_url}}/api/v1/payment-sessions/{{payment_id}}/cancel"
+method: POST
+headers:
+  X-Emisell-Merchant-ID: "{{merchant_id}}"
+  Idempotency-Key: cancel-{{$guid}}
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "requested_by_customer"
+    }
+examples: ./.resources/Cancel payment.resources/examples
+order: 4000

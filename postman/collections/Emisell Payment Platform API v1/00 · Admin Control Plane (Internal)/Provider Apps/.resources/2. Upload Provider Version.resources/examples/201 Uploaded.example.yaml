@@ -1,0 +1,33 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/api/v1/admin/provider-app-providers/{{provider_app_code}}/versions"
+  method: POST
+  headers:
+    X-Admin-API-Key: "{{admin_api_key}}"
+  body:
+    type: formdata
+    content:
+      - type: file
+        key: bundle
+        src:
+          - ""
+        description: Pilih Provider App .zip maksimum 25 MB
+response:
+  statusCode: 201
+  statusText: Created
+  body:
+    type: text
+    content: |-
+      {
+        "data": {
+          "id": "papp_01k...",
+          "provider_code": "midtrans",
+          "provider_name": "Midtrans",
+          "version": "0.1.0",
+          "status": "UPLOADED",
+          "runtime": "isolated_container",
+          "artifact_sha256": "a791f4...9d2c",
+          "scan_report": { "passed": true, "file_count": 3 }
+        }
+      }
+order: 1000
