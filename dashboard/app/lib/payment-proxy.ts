@@ -13,6 +13,7 @@ export type Provider = {
   name: string;
   description: string;
   available: boolean;
+  has_logo: boolean;
   connector_code: string;
   credential_schema: CredentialField[];
   environments: string[];
@@ -88,6 +89,7 @@ export type ProviderAppProvider = {
   website_url?: string;
   documentation_url?: string;
   support_email?: string;
+  has_logo: boolean;
   status: "DRAFT" | "ACTIVE" | "DISABLED";
   version_count: number;
   active_version?: string;
@@ -467,10 +469,25 @@ export function createProviderAppProvider(actor: string, input: {
   website_url: string;
   documentation_url: string;
   support_email: string;
-}) {
+}, logo?: File) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(input)) form.set(key, value);
+  if (logo) form.set("logo", logo, logo.name);
   return adminRequest<ProviderAppProvider>("/api/v1/admin/provider-app-providers", actor, {
     method: "POST",
-    body: JSON.stringify(input),
+    body: form,
+  });
+}
+
+export function transitionProviderAppProvider(
+  actor: string,
+  providerCode: string,
+  expectedStatus: ProviderAppProvider["status"],
+  status: ProviderAppProvider["status"],
+) {
+  return adminRequest<ProviderAppProvider>(`/api/v1/admin/provider-app-providers/${encodeURIComponent(providerCode)}/transition`, actor, {
+    method: "POST",
+    body: JSON.stringify({ expected_status: expectedStatus, status }),
   });
 }
 

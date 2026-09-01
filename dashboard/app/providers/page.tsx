@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { AppSidebar, AppTopbar, Icon } from "../components/app-shell";
 import { BrandLogo } from "../components/brand-logo";
+import { ProviderCreateDialog } from "../components/management/provider-app-manager";
 import { getReadiness } from "../lib/readiness";
-import { listProviders } from "../lib/payment-proxy";
+import { listProviderAppProviders, listProviders } from "../lib/payment-proxy";
 import { requireDashboardSession } from "../lib/session";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +12,9 @@ export default async function ProvidersPage() {
   const session = await requireDashboardSession("/providers");
   const health = await getReadiness();
   const healthy = health.status === "ready";
-  const providersResult = await listProviders(session.subject).then((value) => ({ status: "fulfilled" as const, value })).catch((reason: unknown) => ({ status: "rejected" as const, reason }));
+  const [providersResult, registryResult] = await Promise.allSettled([listProviders(session.subject), listProviderAppProviders(session.subject)]);
   const providers = providersResult.status === "fulfilled" ? providersResult.value : [];
+  const registryProviders = registryResult.status === "fulfilled" ? registryResult.value : [];
   const providerCatalog = [...providers].sort((left, right) => Number(right.available) - Number(left.available) || left.name.localeCompare(right.name));
   const paymentMethods = new Set(providers.flatMap((provider) => provider.payment_methods));
   const dataError = providersResult.status === "rejected";
@@ -24,6 +26,7 @@ export default async function ProvidersPage() {
         <main className="dashboard-content management-content">
           <section className="dashboard-heading">
             <div><p className="breadcrumb">Control plane / Providers</p><h1>Providers</h1><p>Kelola catalog, shared runtime, payment capability, verifikasi backend, dan release provider yang tersedia untuk merchant.</p></div>
+            <ProviderCreateDialog/>
           </section>
           {dataError && <div className="dashboard-alert error"><strong>Provider registry belum dapat dimuat.</strong><span>Periksa koneksi server dashboard ke Payment Proxy.</span></div>}
           <section className="management-metrics">
@@ -34,13 +37,15 @@ export default async function ProvidersPage() {
           </section>
           <section className="provider-catalog">
             {providerCatalog.map((provider) => {
-              return <article className={`catalog-card ${provider.available ? "available" : "planned"}`} key={provider.code}>
-                <div className="catalog-card-head"><BrandLogo code={provider.code} label={provider.name} className={`catalog-logo ${provider.code}`}/><div><h2>{provider.name}</h2><span className={`availability-badge ${provider.available ? "available" : "planned"}`}><i/>{provider.available ? "Available" : "Planned"}</span></div><Link aria-label={`Open ${provider.name}`} href={`/providers/${provider.code}`}><Icon name="arrow" size={15}/></Link></div>
+              const registry = registryProviders.find((item) => item.provider_code === provider.code);
+              const disabled = registry?.status === "DISABLED";
+              return <article className={`catalog-card ${disabled ? "disabled" : provider.available ? "available" : "planned"}`} key={provider.code}>
+                <div className="catalog-card-head"><BrandLogo code={provider.code} label={provider.name} customSrc={provider.has_logo ? `/api/provider-assets/${encodeURIComponent(provider.code)}/logo` : undefined} className={`catalog-logo ${provider.code}`}/><div><h2>{provider.name}</h2><span className={`availability-badge ${disabled ? "disabled" : provider.available ? "available" : "planned"}`}><i/>{disabled ? "Disabled" : provider.available ? "Available" : "Planned"}</span></div><Link aria-label={`Open ${provider.name}`} href={`/providers/${provider.code}`}><Icon name="arrow" size={15}/></Link></div>
                 <p>{provider.description}</p>
                 <div className="catalog-section"><span>PAYMENT METHODS · {provider.payment_methods.length}</span><div>{provider.payment_methods.slice(0, 6).map((method) => <b key={method}>{method.replaceAll("_", " ").toUpperCase()}</b>)}{provider.payment_methods.length > 6 && <b>+{provider.payment_methods.length - 6} MORE</b>}</div></div>
-                <div className="catalog-details"><span><small>Connector</small><strong>{provider.connector_code || provider.code}</strong></span><span><small>Merchant setup schema</small><strong>{provider.credential_schema.length} fields</strong></span><span><small>Catalog status</small><strong>{provider.available ? "Installable" : "Not published"}</strong></span></div>
-                <div className="catalog-certification"><Icon name={provider.available ? "check" : "activity"} size={15}/><span><strong>{provider.available ? "Verified capabilities" : "Verification pending"}</strong><small>{provider.available ? "Backend verification evidence is available in provider detail" : "Unavailable until the provider release passes backend verification"}</small></span>{provider.available && <Link href={`/providers/${provider.code}?tab=methods`}>Capabilities →</Link>}</div>
-                <Link className="catalog-action" href={`/providers/${encodeURIComponent(provider.code)}`}>{provider.available ? "Manage provider" : "View provider roadmap"}<Icon name="arrow" size={15}/></Link>
+                <div className="catalog-details"><span><small>Connector</small><strong>{provider.connector_code || provider.code}</strong></span><span><small>Merchant setup schema</small><strong>{provider.credential_schema.length} fields</strong></span><span><small>Catalog status</small><strong>{disabled ? "Disabled" : provider.available ? "Installable" : "Not published"}</strong></span></div>
+                <div className="catalog-certification"><Icon name={provider.available ? "check" : "activity"} size={15}/><span><strong>{disabled ? "Provider disabled" : provider.available ? "Verified capabilities" : "Verification pending"}</strong><small>{disabled ? "Tidak tersedia untuk installation baru; data dan release lama tetap disimpan" : provider.available ? "Backend verification evidence is available in provider detail" : "Unavailable until the provider release passes backend verification"}</small></span>{(provider.available || disabled) && <Link href={`/providers/${provider.code}?tab=methods`}>Capabilities →</Link>}</div>
+                <Link className="catalog-action" href={`/providers/${encodeURIComponent(provider.code)}`}>{disabled ? "Review provider" : provider.available ? "Manage provider" : "View provider roadmap"}<Icon name="arrow" size={15}/></Link>
               </article>;
             })}
           </section>

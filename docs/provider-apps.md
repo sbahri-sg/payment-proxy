@@ -45,21 +45,25 @@ adalah identitas permanen dan tidak berasal bebas dari setiap ZIP.
 ```http
 POST {{base_url}}/api/v1/admin/provider-app-providers
 X-Admin-API-Key: {{admin_api_key}}
-Content-Type: application/json
+Content-Type: multipart/form-data
 ```
 
 Contoh request Postman:
 
-```json
-{
-  "provider_code": "midtrans",
-  "provider_name": "Midtrans",
-  "description": "Midtrans payment connector for Emisell merchants.",
-  "website_url": "https://midtrans.com",
-  "documentation_url": "https://docs.midtrans.com",
-  "support_email": "support@midtrans.com"
-}
+```text
+KEY                TYPE    VALUE
+provider_code      Text    midtrans
+provider_name      Text    Midtrans
+description        Text    Midtrans payment connector for Emisell merchants.
+website_url        Text    https://midtrans.com
+documentation_url  Text    https://docs.midtrans.com
+support_email      Text    support@midtrans.com
+logo               File    midtrans.png
 ```
+
+`logo` bersifat opsional. Format yang diterima adalah PNG atau JPEG maksimum
+512 KB dengan dimensi paling besar 2048×2048 piksel. Logo disimpan di database,
+bukan di filesystem container, sehingga tetap tersedia setelah restart atau deploy.
 
 Contoh response `201 Created`:
 
@@ -79,6 +83,31 @@ Contoh response `201 Created`:
 
 Saat upload, validator memastikan `manifest.code` dan `manifest.name` sama
 dengan provider pada URL. Bundle tidak dapat menyamar sebagai provider lain.
+
+### Disable atau enable provider
+
+Provider yang tidak boleh dipakai untuk installation baru dinonaktifkan melalui
+registry, bukan dihapus. Release immutable, installation merchant, transaksi,
+webhook, dan audit lama tetap disimpan.
+
+```http
+POST {{base_url}}/api/v1/admin/provider-app-providers/{{provider_app_code}}/transition
+X-Admin-API-Key: {{admin_api_key}}
+Content-Type: application/json
+```
+
+Disable provider aktif:
+
+```json
+{
+  "expected_status": "ACTIVE",
+  "status": "DISABLED"
+}
+```
+
+Enable kembali memakai `ACTIVE` bila provider sudah memiliki release published,
+atau `DRAFT` bila belum pernah dipublish. Optimistic `expected_status` mencegah
+perubahan admin yang bersamaan saling menimpa.
 
 ## Submission contract v1
 

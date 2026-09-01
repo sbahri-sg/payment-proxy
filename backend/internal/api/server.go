@@ -1,12 +1,15 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log/slog"
 	"net"
@@ -37,7 +40,9 @@ import (
 )
 
 const (
-	maxRequestBody = 1 << 20
+	maxRequestBody       = 1 << 20
+	maxProviderLogoBytes = 512 << 10
+	maxProviderLogoSide  = 2048
 	// apiContractVersion is descriptive metadata returned by readiness and
 	// capability resources. Request versioning is defined solely by /api/v1.
 	apiContractVersion = "2026-08-28"
@@ -108,6 +113,7 @@ func New(cfg config.Config, database *store.Postgres, engine Engine, cipher *sec
 			r.Get("/engine/capabilities", s.engineCapabilities)
 			r.Get("/integration-readiness", s.integrationReadiness)
 			r.Get("/providers", s.listProviders)
+			r.Get("/provider-assets/{providerCode}/logo", s.providerLogo)
 			r.Get("/payment-methods", s.listPaymentMethods)
 			r.Get("/provider-installations", s.listInstallations)
 			r.Post("/provider-installations", s.createInstallation)
@@ -152,6 +158,7 @@ func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Get("/provider-app-providers", s.listProviderAppProviders)
 	r.Post("/provider-app-providers", s.createProviderAppProvider)
 	r.Get("/provider-app-providers/{providerCode}", s.getProviderAppProvider)
+	r.Post("/provider-app-providers/{providerCode}/transition", s.transitionProviderAppProvider)
 	r.Get("/provider-app-providers/{providerCode}/versions", s.listProviderAppVersions)
 	r.Post("/provider-app-providers/{providerCode}/versions", s.uploadProviderAppVersion)
 	r.Get("/connector-certifications", s.listConnectorCertifications)
@@ -418,7 +425,38 @@ type createProviderAppProviderRequest struct {
 
 func (s *Server) createProviderAppProvider(w http.ResponseWriter, r *http.Request) {
 	var request createProviderAppProviderRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	var logo []byte
+	var logoContentType string
+	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+		if err := r.ParseMultipartForm(maxRequestBody); err != nil {
+			problem(w, http.StatusBadRequest, "INVALID_PROVIDER_FORM", "provider form is invalid or too large")
+			return
+		}
+		request = createProviderAppProviderRequest{
+			ProviderCode: r.FormValue("provider_code"), ProviderName: r.FormValue("provider_name"),
+			Description: r.FormValue("description"), WebsiteURL: r.FormValue("website_url"),
+			DocumentationURL: r.FormValue("documentation_url"), SupportEmail: r.FormValue("support_email"),
+		}
+		file, header, err := r.FormFile("logo")
+		if err != nil && !errors.Is(err, http.ErrMissingFile) {
+			problem(w, http.StatusUnprocessableEntity, "INVALID_PROVIDER_LOGO", "provider logo could not be read")
+			return
+		}
+		if err == nil {
+			defer file.Close()
+			logo, err = io.ReadAll(io.LimitReader(file, maxProviderLogoBytes+1))
+			if err != nil {
+				problem(w, http.StatusUnprocessableEntity, "INVALID_PROVIDER_LOGO", "provider logo could not be read")
+				return
+			}
+			logoContentType, err = validateProviderLogo(logo, header.Header.Get("Content-Type"))
+			if err != nil {
+				problem(w, http.StatusUnprocessableEntity, "INVALID_PROVIDER_LOGO", err.Error())
+				return
+			}
+		}
+	} else if err := decodeJSON(w, r, &request); err != nil {
 		return
 	}
 	request.ProviderCode = strings.ToLower(strings.TrimSpace(request.ProviderCode))
@@ -445,13 +483,105 @@ func (s *Server) createProviderAppProvider(w http.ResponseWriter, r *http.Reques
 	item, err := s.store.CreateProviderAppProvider(r.Context(), store.CreateProviderAppProviderInput{
 		ProviderCode: request.ProviderCode, ProviderName: request.ProviderName, Description: request.Description,
 		WebsiteURL: request.WebsiteURL, DocumentationURL: request.DocumentationURL, SupportEmail: request.SupportEmail,
-		Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+		Logo: logo, LogoContentType: logoContentType, Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
 	})
 	if err != nil {
 		s.storeError(w, r, err)
 		return
 	}
 	writeData(w, http.StatusCreated, item)
+}
+
+func validateProviderLogo(data []byte, declaredContentType string) (string, error) {
+	if len(data) == 0 {
+		return "", errors.New("provider logo is empty")
+	}
+	if len(data) > maxProviderLogoBytes {
+		return "", errors.New("provider logo must not exceed 512 KB")
+	}
+	detected := http.DetectContentType(data)
+	declared := strings.ToLower(strings.TrimSpace(strings.Split(declaredContentType, ";")[0]))
+	if declared == "image/jpg" {
+		declared = "image/jpeg"
+	}
+	if declared != "" && declared != "application/octet-stream" && declared != detected {
+		return "", errors.New("provider logo content does not match its file type")
+	}
+	var width, height int
+	switch detected {
+	case "image/png":
+		config, err := png.DecodeConfig(bytes.NewReader(data))
+		if err != nil {
+			return "", errors.New("provider logo is not a valid PNG image")
+		}
+		width, height = config.Width, config.Height
+	case "image/jpeg":
+		config, err := jpeg.DecodeConfig(bytes.NewReader(data))
+		if err != nil {
+			return "", errors.New("provider logo is not a valid JPEG image")
+		}
+		width, height = config.Width, config.Height
+	default:
+		return "", errors.New("provider logo must be a PNG or JPEG image")
+	}
+	if width < 1 || height < 1 || width > maxProviderLogoSide || height > maxProviderLogoSide {
+		return "", errors.New("provider logo dimensions must be between 1 and 2048 pixels")
+	}
+	return detected, nil
+}
+
+func (s *Server) providerLogo(w http.ResponseWriter, r *http.Request) {
+	providerCode := strings.ToLower(strings.TrimSpace(chi.URLParam(r, "providerCode")))
+	if !regexp.MustCompile(`^[a-z0-9_-]{2,48}$`).MatchString(providerCode) {
+		problem(w, http.StatusNotFound, "PROVIDER_LOGO_NOT_FOUND", "provider logo was not found")
+		return
+	}
+	logo, contentType, err := s.store.GetProviderLogo(r.Context(), providerCode)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			problem(w, http.StatusNotFound, "PROVIDER_LOGO_NOT_FOUND", "provider logo was not found")
+			return
+		}
+		s.internal(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(logo)
+}
+
+type providerAppProviderTransitionRequest struct {
+	ExpectedStatus string `json:"expected_status"`
+	Status         string `json:"status"`
+}
+
+func (s *Server) transitionProviderAppProvider(w http.ResponseWriter, r *http.Request) {
+	providerCode := strings.ToLower(strings.TrimSpace(chi.URLParam(r, "providerCode")))
+	var request providerAppProviderTransitionRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		return
+	}
+	request.ExpectedStatus = strings.ToUpper(strings.TrimSpace(request.ExpectedStatus))
+	request.Status = strings.ToUpper(strings.TrimSpace(request.Status))
+	if !regexp.MustCompile(`^[a-z0-9_-]{2,48}$`).MatchString(providerCode) ||
+		!validProviderRegistryStatus(request.ExpectedStatus) || !validProviderRegistryStatus(request.Status) {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_PROVIDER_STATUS", "provider code, expected_status, or status is invalid")
+		return
+	}
+	item, err := s.store.TransitionProviderAppProvider(r.Context(), store.TransitionProviderAppProviderInput{
+		ProviderCode: providerCode, ExpectedStatus: request.ExpectedStatus, Status: request.Status,
+		Actor: actor(r), RequestID: middleware.GetReqID(r.Context()),
+	})
+	if err != nil {
+		s.storeError(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, item)
+}
+
+func validProviderRegistryStatus(status string) bool {
+	return status == "DRAFT" || status == "ACTIVE" || status == "DISABLED"
 }
 
 func optionalPublicHTTPSURL(value string) bool {

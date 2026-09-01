@@ -3,6 +3,9 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +19,32 @@ import (
 	"github.com/emisell/api-payment-proxy/internal/ratelimit"
 	"github.com/go-chi/chi/v5/middleware"
 )
+
+func TestValidateProviderLogo(t *testing.T) {
+	var valid bytes.Buffer
+	if err := png.Encode(&valid, image.NewRGBA(image.Rect(0, 0, 64, 64))); err != nil {
+		t.Fatal(err)
+	}
+	if contentType, err := validateProviderLogo(valid.Bytes(), "image/png"); err != nil || contentType != "image/png" {
+		t.Fatalf("valid PNG rejected: %q, %v", contentType, err)
+	}
+	if _, err := validateProviderLogo(valid.Bytes(), "image/jpeg"); err == nil {
+		t.Fatal("mismatched declared content type was accepted")
+	}
+	if _, err := validateProviderLogo([]byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`), "image/svg+xml"); err == nil {
+		t.Fatal("SVG logo was accepted")
+	}
+
+	var oversizedDimension bytes.Buffer
+	large := image.NewRGBA(image.Rect(0, 0, maxProviderLogoSide+1, 1))
+	large.Set(0, 0, color.RGBA{R: 255, A: 255})
+	if err := png.Encode(&oversizedDimension, large); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateProviderLogo(oversizedDimension.Bytes(), "image/png"); err == nil {
+		t.Fatal("oversized logo dimensions were accepted")
+	}
+}
 
 func TestXenditCredentialMetadataContainsNoSecret(t *testing.T) {
 	input := map[string]string{"api_key": "xnd_development_12345678"}
@@ -204,6 +233,19 @@ func TestPaymentOptionContract(t *testing.T) {
 	for _, status := range []string{"", "DISABLED", "UNKNOWN"} {
 		if assignablePaymentMethodCapability(status) {
 			t.Fatalf("non-assignable capability status %q was accepted", status)
+		}
+	}
+}
+
+func TestProviderRegistryStatusAllowlist(t *testing.T) {
+	for _, status := range []string{"DRAFT", "ACTIVE", "DISABLED"} {
+		if !validProviderRegistryStatus(status) {
+			t.Fatalf("valid provider registry status %q was rejected", status)
+		}
+	}
+	for _, status := range []string{"", "PUBLISHED", "DELETED", "disabled"} {
+		if validProviderRegistryStatus(status) {
+			t.Fatalf("invalid provider registry status %q was accepted", status)
 		}
 	}
 }

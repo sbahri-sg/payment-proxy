@@ -324,24 +324,22 @@
                     "key": "X-Admin-API-Key",
                     "value": "{{admin_api_key}}",
                     "type": "text"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json",
-                    "type": "text"
                   }
                 ],
                 "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"provider_code\": \"{{provider_app_code}}\",\n  \"provider_name\": \"Connector Demo\",\n  \"description\": \"Provider connector registered before ZIP submission.\",\n  \"website_url\": \"https://example.com\",\n  \"documentation_url\": \"https://example.com/docs\",\n  \"support_email\": \"support@example.com\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "provider_code", "value": "{{provider_app_code}}", "type": "text" },
+                    { "key": "provider_name", "value": "Connector Demo", "type": "text" },
+                    { "key": "description", "value": "Provider connector registered before ZIP submission.", "type": "text" },
+                    { "key": "website_url", "value": "https://example.com", "type": "text" },
+                    { "key": "documentation_url", "value": "https://example.com/docs", "type": "text" },
+                    { "key": "support_email", "value": "support@example.com", "type": "text" },
+                    { "key": "logo", "type": "file", "src": "", "description": "Optional PNG/JPG maksimum 512 KB dan 2048×2048 piksel" }
+                  ]
                 },
                 "url": "{{base_url}}/api/v1/admin/provider-app-providers",
-                "description": "Provider code menjadi identitas permanen. Nama dan code manifest ZIP berikutnya wajib cocok."
+                "description": "Provider code menjadi identitas permanen. Logo opsional disimpan di database; nama dan code manifest ZIP berikutnya wajib cocok."
               },
               "response": [
                 {
@@ -571,6 +569,50 @@
                   "body": "{\n  \"data\": []\n}"
                 }
               ]
+            },
+            {
+              "name": "8. Disable or Enable Provider",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Provider registry transitioned', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Admin-API-Key",
+                    "value": "{{admin_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"expected_status\": \"ACTIVE\",\n  \"status\": \"DISABLED\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/api/v1/admin/provider-app-providers/{{provider_app_code}}/transition",
+                "description": "Menonaktifkan provider untuk installation baru tanpa menghapus release, installation, transaksi, webhook, atau audit historis. Untuk enable kembali, gunakan ACTIVE bila release published tersedia atau DRAFT bila belum pernah dipublish."
+              },
+              "response": []
             }
           ]
         },

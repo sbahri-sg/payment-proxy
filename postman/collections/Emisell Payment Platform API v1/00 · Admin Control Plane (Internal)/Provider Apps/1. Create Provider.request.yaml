@@ -1,21 +1,35 @@
 $kind: http-request
-description: Provider code menjadi identitas permanen. Nama dan code manifest ZIP berikutnya wajib cocok.
+description: Provider code menjadi identitas permanen. Logo opsional disimpan di database; nama dan code manifest ZIP berikutnya wajib cocok.
 url: "{{base_url}}/api/v1/admin/provider-app-providers"
 method: POST
 headers:
   X-Admin-API-Key: "{{admin_api_key}}"
-  Content-Type: application/json
 body:
-  type: json
-  content: |-
-    {
-      "provider_code": "{{provider_app_code}}",
-      "provider_name": "Connector Demo",
-      "description": "Provider connector registered before ZIP submission.",
-      "website_url": "https://example.com",
-      "documentation_url": "https://example.com/docs",
-      "support_email": "support@example.com"
-    }
+  type: formdata
+  content:
+    - type: text
+      key: provider_code
+      value: "{{provider_app_code}}"
+    - type: text
+      key: provider_name
+      value: Connector Demo
+    - type: text
+      key: description
+      value: Provider connector registered before ZIP submission.
+    - type: text
+      key: website_url
+      value: https://example.com
+    - type: text
+      key: documentation_url
+      value: https://example.com/docs
+    - type: text
+      key: support_email
+      value: support@example.com
+    - type: file
+      key: logo
+      src:
+        - ""
+      description: Optional PNG/JPG maksimum 512 KB dan 2048×2048 piksel
 auth:
   type: noauth
 scripts:

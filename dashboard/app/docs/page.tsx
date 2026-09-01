@@ -324,15 +324,17 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
     summary: "Provider-first control plane: daftarkan identitas provider, lalu upload, validasi, verifikasi otomatis, dan publish versi connector miliknya.",
     endpoints: [
       {
-        method: "POST", path: "/api/v1/admin/provider-app-providers", title: "Create provider identity", description: "Mendaftarkan provider terlebih dahulu. Provider code menjadi identitas permanen dan nama/code di setiap manifest ZIP berikutnya wajib sama.",
-        body: `{
-  "provider_code": "midtrans",
-  "provider_name": "Midtrans",
-  "description": "Midtrans payment connector for Emisell merchants.",
-  "website_url": "https://midtrans.com",
-  "documentation_url": "https://docs.midtrans.com",
-  "support_email": "support@midtrans.com"
-}`,
+        method: "POST", path: "/api/v1/admin/provider-app-providers", title: "Create provider identity", description: "Mendaftarkan provider beserta logo opsional terlebih dahulu. Provider code menjadi identitas permanen dan nama/code di setiap manifest ZIP berikutnya wajib sama.",
+        headers: ["Content-Type: multipart/form-data"],
+        body: `Postman → Body → form-data
+KEY                TYPE    VALUE
+provider_code      Text    midtrans
+provider_name      Text    Midtrans
+description        Text    Midtrans payment connector for Emisell merchants.
+website_url        Text    https://midtrans.com
+documentation_url  Text    https://docs.midtrans.com
+support_email      Text    support@midtrans.com
+logo               File    midtrans.png`,
         response: `{ "data": {
   "provider_code": "midtrans",
   "provider_name": "Midtrans",
@@ -340,11 +342,17 @@ emisell_provider_webhooks_total{outcome="duplicate"} 3`,
   "version_count": 0,
   "created_by": "payment-proxy-admin"
 } }`,
-        note: "Credential merchant/API key tidak dibuat di tahap ini. Credential tetap dimasukkan per installation dan disimpan terenkripsi.",
+        note: "Logo opsional harus PNG/JPG maksimum 512 KB dan 2048×2048 piksel. Credential merchant/API key tidak dibuat di tahap ini; credential tetap dimasukkan per installation dan disimpan terenkripsi.",
       },
       {
         method: "GET", path: "/api/v1/admin/provider-app-providers", title: "List registered providers", description: "Menampilkan satu record per provider beserta active version, latest version/status, dan jumlah immutable version. Riwayat versi tidak lagi terlihat sebagai provider duplikat.",
         response: `{ "data": [{ "provider_code": "midtrans", "provider_name": "Midtrans", "status": "ACTIVE", "version_count": 3, "active_version": "emisell-midtrans-v1.2.0", "latest_version": "emisell-midtrans-v1.2.0", "latest_status": "PUBLISHED" }] }`,
+      },
+      {
+        method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/transition", title: "Disable or enable provider", description: "Menonaktifkan provider dari catalog installation baru tanpa menghapus release immutable, installation merchant, transaksi, webhook, atau audit lama. Provider dapat di-enable kembali.",
+        body: `{ "expected_status": "ACTIVE", "status": "DISABLED" }`,
+        response: `{ "data": { "provider_code": "midtrans", "provider_name": "Midtrans", "status": "DISABLED", "active_version": "emisell-midtrans-v1.2.0" } }`,
+        note: "Untuk enable, gunakan ACTIVE bila release published tersedia atau DRAFT bila provider belum pernah dipublish. Existing active installations tetap tersimpan dan dapat terus memproses payment.",
       },
       {
         method: "POST", path: "/api/v1/admin/provider-app-providers/{providerCode}/versions", title: "Upload provider version", description: "Menerima submission ZIP maksimum 25 MB. Root emisell-extension.yaml, openapi.yaml, safe paths, secret scan, SDK contract, credential schema, payment methods, dan outbound host divalidasi; code/name manifest harus cocok dengan provider pada URL. Native runtime binary ditolak.",
@@ -1124,6 +1132,10 @@ const backendGroups: Group[] = [
     excludeTitles: ["Upgrade Provider App"],
     title: "Merchant Provider Connections",
     summary: "Lifecycle koneksi merchant: Install → Configure/Verify → Activate. Sandbox dan Live adalah dua slot connection yang terpisah.",
+  }),
+  scopedGroup("payment-options", {
+    title: "Payment Methods",
+    summary: "GET /payment-methods adalah katalog global canonical. Assignment dan /payment-options dipakai hanya bila Emisell memilih flow direct-channel; hosted checkout tetap memilih channel di halaman provider.",
   }),
   scopedGroup("payments", {
     includeTitles: ["Create provider checkout", "Get payment", "Cancel payment"],

@@ -43,7 +43,8 @@ const providerAppSelect = `
 `
 
 const providerAppProviderSelect = `
-	SELECT r.provider_code,p.name,p.description,r.website_url,r.documentation_url,r.support_email,r.status,
+	SELECT r.provider_code,p.name,p.description,r.website_url,r.documentation_url,r.support_email,
+	       (r.logo_content_type <> ''),r.status,
 	       count(v.id)::int,
 	       COALESCE(max(v.version) FILTER (WHERE v.status='PUBLISHED'),''),
 	       COALESCE(latest.version,''),COALESCE(latest.status,''),
@@ -60,6 +61,8 @@ const providerAppProviderSelect = `
 
 type CreateProviderAppProviderInput struct {
 	ProviderCode, ProviderName, Description, WebsiteURL, DocumentationURL, SupportEmail, Actor, RequestID string
+	Logo                                                                                                  []byte
+	LogoContentType                                                                                       string
 }
 
 func (s *Postgres) CreateProviderAppProvider(ctx context.Context, in CreateProviderAppProviderInput) (model.ProviderAppProvider, error) {
@@ -95,13 +98,14 @@ func (s *Postgres) CreateProviderAppProvider(ctx context.Context, in CreateProvi
 		return model.ProviderAppProvider{}, translateConstraint(err)
 	}
 	if _, err = tx.Exec(ctx, `
-		INSERT INTO provider_app_providers(provider_code,website_url,documentation_url,support_email,created_by,updated_by)
-		VALUES($1,$2,$3,$4,$5,$5)
-	`, in.ProviderCode, in.WebsiteURL, in.DocumentationURL, in.SupportEmail, in.Actor); err != nil {
+		INSERT INTO provider_app_providers(
+			provider_code,website_url,documentation_url,support_email,logo,logo_content_type,created_by,updated_by
+		) VALUES($1,$2,$3,$4,COALESCE($5,''::bytea),$6,$7,$7)
+	`, in.ProviderCode, in.WebsiteURL, in.DocumentationURL, in.SupportEmail, in.Logo, in.LogoContentType, in.Actor); err != nil {
 		return model.ProviderAppProvider{}, translateConstraint(err)
 	}
 	if err = audit(ctx, tx, "", in.Actor, "provider_app.provider.create", "provider", in.ProviderCode, in.RequestID, map[string]any{
-		"provider_code": in.ProviderCode, "provider_name": in.ProviderName,
+		"provider_code": in.ProviderCode, "provider_name": in.ProviderName, "has_logo": len(in.Logo) > 0,
 	}); err != nil {
 		return model.ProviderAppProvider{}, err
 	}
@@ -113,7 +117,7 @@ func (s *Postgres) CreateProviderAppProvider(ctx context.Context, in CreateProvi
 
 func (s *Postgres) ListProviderAppProviders(ctx context.Context) ([]model.ProviderAppProvider, error) {
 	rows, err := s.pool.Query(ctx, providerAppProviderSelect+`
-		GROUP BY r.provider_code,p.name,p.description,r.website_url,r.documentation_url,r.support_email,r.status,
+		GROUP BY r.provider_code,p.name,p.description,r.website_url,r.documentation_url,r.support_email,r.logo_content_type,r.status,
 		         latest.version,latest.status,r.created_by,r.updated_by,r.created_at,r.updated_at
 		ORDER BY r.updated_at DESC,r.provider_code
 	`)
@@ -135,19 +139,100 @@ func (s *Postgres) ListProviderAppProviders(ctx context.Context) ([]model.Provid
 func (s *Postgres) GetProviderAppProvider(ctx context.Context, providerCode string) (model.ProviderAppProvider, error) {
 	item, err := scanProviderAppProvider(s.pool.QueryRow(ctx, providerAppProviderSelect+`
 		WHERE r.provider_code=$1
-		GROUP BY r.provider_code,p.name,p.description,r.website_url,r.documentation_url,r.support_email,r.status,
+		GROUP BY r.provider_code,p.name,p.description,r.website_url,r.documentation_url,r.support_email,r.logo_content_type,r.status,
 		         latest.version,latest.status,r.created_by,r.updated_by,r.created_at,r.updated_at
 	`, providerCode))
 	return item, translateNotFound(err)
 }
 
+type TransitionProviderAppProviderInput struct {
+	ProviderCode, ExpectedStatus, Status, Actor, RequestID string
+}
+
+func (s *Postgres) TransitionProviderAppProvider(ctx context.Context, in TransitionProviderAppProviderInput) (model.ProviderAppProvider, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return model.ProviderAppProvider{}, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('provider-app:' || $1,0))`, in.ProviderCode); err != nil {
+		return model.ProviderAppProvider{}, err
+	}
+	var currentStatus string
+	if err = tx.QueryRow(ctx, `
+		SELECT status FROM provider_app_providers WHERE provider_code=$1 FOR UPDATE
+	`, in.ProviderCode).Scan(&currentStatus); err != nil {
+		return model.ProviderAppProvider{}, translateNotFound(err)
+	}
+	if currentStatus != in.ExpectedStatus || !validProviderAppProviderTransition(currentStatus, in.Status) {
+		return model.ProviderAppProvider{}, ErrInvalidState
+	}
+	var hasPublishedRelease, hasReleasedVersion bool
+	if err = tx.QueryRow(ctx, `
+		SELECT EXISTS(
+		           SELECT 1 FROM provider_app_versions
+		           WHERE provider_code=$1 AND status='PUBLISHED'
+	       ),
+	       EXISTS(
+		           SELECT 1 FROM provider_versions
+		           WHERE provider_code=$1 AND status='RELEASED'
+	       )
+	`, in.ProviderCode).Scan(&hasPublishedRelease, &hasReleasedVersion); err != nil {
+		return model.ProviderAppProvider{}, err
+	}
+	if (in.Status == "ACTIVE" && (!hasPublishedRelease || !hasReleasedVersion)) || (in.Status == "DRAFT" && hasPublishedRelease) {
+		return model.ProviderAppProvider{}, ErrInvalidState
+	}
+	if _, err = tx.Exec(ctx, `
+		UPDATE provider_app_providers
+		SET status=$2,updated_by=$3,updated_at=now()
+		WHERE provider_code=$1
+	`, in.ProviderCode, in.Status, in.Actor); err != nil {
+		return model.ProviderAppProvider{}, err
+	}
+	if _, err = tx.Exec(ctx, `
+		UPDATE providers SET available=($2='ACTIVE'),updated_at=now() WHERE code=$1
+	`, in.ProviderCode, in.Status); err != nil {
+		return model.ProviderAppProvider{}, err
+	}
+	if err = audit(ctx, tx, "", in.Actor, "provider_app.provider.transition", "provider", in.ProviderCode, in.RequestID, map[string]any{
+		"previous_status": currentStatus, "status": in.Status,
+	}); err != nil {
+		return model.ProviderAppProvider{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return model.ProviderAppProvider{}, err
+	}
+	return s.GetProviderAppProvider(ctx, in.ProviderCode)
+}
+
+func validProviderAppProviderTransition(from, to string) bool {
+	switch from + ":" + to {
+	case "DRAFT:DISABLED", "ACTIVE:DISABLED", "DISABLED:DRAFT", "DISABLED:ACTIVE":
+		return true
+	default:
+		return false
+	}
+}
+
 func scanProviderAppProvider(row providerAppScanner) (model.ProviderAppProvider, error) {
 	var item model.ProviderAppProvider
 	err := row.Scan(&item.ProviderCode, &item.ProviderName, &item.Description, &item.WebsiteURL,
-		&item.DocumentationURL, &item.SupportEmail, &item.Status, &item.VersionCount,
+		&item.DocumentationURL, &item.SupportEmail, &item.HasLogo, &item.Status, &item.VersionCount,
 		&item.ActiveVersion, &item.LatestVersion, &item.LatestStatus, &item.CreatedBy,
 		&item.UpdatedBy, &item.CreatedAt, &item.UpdatedAt)
 	return item, err
+}
+
+func (s *Postgres) GetProviderLogo(ctx context.Context, providerCode string) ([]byte, string, error) {
+	var logo []byte
+	var contentType string
+	err := s.pool.QueryRow(ctx, `
+		SELECT logo,logo_content_type
+		FROM provider_app_providers
+		WHERE provider_code=$1 AND logo_content_type<>''
+	`, providerCode).Scan(&logo, &contentType)
+	return logo, contentType, translateNotFound(err)
 }
 
 type CreateProviderAppInput struct {
@@ -273,16 +358,26 @@ func (s *Postgres) TransitionProviderApp(ctx context.Context, in ProviderAppTran
 	}
 	defer tx.Rollback(ctx)
 	var providerCode, previousStatus string
-	if err = tx.QueryRow(ctx, `SELECT provider_code,status FROM provider_app_versions WHERE id=$1 FOR UPDATE`, in.ID).Scan(&providerCode, &previousStatus); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT provider_code FROM provider_app_versions WHERE id=$1`, in.ID).Scan(&providerCode); err != nil {
+		return model.ProviderAppVersion{}, translateNotFound(err)
+	}
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('provider-app:' || $1,0))`, providerCode); err != nil {
+		return model.ProviderAppVersion{}, err
+	}
+	if err = tx.QueryRow(ctx, `SELECT status FROM provider_app_versions WHERE id=$1 AND provider_code=$2 FOR UPDATE`, in.ID, providerCode).Scan(&previousStatus); err != nil {
 		return model.ProviderAppVersion{}, translateNotFound(err)
 	}
 	if previousStatus != in.ExpectedStatus || !validProviderAppTransition(previousStatus, in.Status) {
 		return model.ProviderAppVersion{}, ErrInvalidState
 	}
+	var registryStatus string
+	if err = tx.QueryRow(ctx, `SELECT status FROM provider_app_providers WHERE provider_code=$1`, providerCode).Scan(&registryStatus); err != nil {
+		return model.ProviderAppVersion{}, translateNotFound(err)
+	}
+	if registryStatus == "DISABLED" {
+		return model.ProviderAppVersion{}, ErrInvalidState
+	}
 	if in.Status == "PUBLISHED" {
-		if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('provider-app:' || $1,0))`, providerCode); err != nil {
-			return model.ProviderAppVersion{}, err
-		}
 		if _, err = tx.Exec(ctx, `
 			UPDATE provider_app_versions SET status='DEPRECATED',updated_at=now()
 			WHERE provider_code=$1 AND status='PUBLISHED' AND id<>$2
@@ -540,9 +635,11 @@ func (s *Postgres) DashboardOverview(ctx context.Context) (model.DashboardOvervi
 
 func (s *Postgres) ListProviders(ctx context.Context) ([]model.Provider, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT code,name,description,available,engine_connector,credential_schema,environments,
-		       payment_methods,created_at,updated_at
-		FROM providers ORDER BY name
+		SELECT p.code,p.name,p.description,p.available,COALESCE(r.logo_content_type<>'',false),p.engine_connector,
+		       p.credential_schema,p.environments,p.payment_methods,p.created_at,p.updated_at
+		FROM providers p
+		LEFT JOIN provider_app_providers r ON r.provider_code=p.code
+		ORDER BY p.name
 	`)
 	if err != nil {
 		return nil, err
@@ -551,7 +648,7 @@ func (s *Postgres) ListProviders(ctx context.Context) ([]model.Provider, error) 
 	result := make([]model.Provider, 0)
 	for rows.Next() {
 		var item model.Provider
-		if err := rows.Scan(&item.Code, &item.Name, &item.Description, &item.Available, &item.EngineConnector,
+		if err := rows.Scan(&item.Code, &item.Name, &item.Description, &item.Available, &item.HasLogo, &item.EngineConnector,
 			&item.CredentialSchema, &item.Environments, &item.PaymentMethods, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
@@ -563,9 +660,12 @@ func (s *Postgres) ListProviders(ctx context.Context) ([]model.Provider, error) 
 func (s *Postgres) GetProvider(ctx context.Context, code string) (model.Provider, error) {
 	var item model.Provider
 	err := s.pool.QueryRow(ctx, `
-		SELECT code,name,description,available,engine_connector,credential_schema,environments,
-		       payment_methods,created_at,updated_at FROM providers WHERE code=$1
-	`, code).Scan(&item.Code, &item.Name, &item.Description, &item.Available, &item.EngineConnector,
+		SELECT p.code,p.name,p.description,p.available,COALESCE(r.logo_content_type<>'',false),p.engine_connector,
+		       p.credential_schema,p.environments,p.payment_methods,p.created_at,p.updated_at
+		FROM providers p
+		LEFT JOIN provider_app_providers r ON r.provider_code=p.code
+		WHERE p.code=$1
+	`, code).Scan(&item.Code, &item.Name, &item.Description, &item.Available, &item.HasLogo, &item.EngineConnector,
 		&item.CredentialSchema, &item.Environments, &item.PaymentMethods, &item.CreatedAt, &item.UpdatedAt)
 	return item, translateNotFound(err)
 }

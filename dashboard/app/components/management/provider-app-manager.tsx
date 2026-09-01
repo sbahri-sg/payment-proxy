@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   createProviderAppProviderAction,
+  transitionProviderAppProviderAction,
   transitionProviderAppAction,
   uploadProviderAppAction,
   type ProviderAppActionState,
@@ -12,6 +13,77 @@ import {
 import type { Provider, ProviderAppProvider, ProviderAppVersion, ProviderReleaseVerificationReport, RuntimeConnector } from "../../lib/payment-proxy";
 
 const idle: ProviderAppActionState = { status: "idle", message: "" };
+
+export function ProviderCreateDialog() {
+  const [open, setOpen] = useState(false);
+  const [logoPreview, setLogoPreview] = useState("");
+  const [state, action, pending] = useActionState(createProviderAppProviderAction, idle);
+  const router = useRouter();
+  useEffect(() => {
+    if (state.status === "success" && state.provider) {
+      router.push(`/providers/${encodeURIComponent(state.provider.provider_code)}?tab=releases`);
+      router.refresh();
+    }
+  }, [router, state]);
+  useEffect(() => () => {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+  }, [logoPreview]);
+
+  return <>
+    <button className="dashboard-primary-action" type="button" onClick={() => setOpen(true)}><b>＋</b>Add provider</button>
+    {open && <div className="provider-modal-backdrop">
+      <section aria-labelledby="provider-create-title" aria-modal="true" className="provider-modal" role="dialog">
+        <header className="provider-modal-head">
+          <div><p>PROVIDER CATALOG</p><h2 id="provider-create-title">Add provider</h2><span>Buat identitas provider terlebih dahulu. Release connector di-upload setelah provider dibuat.</span></div>
+          <button aria-label="Close add provider" className="provider-modal-close" type="button" onClick={() => { setOpen(false); setLogoPreview(""); }}>×</button>
+        </header>
+        <form action={action} className="provider-create-form">
+          <label><strong>Provider name</strong><input name="provider_name" minLength={2} maxLength={120} placeholder="Contoh: Midtrans" required disabled={pending}/></label>
+          <label><strong>Provider code</strong><input name="provider_code" pattern="[a-z0-9_-]{2,48}" placeholder="midtrans" required disabled={pending}/><small>Permanen; gunakan huruf kecil, angka, _ atau -.</small></label>
+          <label className="provider-create-wide"><strong>Description</strong><textarea name="description" maxLength={500} rows={3} placeholder="Jelaskan fungsi provider payment gateway ini." disabled={pending}/></label>
+          <label><strong>Website URL</strong><input type="url" name="website_url" placeholder="https://provider.example" disabled={pending}/></label>
+          <label><strong>Documentation URL</strong><input type="url" name="documentation_url" placeholder="https://docs.provider.example" disabled={pending}/></label>
+          <label className="provider-create-wide"><strong>Support email</strong><input type="email" name="support_email" placeholder="support@provider.example" disabled={pending}/></label>
+          <label className="provider-create-wide provider-logo-upload">
+            <strong>Provider logo <small>Optional</small></strong>
+            <span>
+              <i>{logoPreview ? <img src={logoPreview} alt="Provider logo preview"/> : <b>LOGO</b>}</i>
+              <span><input type="file" name="logo" accept="image/png,image/jpeg" disabled={pending} onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                setLogoPreview(file ? URL.createObjectURL(file) : "");
+              }}/><small>PNG atau JPG, maksimum 512 KB. Disarankan gambar persegi dengan latar transparan.</small></span>
+            </span>
+          </label>
+          <footer className="provider-create-actions">
+            <button className="secondary-button" type="button" onClick={() => { setOpen(false); setLogoPreview(""); }} disabled={pending}>Cancel</button>
+            <button className="dashboard-primary-button" type="submit" disabled={pending}>{pending ? "Adding…" : "Add provider"}</button>
+          </footer>
+          {state.message && <div className={`form-message ${state.status}`} role="status">{state.message}</div>}
+        </form>
+      </section>
+    </div>}
+  </>;
+}
+
+export function ProviderStatusControl({ provider }: { provider: ProviderAppProvider }) {
+  const [state, action, pending] = useActionState(transitionProviderAppProviderAction, idle);
+  const router = useRouter();
+  const enabling = provider.status === "DISABLED";
+  const targetStatus: ProviderAppProvider["status"] = enabling ? (provider.active_version ? "ACTIVE" : "DRAFT") : "DISABLED";
+  useEffect(() => {
+    if (state.status === "success") router.refresh();
+  }, [router, state.status]);
+
+  return <form action={action} className="provider-status-control" onSubmit={(event) => {
+    if (!enabling && !window.confirm(`${provider.provider_name} tidak akan tersedia untuk installation baru. Installation dan transaksi yang sudah ada tetap disimpan. Lanjutkan?`)) event.preventDefault();
+  }}>
+    <input type="hidden" name="provider_code" value={provider.provider_code}/>
+    <input type="hidden" name="expected_status" value={provider.status}/>
+    <input type="hidden" name="status" value={targetStatus}/>
+    <button className={enabling ? "secondary-button" : "danger-button"} type="submit" disabled={pending}>{pending ? "Saving…" : enabling ? "Enable provider" : "Disable provider"}</button>
+    {state.message && <span className={`form-message ${state.status}`} role="status">{state.message}</span>}
+  </form>;
+}
 
 function formatBytes(value: number) {
   if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;

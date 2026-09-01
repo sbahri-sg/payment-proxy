@@ -30,11 +30,15 @@ Dokumentasi Midtrans menyatakan koleksi GitHub tersebut dapat dipakai di website
 
 - Seluruh aset SVG diperiksa agar tidak mengandung script, `foreignObject`, JavaScript URL, atau referensi gambar eksternal.
 - Raster diperkecil maksimal 320 piksel agar katalog tidak mengunduh file multi-megabyte.
-- Mapping UI berada di `dashboard/app/components/brand-logo.tsx`; domain model/API tetap memakai canonical `code`, bukan path logo.
+- Logo bawaan berada di mapping `dashboard/app/components/brand-logo.tsx`. Logo provider yang di-upload admin disimpan sebagai binary tervalidasi di database dan dipilih melalui canonical `code`, bukan path filesystem.
 - Jika aset yang stabil belum tersedia, UI menampilkan fallback singkatan. Saat ini fallback dipakai untuk Pegadaian/Pos Indonesia dan Kartu Kredit Indonesia.
 - Logo tidak menentukan dukungan teknis. Capability `DOCUMENTED` dan `CERTIFIED` dapat dipetakan; `DISABLED` tetap ditolak.
 
 ## Menambah atau memperbarui logo
+
+Untuk provider baru, gunakan field `logo` saat **Add provider**. Dashboard menerima PNG/JPEG maksimum 512 KB dan 2048×2048 piksel; SVG upload ditolak untuk mencegah active content. Logo upload memiliki prioritas atas fallback/mapping bawaan.
+
+Untuk aset bawaan yang dikelola bersama source code:
 
 1. Ambil hanya dari brand owner atau koleksi yang secara eksplisit dirujuk oleh provider.
 2. Simpan salinan lokal ke `dashboard/public/brands/providers` atau `dashboard/public/brands/payment-methods`.

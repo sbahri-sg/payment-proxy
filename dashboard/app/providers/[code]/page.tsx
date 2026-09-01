@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppSidebar, AppTopbar, Icon } from "../../components/app-shell";
 import { BrandLogo } from "../../components/brand-logo";
-import { ProviderAppVersionManager, ProviderReleaseWorkspaceSetup } from "../../components/management/provider-app-manager";
+import { ProviderAppVersionManager, ProviderReleaseWorkspaceSetup, ProviderStatusControl } from "../../components/management/provider-app-manager";
 import { getReadiness } from "../../lib/readiness";
 import { getEngineCapabilities, listPaymentMethods, listProviderAppProviders, listProviderApps, listProviders, type Provider, type ProviderAppProvider, type ProviderAppVersion, type RuntimeConnector } from "../../lib/payment-proxy";
 import { requireDashboardSession } from "../../lib/session";
@@ -27,6 +27,7 @@ function fallbackProvider(code: string): Provider {
     name: code.replaceAll("_", " ").replaceAll("-", " ").toUpperCase(),
     description: "Provider detail is temporarily unavailable.",
     available: false,
+    has_logo: false,
     connector_code: code,
     credential_schema: [],
     environments: [],
@@ -74,6 +75,7 @@ export default async function ProviderDetailPage({
   const releaseProvider: ProviderAppProvider | undefined = releaseProvidersResult.status === "fulfilled" ? releaseProvidersResult.value.find((item) => item.provider_code === providerCode) : undefined;
   const releaseVersions: ProviderAppVersion[] = releaseVersionsResult.status === "fulfilled" ? releaseVersionsResult.value.filter((item) => item.provider_code === providerCode) : [];
   const runtimeConnector: RuntimeConnector | undefined = runtimeResult.status === "fulfilled" ? runtimeResult.value.connectors.find((item) => item.code === providerCode) : undefined;
+  const providerDisabled = releaseProvider?.status === "DISABLED";
   const releaseError = releaseProvidersResult.status === "rejected" || releaseVersionsResult.status === "rejected" || runtimeResult.status === "rejected";
   const dataError = providersResult.status === "rejected" || methodsResult.status === "rejected" || (tab === "releases" && releaseError);
 
@@ -86,9 +88,12 @@ export default async function ProviderDetailPage({
           <section className="provider-detail-heading">
             <div className="provider-detail-identity">
               <Link className="provider-back-link" href="/providers"><Icon name="arrow" size={14}/> All providers</Link>
-              <div><BrandLogo code={provider.code} label={provider.name} className={`provider-detail-logo ${provider.code}`}/><span><span className={`availability-badge ${provider.available ? "available" : "planned"}`}><i/>{provider.available ? "Available connector" : "Planned connector"}</span><h1>{provider.name}</h1><p>{provider.description}</p></span></div>
+              <div><BrandLogo code={provider.code} label={provider.name} customSrc={provider.has_logo ? `/api/provider-assets/${encodeURIComponent(provider.code)}/logo` : undefined} className={`provider-detail-logo ${provider.code}`}/><span><span className={`availability-badge ${providerDisabled ? "disabled" : provider.available ? "available" : "planned"}`}><i/>{providerDisabled ? "Disabled connector" : provider.available ? "Available connector" : "Planned connector"}</span><h1>{provider.name}</h1><p>{provider.description}</p></span></div>
             </div>
-            <Link className="dashboard-primary-action" href={providerHref(provider.code, "releases")}>Manage releases<Icon name="arrow" size={16}/></Link>
+            <div className="provider-detail-actions">
+              {releaseProvider && <ProviderStatusControl provider={releaseProvider}/>}
+              <Link className="dashboard-primary-action" href={providerHref(provider.code, "releases")}>Manage releases<Icon name="arrow" size={16}/></Link>
+            </div>
           </section>
 
           {dataError && <div className="dashboard-alert error"><strong>Provider detail belum lengkap.</strong><span>Sebagian data Payment Proxy tidak dapat dimuat. Tidak ada perubahan state yang dilakukan.</span></div>}
@@ -125,7 +130,7 @@ export default async function ProviderDetailPage({
             <section className="provider-app-context-grid">
               <article><small>PROVIDER CATALOG</small><strong className={provider.available ? "is-ready" : "is-pending"}>{provider.available ? "Available" : "Unavailable"}</strong><span>Merchant-facing provider identity.</span></article>
               <article><small>SHARED RUNTIME</small><strong className={runtimeConnector ? "is-ready" : "is-pending"}>{runtimeConnector ? "Running" : "Not loaded"}</strong><span>{runtimeConnector?.version || "No runtime version loaded"}</span></article>
-              <article><small>PUBLISHED RELEASE</small><strong className={releaseProvider?.status === "ACTIVE" ? "is-ready" : "is-pending"}>{releaseProvider?.status === "ACTIVE" ? "Published" : "Awaiting publish"}</strong><span>{releaseProvider?.active_version || "No release published"}</span></article>
+              <article><small>PUBLISHED RELEASE</small><strong className={releaseProvider?.status === "ACTIVE" ? "is-ready" : "is-pending"}>{providerDisabled ? "Provider disabled" : releaseProvider?.status === "ACTIVE" ? "Published" : "Awaiting publish"}</strong><span>{releaseProvider?.active_version || "No release published"}</span></article>
             </section>
             <section className="provider-app-security"><Icon name="settings" size={18}/><div><strong>One provider, separate lifecycle controls</strong><p>Submission review and runtime publication belong to {provider.name}. Publishing a release never duplicates the provider or silently changes an active merchant connection.</p></div><b>25 MB MAX</b></section>
             {releaseProvider ? <ProviderAppVersionManager provider={releaseProvider} initialApps={releaseVersions}/> : <ProviderReleaseWorkspaceSetup provider={provider}/>}

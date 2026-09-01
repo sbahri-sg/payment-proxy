@@ -60,14 +60,16 @@ export function BrandLogo({
   kind = "provider",
   className = "",
   priority = false,
+  customSrc,
 }: {
   code: string;
   label: string;
   kind?: "provider" | "payment-method";
   className?: string;
   priority?: boolean;
+  customSrc?: string;
 }) {
-  const assets = kind === "provider" ? providerAssets[code] : paymentMethodAssets[code];
+  const assets = customSrc ? [customSrc] : kind === "provider" ? providerAssets[code] : paymentMethodAssets[code];
   const classes = ["brand-logo", `brand-logo-${kind}`, assets?.length ? "has-asset" : "fallback", assets?.length > 1 ? "stacked" : "", className].filter(Boolean).join(" ");
 
   return (

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createProviderAppProvider, PaymentProxyError, transitionProviderApp, uploadProviderApp, type ProviderAppProvider, type ProviderAppVersion } from "../lib/payment-proxy";
+import { createProviderAppProvider, PaymentProxyError, transitionProviderApp, transitionProviderAppProvider, uploadProviderApp, type ProviderAppProvider, type ProviderAppVersion } from "../lib/payment-proxy";
 import { requireDashboardSession } from "../lib/session";
 
 export type ProviderAppActionState = {
@@ -43,8 +43,13 @@ export async function createProviderAppProviderAction(_: ProviderAppActionState,
   const websiteURL = String(form.get("website_url") ?? "").trim();
   const documentationURL = String(form.get("documentation_url") ?? "").trim();
   const supportEmail = String(form.get("support_email") ?? "").trim().toLowerCase();
+  const logoEntry = form.get("logo");
+  const logo = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : undefined;
   if (!/^[a-z0-9_-]{2,48}$/.test(providerCode) || providerName.length < 2 || providerName.length > 120 || description.length > 500) {
     return { status: "error", message: "Kode, nama, atau deskripsi provider tidak valid." };
+  }
+  if (logo && (logo.size > 512 * 1024 || !["image/png", "image/jpeg"].includes(logo.type))) {
+    return { status: "error", message: "Logo harus berupa PNG/JPG dengan ukuran maksimum 512 KB." };
   }
   try {
     const provider = await createProviderAppProvider(session.subject, {
@@ -54,11 +59,38 @@ export async function createProviderAppProviderAction(_: ProviderAppActionState,
       website_url: websiteURL,
       documentation_url: documentationURL,
       support_email: supportEmail,
-    });
+    }, logo);
     revalidatePath("/provider-apps");
     revalidatePath("/providers");
     revalidatePath(`/providers/${providerCode}`);
     return { status: "success", message: `${provider.provider_name} berhasil dibuat. Upload versi connector dari detail provider.`, provider };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function transitionProviderAppProviderAction(_: ProviderAppActionState, form: FormData): Promise<ProviderAppActionState> {
+  const session = await requireDashboardSession();
+  const providerCode = String(form.get("provider_code") ?? "").trim().toLowerCase();
+  const expectedStatus = String(form.get("expected_status") ?? "").trim().toUpperCase() as ProviderAppProvider["status"];
+  const status = String(form.get("status") ?? "").trim().toUpperCase() as ProviderAppProvider["status"];
+  const validStatuses: ProviderAppProvider["status"][] = ["DRAFT", "ACTIVE", "DISABLED"];
+  if (!/^[a-z0-9_-]{2,48}$/.test(providerCode) || !validStatuses.includes(expectedStatus) || !validStatuses.includes(status)) {
+    return { status: "error", message: "Status provider tidak valid." };
+  }
+  try {
+    const provider = await transitionProviderAppProvider(session.subject, providerCode, expectedStatus, status);
+    revalidatePath("/providers");
+    revalidatePath(`/providers/${providerCode}`);
+    return {
+      status: "success",
+      message: provider.status === "DISABLED"
+        ? `${provider.provider_name} dinonaktifkan untuk installation baru.`
+        : provider.status === "ACTIVE"
+          ? `${provider.provider_name} kembali tersedia untuk installation baru.`
+          : `${provider.provider_name} kembali aktif sebagai draft. Publish release agar tersedia untuk merchant.`,
+      provider,
+    };
   } catch (error) {
     return actionError(error);
   }

@@ -38,6 +38,7 @@ type Provider struct {
 	Name             string          `json:"name"`
 	Description      string          `json:"description"`
 	Available        bool            `json:"available"`
+	HasLogo          bool            `json:"has_logo"`
 	EngineConnector  string          `json:"connector_code"`
 	CredentialSchema json.RawMessage `json:"credential_schema"`
 	Environments     json.RawMessage `json:"environments"`
@@ -76,6 +77,7 @@ type ProviderAppProvider struct {
 	WebsiteURL       string    `json:"website_url,omitempty"`
 	DocumentationURL string    `json:"documentation_url,omitempty"`
 	SupportEmail     string    `json:"support_email,omitempty"`
+	HasLogo          bool      `json:"has_logo"`
 	Status           string    `json:"status"`
 	VersionCount     int       `json:"version_count"`
 	ActiveVersion    string    `json:"active_version,omitempty"`
