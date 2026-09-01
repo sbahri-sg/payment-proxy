@@ -508,8 +508,10 @@ export function transitionProviderApp(actor: string, id: string, expectedStatus:
   });
 }
 
-export function listProviders(actor: string) {
-  return proxyRequest<Provider[]>("/api/v1/providers", actor);
+export function listProviders(actor: string, search?: string) {
+  const keyword = search?.trim();
+  const suffix = keyword ? `?q=${encodeURIComponent(keyword)}` : "";
+  return proxyRequest<Provider[]>(`/api/v1/providers${suffix}`, actor);
 }
 
 export function getEngineCapabilities(actor: string) {
@@ -558,8 +560,10 @@ export function listPaymentMethodAssignments(actor: string, environment?: string
   return proxyRequest<PaymentMethodAssignment[]>(`/api/v1/payment-method-assignments${suffix}`, actor);
 }
 
-export function listPaymentMethods(actor: string) {
-  return proxyRequest<PaymentMethodCatalogItem[]>("/api/v1/payment-methods", actor);
+export function listPaymentMethods(actor: string, search?: string) {
+  const keyword = search?.trim();
+  const suffix = keyword ? `?q=${encodeURIComponent(keyword)}` : "";
+  return proxyRequest<PaymentMethodCatalogItem[]>(`/api/v1/payment-methods${suffix}`, actor);
 }
 
 export function listPaymentOptions(actor: string, environment: "sandbox" | "live") {

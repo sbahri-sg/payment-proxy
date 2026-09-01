@@ -1,6 +1,6 @@
 $kind: http-request
-description: Master canonical payment methods dan capability matrix Xendit, Midtrans, Duitku, serta DOKU. Status DOCUMENTED dan CERTIFIED boleh di-assign; DISABLED ditolak.
-url: "{{base_url}}/api/v1/payment-methods"
+description: Mencari master payment method berdasarkan code, name, category, atau description secara case-insensitive. Kosongkan payment_method_search untuk seluruh katalog; Dashboard Emisell memakai debounce 300-500 ms.
+url: "{{base_url}}/api/v1/payment-methods?q={{payment_method_search}}"
 method: GET
 headers:
   X-Emisell-Merchant-ID: "{{merchant_id}}"

@@ -6,7 +6,8 @@ Emisell Backend hanya mengintegrasikan kontrak canonical berikut:
 
 | Domain | Endpoint inti |
 |---|---|
-| Provider catalog | `GET /api/v1/providers` |
+| Provider catalog | `GET /api/v1/providers?q=<keyword>` |
+| Payment-method discovery | `GET /api/v1/payment-methods?q=<keyword>` |
 | Merchant connection | `POST/GET /api/v1/provider-installations`, `GET/DELETE /api/v1/provider-installations/{id}` |
 | Credential | `PUT/PATCH /api/v1/provider-installations/{id}/credentials` |
 | Lifecycle | `POST .../{id}/activate`, `POST .../{id}/deactivate` |
@@ -275,7 +276,12 @@ Contoh request dan response setiap endpoint tersedia di Dashboard
 
 ## Provider registry
 
-### `GET /providers`
+### `GET /providers?q=<keyword>`
+
+`q` bersifat opsional, case-insensitive, maksimum 128 karakter, dan mencari
+provider `code` atau `name`. Tanpa `q`, endpoint mengembalikan seluruh
+katalog. Dashboard Emisell sebaiknya memakai debounce 300–500 ms dan hanya
+mengirim keyword yang sudah di-trim serta di-URL-encode.
 
 ```json
 {
@@ -582,9 +588,14 @@ Resume tidak membuat payment baru. Status provider harus `SUCCEEDED`, webhook pa
 
 ## Master payment methods dan assignment
 
-### `GET /payment-methods`
+### `GET /payment-methods?q=<keyword>`
 
-Mengembalikan katalog canonical serta matriks `DOCUMENTED`, `CERTIFIED`, atau `DISABLED` untuk setiap provider.
+Mengembalikan katalog canonical serta matriks `DOCUMENTED`, `CERTIFIED`, atau
+`DISABLED` untuk setiap provider. `q` bersifat opsional, case-insensitive,
+maksimum 128 karakter, dan mencari `code`, `name`, `category`, serta
+`description`. Contoh `?q=bca` mengembalikan metode BCA yang cocok; tanpa `q`,
+seluruh katalog aktif dikembalikan. Gunakan debounce 300–500 ms di Dashboard
+Emisell agar request tidak dikirim pada setiap keypress.
 
 ### `GET /payment-method-assignments`
 

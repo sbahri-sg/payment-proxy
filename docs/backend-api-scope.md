@@ -8,7 +8,8 @@ dianggap sebagai kewajiban integrasi Main Service.
 
 | Domain | Endpoint | Alasan |
 |---|---|---|
-| Provider | `GET /api/v1/providers` | Katalog aktif dan dynamic credential schema untuk Dashboard Merchant. |
+| Provider | `GET /api/v1/providers?q=<keyword>` | Katalog dan pencarian provider untuk Dashboard Merchant. |
+| Payment method | `GET /api/v1/payment-methods?q=<keyword>` | Discovery metode pembayaran canonical beserta provider pendukung. |
 | Installation | `POST /api/v1/provider-installations` | Membuat slot Sandbox atau Live. |
 | Installation | `GET /api/v1/provider-installations` | Menampilkan kedua slot connection merchant. |
 | Installation | `GET /api/v1/provider-installations/{id}` | Membaca state terbaru setelah mutation atau callback. |
@@ -41,7 +42,7 @@ dianggap sebagai kewajiban integrasi Main Service.
 | Health | `/health/live`, `/health/ready` | Orchestrator/load balancer |
 | Provider ingress | `/webhooks/v1/providers/*` | Payment provider → Payment Proxy |
 | Connector contract | `/partner/v1/*` | Payment Proxy → isolated runtime |
-| Direct-channel configuration | payment methods, assignments, `/payment-options` | Flow lanjutan; bukan kebutuhan hosted checkout utama |
+| Direct-channel configuration | assignments dan `/payment-options` | Flow lanjutan; bukan kebutuhan hosted checkout utama |
 
 Endpoint sandbox diagnostics sudah berada di namespace admin dan tetap
 tenant-scoped. Jangan tambahkan pemanggilan dari Emisell Backend; lifecycle

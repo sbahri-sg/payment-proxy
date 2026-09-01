@@ -634,14 +634,15 @@ func (s *Postgres) DashboardOverview(ctx context.Context) (model.DashboardOvervi
 	return result, nil
 }
 
-func (s *Postgres) ListProviders(ctx context.Context) ([]model.Provider, error) {
+func (s *Postgres) ListProviders(ctx context.Context, search string) ([]model.Provider, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT p.code,p.name,p.description,p.available,COALESCE(r.logo_content_type<>'',false),p.engine_connector,
 		       p.credential_schema,p.environments,p.payment_methods,p.created_at,p.updated_at
 		FROM providers p
 		LEFT JOIN provider_app_providers r ON r.provider_code=p.code
+		WHERE $1='' OR strpos(lower(p.code),lower($1))>0 OR strpos(lower(p.name),lower($1))>0
 		ORDER BY p.name
-	`)
+	`, search)
 	if err != nil {
 		return nil, err
 	}
@@ -683,7 +684,7 @@ func (s *Postgres) GetReleasedProviderVersion(ctx context.Context, providerCode 
 	return version, translateNotFound(err)
 }
 
-func (s *Postgres) ListPaymentMethods(ctx context.Context) ([]model.PaymentMethodCatalogItem, error) {
+func (s *Postgres) ListPaymentMethods(ctx context.Context, search string) ([]model.PaymentMethodCatalogItem, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT m.code,m.category,m.name,m.description,m.countries,m.currencies,m.active,m.sort_order,
 			COALESCE(jsonb_agg(jsonb_build_object(
@@ -701,9 +702,11 @@ func (s *Postgres) ListPaymentMethods(ctx context.Context) ([]model.PaymentMetho
 		LEFT JOIN provider_payment_method_capabilities c ON c.payment_method_code=m.code AND c.support_status <> 'DISABLED'
 		LEFT JOIN providers p ON p.code=c.provider_code
 		WHERE m.active=true
+		  AND ($1='' OR strpos(lower(m.code),lower($1))>0 OR strpos(lower(m.name),lower($1))>0
+		       OR strpos(lower(m.category),lower($1))>0 OR strpos(lower(COALESCE(m.description,'')),lower($1))>0)
 		GROUP BY m.code,m.category,m.name,m.description,m.countries,m.currencies,m.active,m.sort_order
 		ORDER BY m.sort_order,m.name
-	`)
+	`, search)
 	if err != nil {
 		return nil, err
 	}

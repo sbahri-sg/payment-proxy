@@ -20,7 +20,7 @@ Every mutation that represents a business operation must use a stable Idempotenc
 
 ## Merchant provider lifecycle
 
-1. GET /api/v1/providers
+1. GET /api/v1/providers?q=<keyword>. q is optional, case-insensitive, and searches provider code or name. Debounce merchant-dashboard input by 300-500 ms; omit q to list the full catalog.
 2. POST /api/v1/provider-installations with provider_code and environment.
 3. PUT /api/v1/provider-installations/{id}/credentials. This both stores encrypted credentials and verifies them with the provider.
 4. POST /api/v1/provider-installations/{id}/activate.
@@ -36,7 +36,7 @@ Preferred request fields: installation_id, checkout_mode=provider_hosted, mercha
 
 For provider_hosted checkout, do not send payment_option_id or payment_method_code. Payment Proxy creates a Xendit Payment Session or Midtrans Snap transaction and returns payment.checkout_url plus next_action.redirect_url. Redirect the customer to that provider-owned URL. Emisell must not render its own payment-method page or collect PAN, CVV, OTP, VA, QR, or wallet authorization details.
 
-payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout. GET /api/v1/payment-method-assignments returns both ACTIVE and INACTIVE records. PUT /api/v1/payment-method-assignments accepts {"assignments":[...]} with 1-50 items, applies the batch atomically, derives environment from each installation_id, and must not send X-Emisell-Execution-Mode. Use GET /api/v1/payment-options?environment=sandbox|live for active checkout options only.
+GET /api/v1/payment-methods?q=<keyword> is the merchant discovery catalog. q is optional, case-insensitive, and searches canonical method code, name, category, and description. Debounce merchant-dashboard input by 300-500 ms. payment-options and payment-method-assignments remain available only for the optional direct-channel flow; they are not prerequisites for provider-hosted checkout. GET /api/v1/payment-method-assignments returns both ACTIVE and INACTIVE records. PUT /api/v1/payment-method-assignments accepts {"assignments":[...]} with 1-50 items, applies the batch atomically, derives environment from each installation_id, and must not send X-Emisell-Execution-Mode. Use GET /api/v1/payment-options?environment=sandbox|live for active checkout options only.
 
 GET /api/v1/payment-sessions/{id}
 Returns the canonical payment projection and may synchronize with the same pinned provider installation.

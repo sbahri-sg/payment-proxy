@@ -916,7 +916,11 @@ func (s *Server) webhookSettingsError(w http.ResponseWriter, r *http.Request, er
 }
 
 func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
-	items, err := s.store.ListProviders(r.Context())
+	search, ok := catalogSearchQuery(w, r)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListProviders(r.Context(), search)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -925,7 +929,11 @@ func (s *Server) listProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listPaymentMethods(w http.ResponseWriter, r *http.Request) {
-	items, err := s.store.ListPaymentMethods(r.Context())
+	search, ok := catalogSearchQuery(w, r)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListPaymentMethods(r.Context(), search)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -2802,6 +2810,14 @@ func queryInt(value string, fallback, min, max int) (int, error) {
 		return 0, errors.New("query number is out of range")
 	}
 	return number, nil
+}
+func catalogSearchQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(search) > 128 {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_QUERY", "q must not exceed 128 characters")
+		return "", false
+	}
+	return search, true
 }
 func requireIdempotency(w http.ResponseWriter, r *http.Request) (string, bool) {
 	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))

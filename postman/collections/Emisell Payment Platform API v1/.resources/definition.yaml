@@ -17,6 +17,8 @@ variables:
   midtrans_provider_app_token: ""
   provider_secret: ""
   provider_code: xendit
+  provider_search: xendit
+  payment_method_search: qris
   provider_payment_id: ""
   provider_refund_id: ""
   installation_id: ""

@@ -44,7 +44,7 @@ func TestCreateProviderAppProviderForAvailableCatalogProviderIntegration(t *test
 	})
 
 	registry := New(pool)
-	if _, err = registry.ListProviders(ctx); err != nil {
+	if _, err = registry.ListProviders(ctx, ""); err != nil {
 		t.Fatalf("provider catalog with providers outside the release registry could not be listed: %v", err)
 	}
 	input := CreateProviderAppProviderInput{

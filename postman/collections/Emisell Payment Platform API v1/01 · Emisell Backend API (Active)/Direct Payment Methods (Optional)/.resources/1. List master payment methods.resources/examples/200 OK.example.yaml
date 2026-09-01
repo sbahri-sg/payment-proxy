@@ -1,6 +1,6 @@
 $kind: http-example
 request:
-  url: "{{base_url}}/api/v1/payment-methods"
+  url: "{{base_url}}/api/v1/payment-methods?q=qris"
   method: GET
   headers:
     X-Emisell-Merchant-ID: "{{merchant_id}}"

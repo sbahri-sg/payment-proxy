@@ -1,6 +1,6 @@
 $kind: http-example
 request:
-  url: "{{base_url}}/api/v1/providers"
+  url: "{{base_url}}/api/v1/providers?q=xendit"
   method: GET
   headers:
     X-Emisell-Merchant-ID: "{{merchant_id}}"

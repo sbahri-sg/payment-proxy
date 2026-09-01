@@ -521,7 +521,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     summary: "Membaca katalog provider dan dynamic credential schema.",
     endpoints: [
       {
-        method: "GET", path: "/api/v1/providers", title: "List providers", description: "Mengembalikan availability, environment, payment method, dan schema credential setiap provider.",
+        method: "GET", path: "/api/v1/providers?q=xendit", title: "List or search providers", description: "Mengembalikan availability, environment, payment method, dan schema credential provider. Query q opsional mencari provider code atau name secara case-insensitive.",
         response: `{
   "data": [
     {
@@ -535,22 +535,10 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
       ],
       "environments": ["sandbox", "live"],
       "payment_methods": ["qris"]
-    },
-    {
-      "code": "midtrans",
-      "name": "Midtrans",
-      "description": "Isolated Midtrans Core API connector for Emisell Payment Engine",
-      "available": true,
-      "connector_code": "midtrans",
-      "credential_schema": [
-        { "code": "server_key", "label": "Server key", "secret": true, "required": true },
-        { "code": "pop_id", "label": "PoP ID (Core API)", "secret": true, "required": false }
-      ],
-      "environments": ["sandbox", "live"],
-      "payment_methods": ["qris", "va_bca", "va_mandiri", "va_bni", "va_bri", "va_permata", "va_cimb", "ewallet_gopay", "ewallet_shopeepay"]
     }
   ]
 }`,
+        note: "Dashboard Emisell sebaiknya mengirim request setelah debounce 300–500 ms. Hilangkan q untuk seluruh katalog; panjang maksimum q adalah 128 karakter.",
       },
     ],
   },
@@ -684,11 +672,11 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
   },
   {
     id: "payment-options",
-    title: "Direct Payment Methods (Optional)",
-    summary: "Master canonical dan assignment ini hanya untuk flow direct-channel lanjutan. Hosted checkout utama membiarkan provider menampilkan channelnya sendiri.",
+    title: "Payment Method Discovery & Direct Routing",
+    summary: "GET /payment-methods adalah katalog pencarian untuk merchant. Assignment dan payment-options hanya diperlukan oleh flow direct-channel lanjutan.",
     endpoints: [
       {
-        method: "GET", path: "/api/v1/payment-methods", title: "Master payment-method catalog", description: "Mengembalikan metode canonical Emisell dan matriks dukungan Xendit, Midtrans, Duitku, serta DOKU.",
+        method: "GET", path: "/api/v1/payment-methods?q=qris", title: "Search payment-method catalog", description: "Mengembalikan metode canonical Emisell berdasarkan code, name, category, atau description beserta matriks provider. Query q opsional dan case-insensitive.",
         response: `{
   "data": [{
     "code": "qris",
@@ -703,7 +691,7 @@ bundle    File    xendit-provider-app-emisell-v1.zip`,
     ]
   }]
 }`,
-        note: "DOCUMENTED dapat di-assign tetapi belum mempunyai sandbox evidence lengkap. CERTIFIED/VERIFIED menandai conformance telah lulus; DISABLED tidak dapat di-assign.",
+        note: "DOCUMENTED dapat di-assign tetapi belum mempunyai sandbox evidence lengkap. CERTIFIED/VERIFIED menandai conformance telah lulus; DISABLED tidak dapat di-assign. Dashboard Emisell memakai debounce 300–500 ms; hilangkan q untuk seluruh katalog, dengan panjang maksimum q 128 karakter.",
       },
       {
         method: "GET", path: "/api/v1/payment-method-assignments?environment=sandbox", title: "List method assignments", description: "Mengembalikan semua assignment tenant, baik ACTIVE maupun INACTIVE. Query environment bersifat opsional; tanpa query, sandbox dan live dikembalikan bersama.",

@@ -262,6 +262,27 @@ func TestPaymentMethodEnvironmentQuery(t *testing.T) {
 	}
 }
 
+func TestCatalogSearchQuery(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/providers?q=%20XeNdIt%20", nil)
+	if search, ok := catalogSearchQuery(httptest.NewRecorder(), request); !ok || search != "XeNdIt" {
+		t.Fatalf("catalog query = %q, %v; want XeNdIt, true", search, ok)
+	}
+
+	empty := httptest.NewRequest(http.MethodGet, "/api/v1/payment-methods", nil)
+	if search, ok := catalogSearchQuery(httptest.NewRecorder(), empty); !ok || search != "" {
+		t.Fatalf("empty catalog query = %q, %v; want empty, true", search, ok)
+	}
+
+	invalidRecorder := httptest.NewRecorder()
+	invalid := httptest.NewRequest(http.MethodGet, "/api/v1/providers?q="+strings.Repeat("a", 129), nil)
+	if search, ok := catalogSearchQuery(invalidRecorder, invalid); ok || search != "" || invalidRecorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("oversized catalog query = %q, %v, status %d", search, ok, invalidRecorder.Code)
+	}
+	if !strings.Contains(invalidRecorder.Body.String(), "INVALID_QUERY") {
+		t.Fatalf("oversized catalog query returned unexpected problem: %s", invalidRecorder.Body.String())
+	}
+}
+
 func TestPaymentMethodAssignmentBulkPayload(t *testing.T) {
 	decode := func(body string) ([]paymentMethodAssignmentRequest, bool, bool, *httptest.ResponseRecorder) {
 		response := httptest.NewRecorder()

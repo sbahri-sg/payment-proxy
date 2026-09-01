@@ -1,6 +1,6 @@
 $kind: http-request
-description: Mengembalikan provider registry dan dynamic credential schema.
-url: "{{base_url}}/api/v1/providers"
+description: Mencari provider berdasarkan code atau name secara case-insensitive. Kosongkan provider_search untuk seluruh katalog; Dashboard Emisell memakai debounce 300-500 ms.
+url: "{{base_url}}/api/v1/providers?q={{provider_search}}"
 method: GET
 headers:
   X-Emisell-Merchant-ID: "{{merchant_id}}"

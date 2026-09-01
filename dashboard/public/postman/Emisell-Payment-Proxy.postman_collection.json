@@ -97,6 +97,16 @@
       "type": "string"
     },
     {
+      "key": "provider_search",
+      "value": "xendit",
+      "type": "string"
+    },
+    {
+      "key": "payment_method_search",
+      "value": "qris",
+      "type": "string"
+    },
+    {
       "key": "provider_payment_id",
       "value": "",
       "type": "string"
@@ -1699,7 +1709,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/providers",
+                  "raw": "{{base_url}}/api/v1/providers?q={{provider_search}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -1707,9 +1717,15 @@
                     "api",
                     "v1",
                     "providers"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "{{provider_search}}"
+                    }
                   ]
                 },
-                "description": "Mengembalikan provider registry dan dynamic credential schema."
+                "description": "Mencari provider berdasarkan code atau name secara case-insensitive. Kosongkan provider_search untuk seluruh katalog; Dashboard Emisell memakai debounce 300-500 ms."
               },
               "response": [
                 {
@@ -2208,7 +2224,7 @@
           ]
         },
         {
-          "name": "Direct Payment Methods (Optional)",
+          "name": "Payment Method Discovery & Direct Routing",
           "item": [
             {
               "name": "1. List master payment methods",
@@ -2222,7 +2238,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/payment-methods",
+                  "raw": "{{base_url}}/api/v1/payment-methods?q={{payment_method_search}}",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -2230,9 +2246,15 @@
                     "api",
                     "v1",
                     "payment-methods"
+                  ],
+                  "query": [
+                    {
+                      "key": "q",
+                      "value": "{{payment_method_search}}"
+                    }
                   ]
                 },
-                "description": "Master canonical payment methods dan capability matrix Xendit, Midtrans, Duitku, serta DOKU. Status DOCUMENTED dan CERTIFIED boleh di-assign; DISABLED ditolak."
+                "description": "Mencari master payment method berdasarkan code, name, category, atau description secara case-insensitive. Kosongkan payment_method_search untuk seluruh katalog; Dashboard Emisell memakai debounce 300-500 ms."
               },
               "response": [
                 {
