@@ -58,7 +58,7 @@ func VerifyRuntimeContract(release Manifest, runtime connector.Manifest) Release
 	for _, method := range releaseMethods {
 		releaseProfile, releaseOK := release.CertificationProfiles[method]
 		runtimeProfile, runtimeOK := runtime.CertificationProfiles[method]
-		passed := releaseOK && runtimeOK && releaseProfile.Automated && runtimeProfile.Automated && releaseProfile.Code == runtimeProfile.Code
+		passed := releaseOK && runtimeOK && releaseProfile.Automated && runtimeProfile.Automated && releaseProfile.Code == runtimeProfile.Code && releaseProfile.CheckoutMode == runtimeProfile.CheckoutMode
 		report.AddCheck("profile:"+method, passed, fmt.Sprintf("release=%s runtime=%s", releaseProfile.Code, runtimeProfile.Code))
 	}
 	return report

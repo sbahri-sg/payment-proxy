@@ -183,7 +183,7 @@ func TestMidtransProviderAppManifestMatchesRuntimeRelease(t *testing.T) {
 	client.SetExecutableSHA256(strings.Repeat("a", 64))
 	runtimeManifest := client.Manifest()
 	verification := VerifyRuntimeContract(result.Manifest, runtimeManifest)
-	if result.Manifest.Code != "midtrans" || result.Manifest.Version != client.Manifest().Version || len(result.Manifest.CredentialFields) != 2 {
+	if result.Manifest.Code != "midtrans" || result.Manifest.Version != client.Manifest().Version || len(result.Manifest.CredentialFields) != 2 || len(result.Manifest.PaymentMethods) != 18 {
 		t.Fatalf("Midtrans Provider App manifest diverged from runtime release: %#v", result.Manifest)
 	}
 	if !result.Report.Passed || result.Report.PackageFormat != PackageFormatSubmissionV1 || result.Report.FileCount != len(files) || !verification.Passed {

@@ -11,6 +11,9 @@ not requested because both Core API and Snap transaction creation use the
 Server Key. The provider-hosted flow returns the Midtrans Snap `redirect_url`;
 Emisell sends the installation's eligible `ACTIVE` assignments as the exact
 Snap `enabled_payments` list and does not embed or reproduce the checkout UI.
+This release exposes all 18 Midtrans channels present in the Emisell catalog.
+Methods without a native Core API implementation remain hosted-only and are
+never advertised as direct checkout capabilities.
 
 The ZIP built from this directory is a source-only review package. It contains a
 reviewable Go implementation snapshot under `src/midtrans`, but no executable.

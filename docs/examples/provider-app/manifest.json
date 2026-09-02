@@ -2,7 +2,7 @@
   "contract_version": "v1",
   "code": "midtrans",
   "name": "Midtrans",
-  "version": "emisell-midtrans-v2.0.2",
+  "version": "emisell-midtrans-v2.0.3",
   "runtime": "isolated_container",
   "sdk_version": "v1",
   "entrypoint": "connector",
@@ -10,6 +10,7 @@
     "verify_installation",
     "disable_installation",
     "create_payment",
+    "create_hosted_checkout",
     "get_payment",
     "handle_webhook"
   ],
@@ -33,42 +34,96 @@
     "qris": {
       "code": "midtrans-core-v2/qris",
       "automated": true,
+      "checkout_mode": "direct",
       "webhook_setup_hint": "Configure Midtrans notification URL to the installation webhook URL."
+    },
+    "card": {
+      "code": "midtrans-snap-v1/card",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
     },
     "va_bca": {
       "code": "midtrans-core-v2/va_bca",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
     },
     "va_mandiri": {
       "code": "midtrans-core-v2/va_mandiri",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
     },
     "va_bni": {
       "code": "midtrans-core-v2/va_bni",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
     },
     "va_bri": {
       "code": "midtrans-core-v2/va_bri",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
     },
     "va_permata": {
       "code": "midtrans-core-v2/va_permata",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
     },
     "va_cimb": {
       "code": "midtrans-core-v2/va_cimb",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
+    },
+    "va_danamon": {
+      "code": "midtrans-snap-v1/va_danamon",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
+    },
+    "va_bsi": {
+      "code": "midtrans-snap-v1/va_bsi",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
     },
     "ewallet_gopay": {
       "code": "midtrans-core-v2/ewallet_gopay",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
+    },
+    "ewallet_ovo": {
+      "code": "midtrans-snap-v1/ewallet_ovo",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
+    },
+    "ewallet_dana": {
+      "code": "midtrans-snap-v1/ewallet_dana",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
     },
     "ewallet_shopeepay": {
       "code": "midtrans-core-v2/ewallet_shopeepay",
-      "automated": true
+      "automated": true,
+      "checkout_mode": "direct"
+    },
+    "retail_alfamart": {
+      "code": "midtrans-snap-v1/retail_alfamart",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
+    },
+    "retail_indomaret": {
+      "code": "midtrans-snap-v1/retail_indomaret",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
+    },
+    "paylater_akulaku": {
+      "code": "midtrans-snap-v1/paylater_akulaku",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
+    },
+    "paylater_kredivo": {
+      "code": "midtrans-snap-v1/paylater_kredivo",
+      "automated": true,
+      "checkout_mode": "provider_hosted"
     }
   },
   "environments": ["sandbox", "live"],
-  "payment_methods": ["qris", "va_bca", "va_mandiri", "va_bni", "va_bri", "va_permata", "va_cimb", "ewallet_gopay", "ewallet_shopeepay"],
-  "outbound_hosts": ["api.midtrans.com", "api.sandbox.midtrans.com"]
+  "payment_methods": ["qris", "card", "va_bca", "va_mandiri", "va_bni", "va_bri", "va_permata", "va_cimb", "va_danamon", "va_bsi", "ewallet_gopay", "ewallet_ovo", "ewallet_dana", "ewallet_shopeepay", "retail_alfamart", "retail_indomaret", "paylater_akulaku", "paylater_kredivo"],
+  "outbound_hosts": ["api.midtrans.com", "api.sandbox.midtrans.com", "app.midtrans.com", "app.sandbox.midtrans.com"]
 }

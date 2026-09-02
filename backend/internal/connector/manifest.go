@@ -52,6 +52,7 @@ type CredentialField struct {
 type CertificationProfile struct {
 	Code             string `json:"code"`
 	Automated        bool   `json:"automated"`
+	CheckoutMode     string `json:"checkout_mode,omitempty"`
 	WebhookSetupHint string `json:"webhook_setup_hint,omitempty"`
 }
 
@@ -111,6 +112,9 @@ func (m Manifest) Validate() error {
 		if !validIdentifier(method) || strings.TrimSpace(profile.Code) == "" {
 			return fmt.Errorf("connector manifest contains an invalid certification profile for %q", method)
 		}
+		if profile.CheckoutMode != "" && profile.CheckoutMode != CheckoutModeDirect && profile.CheckoutMode != CheckoutModeProviderHosted {
+			return fmt.Errorf("connector manifest contains an invalid certification checkout mode for %q", method)
+		}
 	}
 	return nil
 }
@@ -149,6 +153,7 @@ type PaymentMethodMapping struct {
 
 type PaymentValidation struct {
 	PaymentMethodCode string `json:"payment_method_code"`
+	CheckoutMode      string `json:"checkout_mode,omitempty"`
 	Currency          string `json:"currency"`
 	Amount            int64  `json:"amount"`
 }

@@ -13,33 +13,48 @@ type methodMapping struct {
 	providerType   string
 	channelCode    string
 	profile        string
+	direct         bool
 }
 
 var supportedMethods = map[string]methodMapping{
-	"qris":              {providerMethod: "real_time_payment", providerType: "qris", channelCode: "other_qris", profile: "midtrans-core-v2/qris"},
-	"va_bca":            {providerMethod: "bank_transfer", providerType: "bca", channelCode: "bca_va", profile: "midtrans-core-v2/va_bca"},
-	"va_mandiri":        {providerMethod: "bank_transfer", providerType: "mandiri", channelCode: "echannel", profile: "midtrans-core-v2/va_mandiri"},
-	"va_bni":            {providerMethod: "bank_transfer", providerType: "bni", channelCode: "bni_va", profile: "midtrans-core-v2/va_bni"},
-	"va_bri":            {providerMethod: "bank_transfer", providerType: "bri", channelCode: "bri_va", profile: "midtrans-core-v2/va_bri"},
-	"va_permata":        {providerMethod: "bank_transfer", providerType: "permata", channelCode: "permata_va", profile: "midtrans-core-v2/va_permata"},
-	"va_cimb":           {providerMethod: "bank_transfer", providerType: "cimb", channelCode: "cimb_va", profile: "midtrans-core-v2/va_cimb"},
-	"ewallet_gopay":     {providerMethod: "wallet", providerType: "gopay", channelCode: "gopay", profile: "midtrans-core-v2/ewallet_gopay"},
-	"ewallet_shopeepay": {providerMethod: "wallet", providerType: "shopeepay", channelCode: "shopeepay", profile: "midtrans-core-v2/ewallet_shopeepay"},
+	"qris":              {providerMethod: "real_time_payment", providerType: "qris", channelCode: "other_qris", profile: "midtrans-core-v2/qris", direct: true},
+	"card":              {providerMethod: "card", providerType: "card", channelCode: "credit_card", profile: "midtrans-snap-v1/card"},
+	"va_bca":            {providerMethod: "bank_transfer", providerType: "bca", channelCode: "bca_va", profile: "midtrans-core-v2/va_bca", direct: true},
+	"va_mandiri":        {providerMethod: "bank_transfer", providerType: "mandiri", channelCode: "echannel", profile: "midtrans-core-v2/va_mandiri", direct: true},
+	"va_bni":            {providerMethod: "bank_transfer", providerType: "bni", channelCode: "bni_va", profile: "midtrans-core-v2/va_bni", direct: true},
+	"va_bri":            {providerMethod: "bank_transfer", providerType: "bri", channelCode: "bri_va", profile: "midtrans-core-v2/va_bri", direct: true},
+	"va_permata":        {providerMethod: "bank_transfer", providerType: "permata", channelCode: "permata_va", profile: "midtrans-core-v2/va_permata", direct: true},
+	"va_cimb":           {providerMethod: "bank_transfer", providerType: "cimb", channelCode: "cimb_va", profile: "midtrans-core-v2/va_cimb", direct: true},
+	"va_danamon":        {providerMethod: "bank_transfer", providerType: "danamon", channelCode: "danamon_va", profile: "midtrans-snap-v1/va_danamon"},
+	"va_bsi":            {providerMethod: "bank_transfer", providerType: "bsi", channelCode: "bsi_va", profile: "midtrans-snap-v1/va_bsi"},
+	"ewallet_gopay":     {providerMethod: "wallet", providerType: "gopay", channelCode: "gopay", profile: "midtrans-core-v2/ewallet_gopay", direct: true},
+	"ewallet_ovo":       {providerMethod: "wallet", providerType: "ovo", channelCode: "ovo", profile: "midtrans-snap-v1/ewallet_ovo"},
+	"ewallet_dana":      {providerMethod: "wallet", providerType: "dana", channelCode: "dana", profile: "midtrans-snap-v1/ewallet_dana"},
+	"ewallet_shopeepay": {providerMethod: "wallet", providerType: "shopeepay", channelCode: "shopeepay", profile: "midtrans-core-v2/ewallet_shopeepay", direct: true},
+	"retail_alfamart":   {providerMethod: "retail", providerType: "alfamart", channelCode: "alfamart", profile: "midtrans-snap-v1/retail_alfamart"},
+	"retail_indomaret":  {providerMethod: "retail", providerType: "indomaret", channelCode: "indomaret", profile: "midtrans-snap-v1/retail_indomaret"},
+	"paylater_akulaku":  {providerMethod: "paylater", providerType: "akulaku", channelCode: "akulaku", profile: "midtrans-snap-v1/paylater_akulaku"},
+	"paylater_kredivo":  {providerMethod: "paylater", providerType: "kredivo", channelCode: "kredivo", profile: "midtrans-snap-v1/paylater_kredivo"},
 }
 
 func (c *Client) Manifest() connector.Manifest {
 	profiles := make(map[string]connector.CertificationProfile, len(supportedMethods))
 	for method, mapping := range supportedMethods {
+		checkoutMode := connector.CheckoutModeProviderHosted
+		if mapping.direct {
+			checkoutMode = connector.CheckoutModeDirect
+		}
 		profiles[method] = connector.CertificationProfile{
 			Code:             mapping.profile,
 			Automated:        true,
+			CheckoutMode:     checkoutMode,
 			WebhookSetupHint: "Set the Midtrans Payment Notification URL to the Payment Proxy provider webhook URL, then complete the sandbox action and resume certification. A documented method can be assigned; certification adds verified sandbox evidence.",
 		}
 	}
 	return connector.Manifest{
 		Code:             c.Code(),
 		Name:             "Midtrans",
-		Version:          "emisell-midtrans-v2.0.2",
+		Version:          "emisell-midtrans-v2.0.3",
 		Runtime:          "isolated_container",
 		ExecutableSHA256: c.executableSHA256,
 		Operations: []connector.Operation{
@@ -83,8 +98,12 @@ func (c *Client) ValidateHostedPaymentMethods(methods []connector.PaymentMethodM
 
 func (c *Client) ValidatePayment(input connector.PaymentValidation) error {
 	code := strings.ToLower(strings.TrimSpace(input.PaymentMethodCode))
-	if _, supported := supportedMethods[code]; !supported {
+	mapping, supported := supportedMethods[code]
+	if !supported {
 		return fmt.Errorf("payment method %q is not supported by connector %s", code, c.Code())
+	}
+	if input.CheckoutMode != connector.CheckoutModeProviderHosted && !mapping.direct {
+		return fmt.Errorf("payment method %q is supported by Midtrans Snap hosted checkout only", code)
 	}
 	if input.Amount <= 0 {
 		return errors.New("payment amount must be positive")

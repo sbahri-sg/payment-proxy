@@ -156,7 +156,7 @@ X-Emisell-Merchant-ID: merchant_123
       },
       {
         "code": "midtrans",
-        "version": "emisell-midtrans-v2.0.2",
+        "version": "emisell-midtrans-v2.0.3",
         "runtime": "isolated_container",
         "operations": ["verify_installation", "create_payment", "create_hosted_checkout", "get_payment", "handle_webhook"]
       }
@@ -358,7 +358,7 @@ Contoh installation Midtrans memakai endpoint yang sama:
 ```json
 {
   "provider_code": "midtrans",
-  "provider_version": "emisell-midtrans-v2.0.2",
+  "provider_version": "emisell-midtrans-v2.0.3",
   "environment": "sandbox"
 }
 ```
@@ -557,7 +557,7 @@ Mengubah `ACTIVE` menjadi `INACTIVE` tanpa menghapus credential.
 ```json
 {
   "version": 6,
-  "provider_version": "emisell-midtrans-v2.0.2"
+  "provider_version": "emisell-midtrans-v2.0.3"
 }
 ```
 

@@ -182,10 +182,27 @@ func TestMidtransPermataUsesDedicatedPaymentType(t *testing.T) {
 
 func TestMidtransRejectsMethodsNotImplementedByCoreV2(t *testing.T) {
 	client, _ := New("https://api.sandbox.midtrans.test", "https://api.midtrans.test", time.Second)
-	for _, code := range []string{"va_danamon", "va_bsi", "card"} {
+	for _, code := range []string{"va_danamon", "va_bsi", "card", "ewallet_ovo", "ewallet_dana", "retail_alfamart", "retail_indomaret", "paylater_akulaku", "paylater_kredivo"} {
 		err := client.ValidatePayment(connector.PaymentValidation{PaymentMethodCode: code, Amount: 10_000, Currency: "IDR"})
 		if err == nil {
-			t.Fatalf("method %s must remain unavailable until its own implementation exists", code)
+			t.Fatalf("method %s must remain unavailable to direct Core API checkout", code)
+		}
+		if err = client.ValidatePayment(connector.PaymentValidation{PaymentMethodCode: code, CheckoutMode: connector.CheckoutModeProviderHosted, Amount: 10_000, Currency: "IDR"}); err != nil {
+			t.Fatalf("method %s must be available to Snap hosted checkout: %v", code, err)
+		}
+	}
+}
+
+func TestMidtransManifestAdvertisesEverySupportedSnapMethod(t *testing.T) {
+	client, _ := New("https://api.sandbox.midtrans.test", "https://api.midtrans.test", time.Second)
+	manifest := client.Manifest()
+	if manifest.Version != "emisell-midtrans-v2.0.3" || len(manifest.CertificationProfiles) != 18 {
+		t.Fatalf("unexpected Midtrans Snap catalog: version=%s profiles=%v", manifest.Version, manifest.CertificationProfiles)
+	}
+	for _, code := range []string{"card", "va_danamon", "va_bsi", "ewallet_ovo", "ewallet_dana", "retail_alfamart", "retail_indomaret", "paylater_akulaku", "paylater_kredivo"} {
+		profile, ok := manifest.CertificationProfile(code)
+		if !ok || !profile.Automated || profile.CheckoutMode != connector.CheckoutModeProviderHosted {
+			t.Fatalf("hosted-only method %s must use automated Snap certification: %#v", code, profile)
 		}
 	}
 }

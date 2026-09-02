@@ -5,7 +5,7 @@ Status: **ACTIVE FOUNDATION**
 Owner: **Emisell**
 
 Runtime: **Go Payment Kernel + isolated Connector Runner**
-Reference connectors: **Xendit `emisell-xendit-v2.0.2` + Midtrans `emisell-midtrans-v2.0.2` + Duitku `emisell-duitku-v2.0.2` + DOKU `emisell-doku-v2.0.2` + iPaymu `emisell-ipaymu-v2.0.2`**
+Reference connectors: **Xendit `emisell-xendit-v2.0.2` + Midtrans `emisell-midtrans-v2.0.3` + Duitku `emisell-duitku-v2.0.2` + DOKU `emisell-doku-v2.0.2` + iPaymu `emisell-ipaymu-v2.0.2`**
 
 Dokumen ini mengunci batas arsitektur Payment Proxy. Implementasi, endpoint,
 dashboard, dan connector baru tidak boleh menyimpang dari kontrak di bawah tanpa

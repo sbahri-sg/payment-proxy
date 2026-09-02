@@ -97,6 +97,7 @@ type submissionManifest struct {
 	CertificationProfiles map[string]struct {
 		Code             string `yaml:"code"`
 		Automated        bool   `yaml:"automated"`
+		CheckoutMode     string `yaml:"checkout_mode,omitempty"`
 		WebhookSetupHint string `yaml:"webhook_setup_hint,omitempty"`
 	} `yaml:"certification_profiles"`
 	Environments []struct {
@@ -273,7 +274,7 @@ func validateSubmissionBundle(result Result, files map[string][]byte) (Result, e
 	result.Manifest.CertificationProfiles = make(map[string]connector.CertificationProfile, len(declared.CertificationProfiles))
 	for method, profile := range declared.CertificationProfiles {
 		result.Manifest.CertificationProfiles[strings.TrimSpace(method)] = connector.CertificationProfile{
-			Code: strings.TrimSpace(profile.Code), Automated: profile.Automated, WebhookSetupHint: strings.TrimSpace(profile.WebhookSetupHint),
+			Code: strings.TrimSpace(profile.Code), Automated: profile.Automated, CheckoutMode: strings.TrimSpace(profile.CheckoutMode), WebhookSetupHint: strings.TrimSpace(profile.WebhookSetupHint),
 		}
 	}
 	result.Manifest.Environments = make([]string, 0, len(declared.Environments))

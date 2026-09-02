@@ -1437,11 +1437,13 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 		{Code: "installation", Label: "Active sandbox installation", Status: "PASSED", Detail: installation.ID},
 		{Code: "catalog_mapping", Label: "Canonical connector mapping", Status: "PASSED", Detail: capability.ProviderMethod + "/" + capability.ProviderMethodType},
 	}
-	if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentMethodMapping{
-		PaymentMethodCode:  capability.PaymentMethodCode,
-		ProviderMethod:     capability.ProviderMethod,
-		ProviderMethodType: capability.ProviderMethodType,
-	}); err != nil {
+	certificationMethod := connector.PaymentMethodMapping{
+		PaymentMethodCode:   capability.PaymentMethodCode,
+		ProviderMethod:      capability.ProviderMethod,
+		ProviderMethodType:  capability.ProviderMethodType,
+		ProviderChannelCode: capability.ProviderChannelCode,
+	}
+	if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, certificationMethod); err != nil {
 		checks[1].Status = "FAILED"
 		checks[1].Detail = err.Error()
 		s.writeConnectorCertification(w, r, http.StatusCreated, runID, installation, capability, "FAILED", "", "The catalog mapping is not executable by the registered connector.", checks)
@@ -1460,6 +1462,10 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	checks = append(checks, model.ConnectorCertificationCheck{Code: "test_profile", Label: "Automated sandbox test profile", Status: "PASSED", Detail: profile.Code})
+	checkoutMode := profile.CheckoutMode
+	if checkoutMode == "" {
+		checkoutMode = connector.CheckoutModeDirect
+	}
 	if request.PaymentID != "" {
 		s.resumeConnectorCertification(w, r, runID, request.PaymentID, installation, capability, checks)
 		return
@@ -1496,17 +1502,22 @@ func (s *Server) runConnectorCertification(w http.ResponseWriter, r *http.Reques
 		s.internal(w, r, err)
 		return
 	}
-	result, err := s.engine.CreatePayment(r.Context(), connector.PaymentInput{
+	paymentInput := connector.PaymentInput{
 		ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, Credentials: credentials,
 		InstallationID: installation.ID, LocalPaymentID: session.ID, MerchantReference: reference,
 		IdempotencyKey: idempotencyKey, Amount: 1_000_000, Currency: "IDR",
+		CheckoutMode:      checkoutMode,
 		PaymentMethodCode: capability.PaymentMethodCode, ChannelCode: capability.ProviderChannelCode,
 		PublicWebhookURL: s.providerWebhookURL(installation.ProviderCode, installation.ID),
 		Customer:         connector.Customer{Name: "Emisell Certification", Email: "sandbox@example.com", Phone: "+6281234567890"},
 		Items:            []connector.Item{{ReferenceID: "certification-item", Type: "DIGITAL_PRODUCT", Name: "Emisell certification item", NetUnitAmount: 1_000_000, Quantity: 1, Category: "software"}},
 		ReturnURL:        s.certificationReturnURL(),
 		Metadata:         map[string]any{"emisell_tenant_id": tenant(r), "emisell_payment_id": session.ID, "emisell_certification_run_id": runID},
-	})
+	}
+	if checkoutMode == connector.CheckoutModeProviderHosted {
+		paymentInput.AllowedPaymentMethods = []connector.PaymentMethodMapping{certificationMethod}
+	}
+	result, err := s.engine.CreatePayment(r.Context(), paymentInput)
 	if err != nil {
 		paymentStatus := model.PaymentFailed
 		if errors.Is(err, connector.ErrOutcomeUnknown) {
@@ -1920,6 +1931,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		}
 		if err = s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
 			PaymentMethodCode: request.PaymentMethodCode,
+			CheckoutMode:      request.CheckoutMode,
 			Currency:          request.Currency,
 			Amount:            request.Amount,
 		}); err != nil {
@@ -1952,6 +1964,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		}
 		if err = s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
 			PaymentMethodCode: selectedAssignment.PaymentMethodCode,
+			CheckoutMode:      request.CheckoutMode,
 			Currency:          request.Currency,
 			Amount:            request.Amount,
 		}); err != nil {

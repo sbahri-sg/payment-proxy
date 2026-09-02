@@ -2,7 +2,7 @@
 
 Status: **IMPLEMENTED · BCA/BNI/PERMATA VA SANDBOX CERTIFIED**
 
-Connector: `emisell-midtrans-v2.0.2`
+Connector: `emisell-midtrans-v2.0.3`
 Runtime: isolated Midtrans Provider App container
 
 Dokumen ini membedakan implementasi kode dari bukti bahwa account Midtrans
@@ -11,7 +11,7 @@ available berarti connector dapat di-install. Capability `DOCUMENTED` maupun
 `CERTIFIED` boleh di-assign; status `CERTIFIED` hanya menandai bahwa sandbox run
 Emisell sudah mempunyai evidence lengkap.
 
-## Scope implementasi awal
+## Scope Core API langsung
 
 | Canonical method | Midtrans Core API | Runtime |
 |---|---|---|
@@ -28,10 +28,11 @@ Untuk `provider_hosted`, runtime mengubah assignment `ACTIVE` yang eligible
 menjadi daftar exact Snap `enabled_payments`; channel yang tidak di-assign tidak
 ditampilkan pada transaksi tersebut.
 
-Card, Danamon VA, BSI VA, OVO, DANA, retail, dan paylater tetap tercatat sebagai
-informasi katalog tetapi ditandai `CONNECTOR_METHOD_NOT_IMPLEMENTED`. Danamon
-Core API standar tidak disamakan dengan varian BI-SNAP. Connector tidak menebak
-payload untuk channel yang berbeda kontrak.
+Release v2.0.3 juga mendukung Card, Danamon VA, BSI VA, OVO, DANA, Alfamart,
+Indomaret, Akulaku, dan Kredivo melalui Snap hosted checkout. Kesembilan metode
+ini tidak diteruskan ke flow Core API langsung. Metadata capability membedakan
+`hosted_support=SUPPORTED` dari `direct_support=UNSUPPORTED`, sehingga katalog
+merchant lengkap tanpa mengklaim implementasi direct yang belum tersedia.
 
 ## Credential dan endpoint
 
@@ -116,4 +117,5 @@ sebagai bukti kelulusan setelah status provider direkonsiliasi lewat GET Status.
 Adapter cancel dan refund mempunyai unit/contract test, termasuk `refund_key`
 stabil dan aturan outcome ambigu. Operation tersebut belum dicantumkan pada
 manifest runtime sampai real sandbox evidence untuk status, duplicate retry,
-webhook, dan failure mode tersimpan. Capture dan card juga belum tersedia.
+webhook, dan failure mode tersimpan. Capture dan direct card juga belum
+tersedia; card tetap tersedia melalui Snap hosted checkout.

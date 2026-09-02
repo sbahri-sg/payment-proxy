@@ -3,7 +3,7 @@ provider:
   code: midtrans
   name: Midtrans
 release:
-  version: emisell-midtrans-v2.0.2
+  version: emisell-midtrans-v2.0.3
 connector:
   contract_version: v1
   runtime: isolated_container
@@ -28,15 +28,24 @@ credentials:
       secret: true
       required: false
 certification_profiles:
-  qris: {code: midtrans-core-v2/qris, automated: true}
-  va_bca: {code: midtrans-core-v2/va_bca, automated: true}
-  va_mandiri: {code: midtrans-core-v2/va_mandiri, automated: true}
-  va_bni: {code: midtrans-core-v2/va_bni, automated: true}
-  va_bri: {code: midtrans-core-v2/va_bri, automated: true}
-  va_permata: {code: midtrans-core-v2/va_permata, automated: true}
-  va_cimb: {code: midtrans-core-v2/va_cimb, automated: true}
-  ewallet_gopay: {code: midtrans-core-v2/ewallet_gopay, automated: true}
-  ewallet_shopeepay: {code: midtrans-core-v2/ewallet_shopeepay, automated: true}
+  qris: {code: midtrans-core-v2/qris, automated: true, checkout_mode: direct}
+  card: {code: midtrans-snap-v1/card, automated: true, checkout_mode: provider_hosted}
+  va_bca: {code: midtrans-core-v2/va_bca, automated: true, checkout_mode: direct}
+  va_mandiri: {code: midtrans-core-v2/va_mandiri, automated: true, checkout_mode: direct}
+  va_bni: {code: midtrans-core-v2/va_bni, automated: true, checkout_mode: direct}
+  va_bri: {code: midtrans-core-v2/va_bri, automated: true, checkout_mode: direct}
+  va_permata: {code: midtrans-core-v2/va_permata, automated: true, checkout_mode: direct}
+  va_cimb: {code: midtrans-core-v2/va_cimb, automated: true, checkout_mode: direct}
+  va_danamon: {code: midtrans-snap-v1/va_danamon, automated: true, checkout_mode: provider_hosted}
+  va_bsi: {code: midtrans-snap-v1/va_bsi, automated: true, checkout_mode: provider_hosted}
+  ewallet_gopay: {code: midtrans-core-v2/ewallet_gopay, automated: true, checkout_mode: direct}
+  ewallet_ovo: {code: midtrans-snap-v1/ewallet_ovo, automated: true, checkout_mode: provider_hosted}
+  ewallet_dana: {code: midtrans-snap-v1/ewallet_dana, automated: true, checkout_mode: provider_hosted}
+  ewallet_shopeepay: {code: midtrans-core-v2/ewallet_shopeepay, automated: true, checkout_mode: direct}
+  retail_alfamart: {code: midtrans-snap-v1/retail_alfamart, automated: true, checkout_mode: provider_hosted}
+  retail_indomaret: {code: midtrans-snap-v1/retail_indomaret, automated: true, checkout_mode: provider_hosted}
+  paylater_akulaku: {code: midtrans-snap-v1/paylater_akulaku, automated: true, checkout_mode: provider_hosted}
+  paylater_kredivo: {code: midtrans-snap-v1/paylater_kredivo, automated: true, checkout_mode: provider_hosted}
 environments:
   - code: live
     label: Live
@@ -46,14 +55,23 @@ environments:
     description: Pengujian credential dan transaksi Midtrans tanpa transaksi production.
 payment_methods:
   - qris
+  - card
   - va_bca
   - va_mandiri
   - va_bni
   - va_bri
   - va_permata
   - va_cimb
+  - va_danamon
+  - va_bsi
   - ewallet_gopay
+  - ewallet_ovo
+  - ewallet_dana
   - ewallet_shopeepay
+  - retail_alfamart
+  - retail_indomaret
+  - paylater_akulaku
+  - paylater_kredivo
 outbound_hosts:
   - api.midtrans.com
   - api.sandbox.midtrans.com

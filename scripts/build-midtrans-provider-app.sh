@@ -18,10 +18,10 @@ install -m 0644 "${repo_dir}/backend/internal/midtrans/manifest.go" "${bundle_tm
 (
   cd "${bundle_tmp}/bundle"
   touch -t 198001010000 emisell-extension.yaml openapi.yaml README.md SECURITY.md contract-tests/README.md src/midtrans/client.go src/midtrans/manifest.go
-  COPYFILE_DISABLE=1 zip -X -q "${bundle_tmp}/midtrans-provider-app-emisell-v2.0.2.zip" \
+  COPYFILE_DISABLE=1 zip -X -q "${bundle_tmp}/midtrans-provider-app-emisell-v2.0.3.zip" \
     emisell-extension.yaml openapi.yaml README.md SECURITY.md contract-tests/README.md \
     src/midtrans/client.go src/midtrans/manifest.go
 )
 
-install -m 0644 "${bundle_tmp}/midtrans-provider-app-emisell-v2.0.2.zip" "${output_dir}/midtrans-provider-app-emisell-v2.0.2.zip"
-shasum -a 256 "${output_dir}/midtrans-provider-app-emisell-v2.0.2.zip"
+install -m 0644 "${bundle_tmp}/midtrans-provider-app-emisell-v2.0.3.zip" "${output_dir}/midtrans-provider-app-emisell-v2.0.3.zip"
+shasum -a 256 "${output_dir}/midtrans-provider-app-emisell-v2.0.3.zip"
