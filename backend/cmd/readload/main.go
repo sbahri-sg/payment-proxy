@@ -63,7 +63,6 @@ func run(baseURL, path string, total, concurrency int, timeout, p95Target time.D
 	}
 	serviceKey := strings.TrimSpace(os.Getenv("SERVICE_API_KEY"))
 	merchantID := strings.TrimSpace(envOr("DASHBOARD_MERCHANT_ID", "merchant_load_test"))
-	mode := strings.TrimSpace(envOr("PAYMENT_PROXY_EXECUTION_MODE", "sandbox"))
 	if strings.HasPrefix(requested.Path, "/api/v1/") && serviceKey == "" {
 		return errors.New("SERVICE_API_KEY is required for /api/v1 read tests")
 	}
@@ -89,11 +88,6 @@ func run(baseURL, path string, total, concurrency int, timeout, p95Target time.D
 	results := make(chan result, total)
 	var workers sync.WaitGroup
 	workers.Add(concurrency)
-	if requested.Path == "/api/v1/provider-options" {
-		query := requested.Query()
-		query.Set("environment", mode)
-		requested.RawQuery = query.Encode()
-	}
 	target := base.ResolveReference(requested).String()
 	for worker := 0; worker < concurrency; worker++ {
 		go func() {

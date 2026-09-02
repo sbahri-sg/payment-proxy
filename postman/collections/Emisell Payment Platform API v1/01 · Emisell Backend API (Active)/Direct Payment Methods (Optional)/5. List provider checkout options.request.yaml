@@ -1,6 +1,6 @@
 $kind: http-request
 description: Mengelompokkan payment method ACTIVE yang saat ini tersedia berdasarkan installation provider ACTIVE. Provider atau channel offline/maintenance tidak muncul di checkout, tetapi assignment merchant tetap ACTIVE.
-url: "{{base_url}}/api/v1/provider-options?environment={{execution_mode}}"
+url: "{{base_url}}/api/v1/provider-options"
 method: GET
 headers:
   X-Emisell-Merchant-ID: "{{merchant_id}}"

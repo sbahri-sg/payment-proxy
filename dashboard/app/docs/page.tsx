@@ -804,7 +804,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
         note: "payment-options dipakai untuk direct checkout melalui payment_option_id. Untuk provider_hosted, ambil supported_payment_methods[].id dari provider-options dan kirim sebagai payment_method_id. Credential tidak pernah masuk ke checkout.",
       },
       {
-        method: "GET", path: "/api/v1/provider-options?environment=sandbox", title: "List provider checkout options", description: "Mengelompokkan assignment ACTIVE yang tersedia berdasarkan installation provider ACTIVE. Provider atau channel offline/maintenance otomatis tidak muncul di checkout.",
+        method: "GET", path: "/api/v1/provider-options", title: "List provider checkout options", description: "Mengelompokkan assignment ACTIVE yang tersedia berdasarkan installation provider ACTIVE dan mengembalikan sandbox serta live dalam satu respons. Provider atau channel offline/maintenance otomatis tidak muncul di checkout.",
         response: `{
   "data": [{
     "provider_code": "xendit",
@@ -822,7 +822,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
     }]
   }]
 }`,
-        note: "environment wajib. Provider tanpa metode ACTIVE atau tanpa metode yang sedang tersedia tidak muncul. Gangguan tidak mengubah setting merchant. logo_url bersifat relatif terhadap origin Dashboard Payment Proxy dan dapat tidak tersedia untuk brand yang belum mempunyai aset.",
+        note: "Tidak memakai query environment; baca field environment pada setiap item. Provider tanpa metode ACTIVE atau tanpa metode yang sedang tersedia tidak muncul. Gangguan tidak mengubah setting merchant. logo_url bersifat relatif terhadap origin Dashboard Payment Proxy dan dapat tidak tersedia untuk brand yang belum mempunyai aset.",
       },
     ],
   },
@@ -1723,7 +1723,7 @@ midtrans_server_key = <Midtrans Sandbox Server Key>`;
 6. POST /payment-sessions (ulang request yang sama dengan Idempotency-Key yang sama)
 7. GET  /payment-sessions/{id} → terima signed payment.updated
 8. GET  /integration-readiness → READY`}</Code>
-                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Assignment dan payment-options mengembalikan sandbox/live bersama; payment session menyelesaikan environment dan installation dari payment_method_id atau payment_option_id. Query environment hanya dipakai endpoint yang mendokumentasikannya, seperti provider-options dan filter daftar payment. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
+                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Assignment, payment-options, dan provider-options mengembalikan sandbox/live bersama; payment session menyelesaikan environment dan installation dari payment_method_id atau payment_option_id. Query environment hanya dipakai endpoint yang mendokumentasikannya, seperti filter daftar payment. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
                 <div className="postman-card"><div><strong>AI-readable contract</strong><span>Gunakan kontrak ringkas ini untuk coding assistant. Isinya hanya API Emisell Backend dan guardrail keamanan, bukan endpoint admin atau secret provider.</span></div><a className="download-link" href="/docs/llms.txt">Open llms.txt <span>→</span></a></div>
               </section>}
               <section className="doc-section" id="engine-contract">

@@ -283,16 +283,6 @@ func TestEnvironmentQueries(t *testing.T) {
 		t.Fatalf("filtered environment = %q, %v; want live, true", value, ok)
 	}
 
-	for _, path := range []string{"/api/v1/provider-options"} {
-		missingRecorder := httptest.NewRecorder()
-		if value, ok := requireEnvironmentQuery(missingRecorder, httptest.NewRequest(http.MethodGet, path, nil)); ok || value != "" || missingRecorder.Code != http.StatusBadRequest {
-			t.Fatalf("%s missing required environment = %q, %v, status %d", path, value, ok, missingRecorder.Code)
-		}
-		if !strings.Contains(missingRecorder.Body.String(), "INVALID_ENVIRONMENT") {
-			t.Fatalf("%s missing environment returned unexpected problem: %s", path, missingRecorder.Body.String())
-		}
-	}
-
 	invalidRecorder := httptest.NewRecorder()
 	if value, ok := optionalEnvironmentQuery(invalidRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/payment-sessions?environment=staging", nil)); ok || value != "" || invalidRecorder.Code != http.StatusBadRequest {
 		t.Fatalf("invalid optional environment = %q, %v, status %d", value, ok, invalidRecorder.Code)

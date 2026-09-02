@@ -1513,7 +1513,7 @@ func (s *Postgres) ListPaymentOptions(ctx context.Context, tenantID string) ([]m
 	return result, rows.Err()
 }
 
-func (s *Postgres) ListProviderOptions(ctx context.Context, tenantID, environment string) ([]model.ProviderOption, error) {
+func (s *Postgres) ListProviderOptions(ctx context.Context, tenantID string) ([]model.ProviderOption, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT i.id,i.provider_code,p.name,i.provider_version,i.environment,
 		       COALESCE(r.logo_content_type<>'',false),
@@ -1527,15 +1527,15 @@ func (s *Postgres) ListProviderOptions(ctx context.Context, tenantID, environmen
 		JOIN provider_payment_method_capabilities c
 		  ON c.provider_code=i.provider_code AND c.payment_method_code=a.payment_method_code
 		 AND c.support_status IN ('DOCUMENTED','CERTIFIED')
-		WHERE i.tenant_id=$1 AND i.environment=$2 AND i.status='ACTIVE'
+		WHERE i.tenant_id=$1 AND i.status='ACTIVE'
 		  AND NOT EXISTS (
 			SELECT 1 FROM installation_payment_method_availability av
 			WHERE av.tenant_id=i.tenant_id AND av.installation_id=i.id
 			  AND av.expires_at>now() AND av.status='UNAVAILABLE'
 			  AND av.payment_method_code IN ('*',a.payment_method_code)
 		  )
-		ORDER BY p.name,i.id,m.sort_order,m.name
-	`, tenantID, environment)
+		ORDER BY i.environment,p.name,i.id,m.sort_order,m.name
+	`, tenantID)
 	if err != nil {
 		return nil, err
 	}

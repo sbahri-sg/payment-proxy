@@ -125,17 +125,24 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 	if len(otherTenantMappings) != 0 {
 		t.Fatalf("another tenant could read hosted-checkout mappings: %#v", otherTenantMappings)
 	}
-	providerOptions, err := repository.ListProviderOptions(ctx, tenantID, model.EnvironmentSandbox)
+	providerOptions, err := repository.ListProviderOptions(ctx, tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providerOptions) != 1 || providerOptions[0].ProviderCode != "xendit" || providerOptions[0].InstallationID != installationID {
-		t.Fatalf("provider options were not grouped by active installation: %#v", providerOptions)
+	if len(providerOptions) != 2 {
+		t.Fatalf("provider options did not include both environments: %#v", providerOptions)
 	}
-	if len(providerOptions[0].SupportedPaymentMethods) != 1 || providerOptions[0].SupportedPaymentMethods[0].PaymentMethodCode != "va_bca" {
-		t.Fatalf("inactive method leaked into provider options: %#v", providerOptions[0].SupportedPaymentMethods)
+	providerOptionsByEnvironment := make(map[string]model.ProviderOption, len(providerOptions))
+	for _, option := range providerOptions {
+		providerOptionsByEnvironment[option.Environment] = option
 	}
-	otherTenantOptions, err := repository.ListProviderOptions(ctx, "other."+tenantID, model.EnvironmentSandbox)
+	if sandbox := providerOptionsByEnvironment[model.EnvironmentSandbox]; sandbox.ProviderCode != "xendit" || sandbox.InstallationID != installationID || len(sandbox.SupportedPaymentMethods) != 1 || sandbox.SupportedPaymentMethods[0].PaymentMethodCode != "va_bca" {
+		t.Fatalf("sandbox provider option was not grouped correctly: %#v", sandbox)
+	}
+	if live := providerOptionsByEnvironment[model.EnvironmentLive]; live.ProviderCode != "xendit" || live.InstallationID != liveInstallationID || len(live.SupportedPaymentMethods) != 1 || live.SupportedPaymentMethods[0].PaymentMethodCode != "card" {
+		t.Fatalf("live provider option was not grouped correctly: %#v", live)
+	}
+	otherTenantOptions, err := repository.ListProviderOptions(ctx, "other."+tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,12 +196,12 @@ func TestBulkPaymentMethodAssignmentsAreAtomicAndListAllStatuses(t *testing.T) {
 	if len(optionsDuringMaintenance) != 1 || optionsDuringMaintenance[0].PaymentMethodCode != "card" {
 		t.Fatalf("maintenance method leaked into checkout options: %#v", optionsDuringMaintenance)
 	}
-	providerOptionsDuringMaintenance, err := repository.ListProviderOptions(ctx, tenantID, model.EnvironmentSandbox)
+	providerOptionsDuringMaintenance, err := repository.ListProviderOptions(ctx, tenantID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providerOptionsDuringMaintenance) != 0 {
-		t.Fatalf("provider with no available assigned method leaked into checkout: %#v", providerOptionsDuringMaintenance)
+	if len(providerOptionsDuringMaintenance) != 1 || providerOptionsDuringMaintenance[0].Environment != model.EnvironmentLive || providerOptionsDuringMaintenance[0].InstallationID != liveInstallationID {
+		t.Fatalf("maintenance sandbox method affected the live provider option: %#v", providerOptionsDuringMaintenance)
 	}
 	mappingsDuringMaintenance, err := repository.ListActivePaymentMethodMappings(ctx, tenantID, installationID)
 	if err != nil {

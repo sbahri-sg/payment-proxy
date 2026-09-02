@@ -643,9 +643,8 @@ Emisell agar request tidak dikirim pada setiap keypress.
 List semua assignment milik `X-Emisell-Merchant-ID`, termasuk status `ACTIVE`
 dan `INACTIVE` serta environment `sandbox` dan `live`. Endpoint ini tidak
 menerima filter `environment`; gunakan field `environment` pada setiap item
-untuk membedakan konfigurasinya. `/payment-options` juga mengembalikan kedua
-environment, sedangkan `/provider-options` tetap memerlukan environment karena
-dipakai untuk memilih installation hosted checkout.
+untuk membedakan konfigurasinya. `/payment-options` dan `/provider-options`
+juga mengembalikan kedua environment dalam satu respons.
 
 Assignment adalah konfigurasi pilihan merchant, bukan status operasional
 provider. Ketika provider atau channel sedang offline/maintenance, record
@@ -711,10 +710,9 @@ Endpoint ini tidak menerima filter environment dan mengembalikan seluruh option
 `ACTIVE` milik merchant dari sandbox dan live. Setiap item membawa field
 `environment`; saat option dipilih, Payment Proxy menurunkan environment dari
 `payment_option_id`. Endpoint ini hanya dipakai oleh flow `direct` lanjutan yang
-memilih channel sebelum memanggil provider. Flow utama
-`provider_hosted` tidak mengirim `payment_option_id`; pelanggan tetap memilih
-channel di halaman checkout provider dari daftar assignment `ACTIVE` milik
-installation.
+memilih channel sebelum memanggil provider. Flow `provider_hosted` mengambil
+`payment_method_id` dari `/provider-options`; Payment Proxy lalu menyelesaikan
+installation dan menerapkan tepat satu metode tersebut pada checkout provider.
 
 Sebelum mengembalikan daftar, Payment Proxy memperbarui cache availability
 internal berumur pendek. Method yang dinyatakan `offline`, `maintenance`, atau
@@ -736,12 +734,13 @@ aman digunakan.
 
 ### `GET /provider-options`
 
-Wajib query `?environment=sandbox` atau `?environment=live`. Endpoint ini
-mengembalikan data checkout yang sama, tetapi dikelompokkan berdasarkan
-installation provider aktif. Gunakan endpoint ini ketika Dashboard Emisell
-ingin menampilkan pilihan gateway lebih dahulu, lalu metode yang tersedia pada
-gateway tersebut. Pilih `supported_payment_methods[].id` sebagai
-`payment_method_id` untuk membuat `provider_hosted` payment session.
+Endpoint ini tidak menerima filter environment dan mengembalikan sandbox serta
+live milik merchant dalam satu respons. Data dikelompokkan berdasarkan
+installation provider aktif dan setiap item membawa field `environment`.
+Gunakan endpoint ini ketika Dashboard Emisell ingin menampilkan pilihan gateway
+lebih dahulu, lalu metode yang tersedia pada gateway tersebut. Pilih
+`supported_payment_methods[].id` sebagai `payment_method_id` untuk membuat
+`provider_hosted` payment session.
 
 ```json
 {

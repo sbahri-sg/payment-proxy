@@ -1134,15 +1134,11 @@ func (s *Server) listPaymentOptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listProviderOptions(w http.ResponseWriter, r *http.Request) {
-	environment, ok := requireEnvironmentQuery(w, r)
-	if !ok {
-		return
-	}
-	if err := s.refreshActiveInstallationAvailability(r.Context(), tenant(r), environment); err != nil {
+	if err := s.refreshActiveInstallationAvailability(r.Context(), tenant(r), ""); err != nil {
 		s.internal(w, r, err)
 		return
 	}
-	items, err := s.store.ListProviderOptions(r.Context(), tenant(r), environment)
+	items, err := s.store.ListProviderOptions(r.Context(), tenant(r))
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -2961,17 +2957,6 @@ func optionalEnvironmentQuery(w http.ResponseWriter, r *http.Request) (string, b
 	return value, true
 }
 
-func requireEnvironmentQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
-	value, ok := optionalEnvironmentQuery(w, r)
-	if !ok {
-		return "", false
-	}
-	if value == "" {
-		problem(w, http.StatusBadRequest, "INVALID_ENVIRONMENT", "environment query must be sandbox or live")
-		return "", false
-	}
-	return value, true
-}
 func validMode(value string) bool {
 	return value == model.EnvironmentLive || value == model.EnvironmentSandbox
 }

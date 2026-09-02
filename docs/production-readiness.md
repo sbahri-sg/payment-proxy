@@ -150,9 +150,8 @@ export DASHBOARD_MERCHANT_ID=merchant_load_test
 `payment-options` tidak memakai query environment dan menguji option aktif
 sandbox serta live milik merchant dalam satu respons.
 
-`provider-options` masih memakai query environment. Set
-`PAYMENT_PROXY_EXECUTION_MODE=sandbox|live` ketika endpoint tersebut dipilih
-untuk menguji grouping per installation provider aktif.
+`provider-options` juga tidak memakai query environment dan menguji grouping
+sandbox serta live per installation provider aktif dalam satu respons.
 
 Endpoint yang diizinkan hanya health, provider catalog, payment-method catalog,
 payment options, dan provider options. Runner gagal apabila path mutation dipilih, error rate

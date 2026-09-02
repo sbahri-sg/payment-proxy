@@ -666,8 +666,8 @@ export function listPaymentOptions(actor: string) {
   return proxyRequest<PaymentOption[]>("/api/v1/payment-options", actor);
 }
 
-export function listProviderOptions(actor: string, environment: "sandbox" | "live") {
-  return proxyRequest<ProviderOption[]>(`/api/v1/provider-options?environment=${encodeURIComponent(environment)}`, actor);
+export function listProviderOptions(actor: string) {
+  return proxyRequest<ProviderOption[]>("/api/v1/provider-options", actor);
 }
 
 export function getProviderAvailability(actor: string) {

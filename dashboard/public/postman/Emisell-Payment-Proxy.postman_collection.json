@@ -2482,7 +2482,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/provider-options?environment={{execution_mode}}",
+                  "raw": "{{base_url}}/api/v1/provider-options",
                   "host": [
                     "{{base_url}}"
                   ],
@@ -2490,12 +2490,6 @@
                     "api",
                     "v1",
                     "provider-options"
-                  ],
-                  "query": [
-                    {
-                      "key": "environment",
-                      "value": "{{execution_mode}}"
-                    }
                   ]
                 },
                 "description": "Mengelompokkan payment method ACTIVE yang saat ini tersedia berdasarkan installation provider ACTIVE. Provider atau channel offline/maintenance tidak muncul di checkout, tetapi assignment merchant tetap ACTIVE."
