@@ -4,14 +4,13 @@ request:
   method: POST
   headers:
     X-Emisell-Merchant-ID: "{{merchant_id}}"
-    X-Emisell-Execution-Mode: "{{execution_mode}}"
     Idempotency-Key: checkout-{{$guid}}
     Content-Type: application/json
   body:
     type: json
     content: |-
       {
-        "installation_id": "{{installation_id}}",
+        "payment_method_id": "{{payment_method_id}}",
         "checkout_mode": "provider_hosted",
         "merchant_reference": "order_{{$timestamp}}",
         "amount": 1000000,

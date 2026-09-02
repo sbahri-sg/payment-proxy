@@ -30,6 +30,20 @@ func TestCanonicalPaymentStatus(t *testing.T) {
 	}
 }
 
+func TestNormalizePaymentSelection(t *testing.T) {
+	hosted := model.PaymentSession{PaymentMethodID: "pmo_qris", PaymentMethodCode: "qris"}
+	normalizePaymentSelection(&hosted)
+	if hosted.CheckoutMode != "provider_hosted" || hosted.PaymentMethodID != "pmo_qris" || hosted.PaymentOptionID != "" || hosted.PaymentMethodCode != "qris" {
+		t.Fatalf("unexpected hosted payment selection: %#v", hosted)
+	}
+
+	direct := model.PaymentSession{PaymentOptionID: "pmo_card", PaymentMethodCode: "card"}
+	normalizePaymentSelection(&direct)
+	if direct.CheckoutMode != "direct" || direct.PaymentOptionID != "pmo_card" || direct.PaymentMethodID != "" {
+		t.Fatalf("unexpected direct payment selection: %#v", direct)
+	}
+}
+
 func TestCanonicalPaymentFlags(t *testing.T) {
 	tests := []struct {
 		name                    string

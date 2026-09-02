@@ -329,6 +329,7 @@ export type PaymentSession = {
   id: string;
   merchant_id: string;
   installation_id: string;
+  payment_method_id?: string;
   payment_option_id?: string;
   payment_method_code?: string;
   checkout_mode: "provider_hosted" | "direct";

@@ -122,6 +122,11 @@
       "type": "string"
     },
     {
+      "key": "payment_method_id",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "installation_version",
       "value": "0",
       "type": "string"
@@ -2457,7 +2462,11 @@
                       "if (pm.response.code === 200) {",
                       "  const providers = pm.response.json().data || [];",
                       "  const xendit = providers.find((provider) => provider.provider_code === 'xendit');",
-                      "  if (xendit) pm.collectionVariables.set('installation_id', xendit.installation_id);",
+                      "  if (xendit) {",
+                      "    pm.collectionVariables.set('installation_id', xendit.installation_id);",
+                      "    const method = (xendit.supported_payment_methods || [])[0];",
+                      "    if (method) pm.collectionVariables.set('payment_method_id', method.id);",
+                      "  }",
                       "}"
                     ]
                   }
@@ -2627,7 +2636,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"installation_id\": \"{{installation_id}}\",\n  \"checkout_mode\": \"provider_hosted\",\n  \"merchant_reference\": \"order_{{$timestamp}}\",\n  \"amount\": 10000,\n  \"currency\": \"IDR\",\n  \"description\": \"Emisell order checkout\",\n  \"customer\": {\n    \"name\": \"Budi Santoso\",\n    \"email\": \"budi@example.com\"\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman-provider-hosted\"\n  }\n}",
+                  "raw": "{\n  \"payment_method_id\": \"{{payment_method_id}}\",\n  \"checkout_mode\": \"provider_hosted\",\n  \"merchant_reference\": \"order_{{$timestamp}}\",\n  \"amount\": 10000,\n  \"currency\": \"IDR\",\n  \"description\": \"Emisell order checkout\",\n  \"customer\": {\n    \"name\": \"Budi Santoso\",\n    \"email\": \"budi@example.com\"\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman-provider-hosted\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2645,7 +2654,7 @@
                     "payment-sessions"
                   ]
                 },
-                "description": "Payment Proxy membuat sesi normalized lalu mengembalikan URL hosted checkout milik provider. Untuk IDR, amount adalah Rupiah utuh: 10000 berarti Rp10.000 dan tidak dibagi 100. Jangan kirim payment_option_id atau payment_method_code pada flow ini."
+                "description": "Payment Proxy menyelesaikan installation dari payment_method_id lalu mengembalikan URL hosted checkout milik provider dengan tepat satu metode pilihan. Untuk IDR, amount adalah Rupiah utuh: 10000 berarti Rp10.000 dan tidak dibagi 100. Jangan kirim installation_id, payment_option_id, atau payment_method_code pada flow ini."
               },
               "response": [
                 {
@@ -2660,7 +2669,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"checkout_mode\": \"provider_hosted\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"merchant_reference\": \"order_2026_0001\",\n      \"amount\": 10000,\n      \"currency\": \"IDR\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"ps-6a915387...\",\n      \"checkout_url\": \"https://dev.xen.to/...\",\n      \"next_action\": {\n        \"type\": \"redirect\",\n        \"redirect_url\": \"https://dev.xen.to/...\"\n      }\n    }\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"payment_method_id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"checkout_mode\": \"provider_hosted\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"merchant_reference\": \"order_2026_0001\",\n      \"amount\": 10000,\n      \"currency\": \"IDR\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"ps-6a915387...\",\n      \"checkout_url\": \"https://dev.xen.to/...\",\n      \"next_action\": {\n        \"type\": \"redirect\",\n        \"redirect_url\": \"https://dev.xen.to/...\"\n      }\n    }\n  }\n}"
                 },
                 {
                   "name": "202 Outcome unknown",

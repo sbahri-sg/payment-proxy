@@ -25,6 +25,7 @@ variables:
   installation_version: "0"
   target_provider_version: emisell-midtrans-v1.2.0
   payment_option_id: ""
+  payment_method_id: ""
   payment_option_version: "0"
   payment_method_code: qris
   payment_id: ""

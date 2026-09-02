@@ -1793,9 +1793,9 @@ func (s *Postgres) DeactivatePaymentMethodAssignment(ctx context.Context, tenant
 }
 
 type ReservePaymentInput struct {
-	ID, TenantID, InstallationID, PaymentOptionID, PaymentMethodCode, ProviderCode, ProviderVersion, Environment, MerchantReference, IdempotencyKey, Currency, ExecutionEngine string
-	RequestHash                                                                                                                                                                []byte
-	Amount                                                                                                                                                                     int64
+	ID, TenantID, InstallationID, PaymentMethodID, PaymentOptionID, PaymentMethodCode, ProviderCode, ProviderVersion, Environment, MerchantReference, IdempotencyKey, Currency, ExecutionEngine string
+	RequestHash                                                                                                                                                                                 []byte
+	Amount                                                                                                                                                                                      int64
 }
 
 type PaymentListFilter struct {
@@ -1965,9 +1965,9 @@ func (s *Postgres) ReservePayment(ctx context.Context, in ReservePaymentInput) (
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO payment_sessions
-		(id,tenant_id,installation_id,payment_option_id,payment_method_code,provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,execution_engine)
-		VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,$7,$8,$9,$10,$11,$12,$13,'CREATED',$14)
-	`, in.ID, in.TenantID, in.InstallationID, in.PaymentOptionID, in.PaymentMethodCode, in.ProviderCode, in.ProviderVersion, in.Environment, in.MerchantReference, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.ExecutionEngine)
+		(id,tenant_id,installation_id,payment_method_id,payment_option_id,payment_method_code,provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,execution_engine)
+		VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,$14,'CREATED',$15)
+	`, in.ID, in.TenantID, in.InstallationID, in.PaymentMethodID, in.PaymentOptionID, in.PaymentMethodCode, in.ProviderCode, in.ProviderVersion, in.Environment, in.MerchantReference, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.ExecutionEngine)
 	if err != nil {
 		if isUnique(err) {
 			return model.PaymentSession{}, false, ErrConflict
@@ -2721,19 +2721,15 @@ func scanConnectorCertificationRun(row scanner) (model.ConnectorCertificationRun
 	return item, err
 }
 
-const paymentSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,COALESCE(next_action,'null'::jsonb),last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
-const paymentListSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,NULL::jsonb,last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
+const paymentSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_method_id,''),COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,COALESCE(next_action,'null'::jsonb),last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
+const paymentListSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_method_id,''),COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,NULL::jsonb,last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
 
 func scanPayment(row scanner) (model.PaymentSession, []byte, error) {
 	var i model.PaymentSession
 	var hash []byte
-	err := row.Scan(&i.ID, &i.TenantID, &i.InstallationID, &i.PaymentOptionID, &i.PaymentMethodCode, &i.ProviderCode, &i.ProviderVersion, &i.Environment, &i.MerchantReference, &i.IdempotencyKey, &hash, &i.Amount, &i.Currency, &i.Status, &i.Flags, &i.EnginePaymentID, &i.ConnectorTxnID, &i.ExecutionEngine, &i.NextAction, &i.LastError, &i.ReconciliationCount, &i.LastReconciledAt, &i.LastReconciledBy, &i.LastReconciliationKey, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(&i.ID, &i.TenantID, &i.InstallationID, &i.PaymentMethodID, &i.PaymentOptionID, &i.PaymentMethodCode, &i.ProviderCode, &i.ProviderVersion, &i.Environment, &i.MerchantReference, &i.IdempotencyKey, &hash, &i.Amount, &i.Currency, &i.Status, &i.Flags, &i.EnginePaymentID, &i.ConnectorTxnID, &i.ExecutionEngine, &i.NextAction, &i.LastError, &i.ReconciliationCount, &i.LastReconciledAt, &i.LastReconciledBy, &i.LastReconciliationKey, &i.CreatedAt, &i.UpdatedAt)
 	if err == nil {
-		if i.PaymentMethodCode == "" {
-			i.CheckoutMode = connector.CheckoutModeProviderHosted
-		} else {
-			i.CheckoutMode = connector.CheckoutModeDirect
-		}
+		normalizePaymentSelection(&i)
 		var action struct {
 			Type        string `json:"type"`
 			RedirectURL string `json:"redirect_url"`
@@ -2743,6 +2739,14 @@ func scanPayment(row scanner) (model.PaymentSession, []byte, error) {
 		}
 	}
 	return i, hash, err
+}
+
+func normalizePaymentSelection(payment *model.PaymentSession) {
+	if payment.PaymentMethodID != "" || payment.PaymentMethodCode == "" {
+		payment.CheckoutMode = connector.CheckoutModeProviderHosted
+		return
+	}
+	payment.CheckoutMode = connector.CheckoutModeDirect
 }
 
 const refundSelect = `SELECT id,tenant_id,payment_id,COALESCE(payment_method_code,''),idempotency_key,request_hash,amount,currency,reason,requested_by,status,COALESCE(engine_refund_id,''),execution_engine,last_error,created_at,updated_at FROM refunds`

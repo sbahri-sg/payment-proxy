@@ -147,6 +147,8 @@ const certificationBase = `{
 const paymentBase = `{
   "id": "pay_01k3...",
   "installation_id": "ins_01k3...",
+  "payment_method_id": "pmo_01k3...",
+  "payment_method_code": "qris",
   "checkout_mode": "provider_hosted",
   "provider_code": "xendit",
   "provider_version": "emisell-xendit-v2.0.2",
@@ -167,6 +169,8 @@ const paymentBase = `{
 const paymentListBase = `{
   "id": "pay_01k3...",
   "installation_id": "ins_01k3...",
+  "payment_method_id": "pmo_01k3...",
+  "payment_method_code": "qris",
   "checkout_mode": "provider_hosted",
   "provider_code": "xendit",
   "environment": "sandbox",
@@ -797,7 +801,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
     "label": "QRIS"
   }]
 }`,
-        note: "Jangan kirim payment_option_id untuk provider_hosted. Hosted checkout memakai installation_id dan daftar yang boleh muncul berasal dari assignment ACTIVE yang lolos availability check. Xendit, Midtrans, dan DOKU menerima daftar exact; Duitku menerima tepat satu metode. Credential tidak pernah masuk ke checkout.",
+        note: "payment-options dipakai untuk direct checkout melalui payment_option_id. Untuk provider_hosted, ambil supported_payment_methods[].id dari provider-options dan kirim sebagai payment_method_id. Credential tidak pernah masuk ke checkout.",
       },
       {
         method: "GET", path: "/api/v1/provider-options?environment=sandbox", title: "List provider checkout options", description: "Mengelompokkan assignment ACTIVE yang tersedia berdasarkan installation provider ACTIVE. Provider atau channel offline/maintenance otomatis tidak muncul di checkout.",
@@ -841,14 +845,14 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
         note: "`next_action` dan checkout_url tidak disertakan pada item list agar payload tetap ringkas. Ambil detail payment untuk membuka kembali URL provider.",
       },
       {
-        method: "POST", path: "/api/v1/payment-sessions", title: "Create provider checkout", description: "Membuat sesi canonical lalu meminta provider membuat halaman checkout. Customer diarahkan ke URL resmi Xendit, Midtrans, Duitku, atau DOKU; iPaymu saat ini memakai direct checkout karena Redirect Payment tidak mempunyai allowlist exact. Emisell tidak merender daftar metode pembayaran.",
+        method: "POST", path: "/api/v1/payment-sessions", title: "Create provider checkout", description: "Membuat sesi canonical dari payment_method_id terpilih lalu meminta provider membuat halaman checkout. Customer diarahkan ke URL resmi Xendit, Midtrans, Duitku, atau DOKU; iPaymu saat ini memakai direct checkout karena Redirect Payment tidak mempunyai allowlist exact.",
         examples: [
           {
             title: "Hosted checkout milik provider",
-            description: "Gunakan installation_id provider aktif milik merchant. Provider hanya menampilkan QRIS, VA, e-wallet, card, dan channel lain dari assignment ACTIVE yang eligible untuk transaksi tersebut.",
+            description: "Gunakan supported_payment_methods[].id dari provider-options. Payment Proxy menyelesaikan installation secara internal dan provider hanya menampilkan metode pembayaran yang dipilih.",
             headers: ["Idempotency-Key: checkout-order-123-attempt-1"],
             body: `{
-  "installation_id": "ins_...",
+  "payment_method_id": "pmo_...",
   "checkout_mode": "provider_hosted",
   "merchant_reference": "order_2026_0001",
   "amount": 10000,
@@ -862,7 +866,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
     "payment": ${paymentBase}
   }
 }`,
-            note: "Untuk IDR, amount adalah Rupiah utuh: 10000 berarti tepat Rp10.000 dan diteruskan tanpa konversi /100. Jika checkout_mode dihilangkan dan tidak ada field metode, mode ini dipilih otomatis. Buka checkout_url pada browser pelanggan. Duitku mewajibkan customer.email yang valid; iPaymu mengembalikan Data.Url dari Redirect Payment. Jangan kirim payment_option_id/payment_method_code, PAN, expiry, CVV/CVN, atau OTP pada flow ini.",
+            note: "Untuk IDR, amount adalah Rupiah utuh: 10000 berarti tepat Rp10.000 dan diteruskan tanpa konversi /100. payment_method_id adalah ID opaque pmo_..., bukan installation_id atau kode qris/va. Jika checkout_mode dihilangkan, mode ini dipilih otomatis. Buka checkout_url pada browser pelanggan. Duitku mewajibkan customer.email yang valid. Jangan kirim installation_id/payment_option_id/payment_method_code, PAN, expiry, CVV/CVN, atau OTP pada flow ini.",
           },
         ],
       },
@@ -1269,7 +1273,7 @@ const omittedEndpointDecisions = [
   ["Tidak ada /xendit atau /midtrans API", "Semua provider memakai normalized provider, installation, payment option, dan payment API."],
   ["Tidak ada merchant runtime/container API", "Runtime Dispatcher memilih shared runtime berdasarkan provider + version secara internal."],
   ["Tidak ada endpoint membaca secret", "API hanya mengembalikan configured_fields dan metadata verifikasi."],
-  ["Tidak ada create endpoint per metode", "POST /payment-sessions memakai installation_id untuk hosted checkout yang mendukung allowlist exact; iPaymu memakai direct payment_option_id sampai Redirect Payment mendukung pembatasan tersebut."],
+  ["Satu create endpoint normalized", "POST /payment-sessions memakai payment_method_id untuk hosted checkout dan menyelesaikan installation secara internal; iPaymu memakai direct payment_option_id sampai Redirect Payment mendukung pembatasan exact."],
   ["Refund merupakan kontrak inti bersyarat", "Backend hanya memanggilnya untuk channel dengan return-to-source policy dan connector release yang mendukung create_refund."],
 ] as const;
 
@@ -1719,7 +1723,7 @@ midtrans_server_key = <Midtrans Sandbox Server Key>`;
 6. POST /payment-sessions (ulang request yang sama dengan Idempotency-Key yang sama)
 7. GET  /payment-sessions/{id} → terima signed payment.updated
 8. GET  /integration-readiness → READY`}</Code>
-                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Assignment dan payment-options mengembalikan sandbox/live bersama; environment mutasi berasal dari installation_id atau payment_option_id. Query environment hanya dipakai endpoint yang mendokumentasikannya, seperti provider-options dan filter daftar payment. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
+                <div className="callout">Selalu kirim Authorization dan X-Emisell-Merchant-ID. Assignment dan payment-options mengembalikan sandbox/live bersama; payment session menyelesaikan environment dan installation dari payment_method_id atau payment_option_id. Query environment hanya dipakai endpoint yang mendokumentasikannya, seperti provider-options dan filter daftar payment. Mutasi payment wajib memakai Idempotency-Key yang stabil per operasi.</div>
                 <div className="postman-card"><div><strong>AI-readable contract</strong><span>Gunakan kontrak ringkas ini untuk coding assistant. Isinya hanya API Emisell Backend dan guardrail keamanan, bukan endpoint admin atau secret provider.</span></div><a className="download-link" href="/docs/llms.txt">Open llms.txt <span>→</span></a></div>
               </section>}
               <section className="doc-section" id="engine-contract">

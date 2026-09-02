@@ -740,8 +740,8 @@ Wajib query `?environment=sandbox` atau `?environment=live`. Endpoint ini
 mengembalikan data checkout yang sama, tetapi dikelompokkan berdasarkan
 installation provider aktif. Gunakan endpoint ini ketika Dashboard Emisell
 ingin menampilkan pilihan gateway lebih dahulu, lalu metode yang tersedia pada
-gateway tersebut. `installation_id` dapat langsung dipakai untuk membuat
-`provider_hosted` payment session.
+gateway tersebut. Pilih `supported_payment_methods[].id` sebagai
+`payment_method_id` untuk membuat `provider_hosted` payment session.
 
 ```json
 {
@@ -789,13 +789,13 @@ maintenance menghasilkan `503 PAYMENT_METHOD_TEMPORARILY_UNAVAILABLE`. Tidak
 ada automatic failover ke provider lain karena hal tersebut dapat menciptakan
 transaksi ganda.
 
-Environment diambil dari `installation_id` untuk hosted checkout atau dari
-`payment_option_id` untuk direct-channel. Header `X-Emisell-Execution-Mode`
-tidak digunakan.
+Environment dan installation diambil dari `payment_method_id` untuk hosted
+checkout atau dari `payment_option_id` untuk direct-channel. Header
+`X-Emisell-Execution-Mode` tidak digunakan.
 
 ```json
 {
-  "installation_id": "ins_01k3...",
+  "payment_method_id": "pmo_01k3...",
   "checkout_mode": "provider_hosted",
   "merchant_reference": "order_2026_0001",
   "amount": 10000,
@@ -807,26 +807,27 @@ tidak digunakan.
 }
 ```
 
-Jika request hanya berisi `installation_id` tanpa payment method,
-`checkout_mode` otomatis menjadi `provider_hosted`. Payment Proxy meminta
-provider membuat hosted checkout dan mengembalikan URL provider. Payment Proxy
-mengambil assignment `ACTIVE` installation untuk setiap provider, menyaring
-metode yang tidak memenuhi currency/amount transaksi, lalu mengirim daftar
-eligible tersebut ke runtime. Request ditolak dengan
-`409 NO_ELIGIBLE_PAYMENT_METHOD` jika tidak ada metode yang layak.
+`payment_method_id` adalah ID assignment opaque (`pmo_...`) dari
+`provider-options[].supported_payment_methods[]`, bukan ID katalog global dan
+bukan `installation_id`. Jika `checkout_mode` dihilangkan, request dengan field
+ini otomatis menjadi `provider_hosted`. Payment Proxy memvalidasi bahwa
+assignment, installation, provider, dan channel masih ACTIVE/tersedia, lalu
+mengirim tepat satu metode pilihan itu ke runtime. Request lama yang mengirim
+`installation_id` tidak lagi diterima.
 
-Xendit, Midtrans, dan DOKU dapat membatasi halaman hosted ke banyak metode
-eligible secara exact. Duitku POP hanya dapat menerima satu `paymentMethod`,
-sehingga hosted checkout Duitku ditolak dengan
-`409 HOSTED_PAYMENT_METHOD_RESTRICTION_UNSUPPORTED` jika lebih dari satu metode
-eligible aktif. iPaymu Redirect Payment belum menyediakan allowlist exact per
-transaksi, sehingga release saat ini hanya mengiklankan direct checkout iPaymu:
+Xendit, Midtrans, DOKU, dan Duitku dapat membatasi halaman hosted ke metode
+pilihan secara exact. iPaymu Redirect Payment belum menyediakan allowlist exact
+per transaksi, sehingga release saat ini hanya mengiklankan direct checkout
+iPaymu:
 
 ```json
 {
   "data": {
     "payment": {
       "id": "pay_01k3...",
+      "installation_id": "ins_01k3...",
+      "payment_method_id": "pmo_01k3...",
+      "payment_method_code": "qris",
       "provider_code": "xendit",
       "checkout_mode": "provider_hosted",
       "status": "PENDING",
@@ -846,10 +847,10 @@ Untuk Xendit, URL berasal dari `payment_link_url` Payment Session; Midtrans dari
 `redirect_url` Snap; DOKU dari `response.payment.url`; dan Duitku dari
 `paymentUrl`. Xendit menerima `allowed_payment_channels`, Midtrans menerima
 `enabled_payments`, DOKU menerima `payment.payment_method_types`, dan Duitku
-menerima satu `paymentMethod`. Seluruh nilai dibentuk hanya dari assignment
-`ACTIVE`, sehingga metode `INACTIVE` tidak muncul di Payment Link. QRIS, VA,
-e-wallet, card, dan channel lain yang diizinkan tetap ditampilkan dan diproses pada halaman milik provider;
-Emisell tidak membuat halaman checkout dan tidak menerima PAN, expiry,
+menerima satu `paymentMethod`. Nilainya dibentuk dari assignment `ACTIVE` yang
+dipilih, sehingga metode lain tidak muncul pada Payment Link. Otorisasi tetap
+diproses pada halaman milik provider; Emisell tidak membuat halaman provider
+checkout dan tidak menerima PAN, expiry,
 CVV/CVN, OTP, atau detail autentikasi pembayaran.
 
 Flow `direct` lama tetap tersedia dengan `checkout_mode: direct` dan

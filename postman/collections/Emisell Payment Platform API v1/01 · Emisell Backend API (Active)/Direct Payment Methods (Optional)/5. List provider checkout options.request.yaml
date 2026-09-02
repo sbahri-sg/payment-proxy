@@ -11,7 +11,11 @@ scripts:
       if (pm.response.code === 200) {
         const providers = pm.response.json().data || [];
         const xendit = providers.find((provider) => provider.provider_code === 'xendit');
-        if (xendit) pm.collectionVariables.set('installation_id', xendit.installation_id);
+        if (xendit) {
+          pm.collectionVariables.set('installation_id', xendit.installation_id);
+          const method = (xendit.supported_payment_methods || [])[0];
+          if (method) pm.collectionVariables.set('payment_method_id', method.id);
+        }
       }
     language: text/javascript
 order: 5000

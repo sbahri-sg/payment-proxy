@@ -285,8 +285,8 @@ Docker lokal memakai `emisell-receiver` sebagai contract-test receiver. Status `
 2. Masukkan API key dan webhook verification token.
 3. Engine memverifikasi key langsung ke provider dan menyimpan ciphertext.
 4. Aktifkan installation.
-5. Backend membuat payment dengan `installation_id`; mode default adalah `provider_hosted`.
-6. Customer diarahkan ke `checkout_url` milik Xendit Payment Session atau Midtrans Snap dan memilih metode pembayaran di halaman provider.
+5. Backend mengambil `payment_method_id` (`pmo_...`) dari provider options lalu membuat payment; mode default adalah `provider_hosted`.
+6. Payment Proxy menyelesaikan installation secara internal dan customer diarahkan ke `checkout_url` provider yang hanya memuat metode pilihan tersebut.
 
 Assignment tetap menjadi konfigurasi merchant. Payment Proxy memeriksa
 availability provider dengan cache singkat dan menyaring channel yang sedang

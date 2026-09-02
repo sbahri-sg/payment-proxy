@@ -377,6 +377,28 @@ func TestCreatePaymentDoesNotRequireExecutionMode(t *testing.T) {
 	}
 }
 
+func TestProviderHostedPaymentUsesPaymentMethodID(t *testing.T) {
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/payment-sessions", strings.NewReader(`{"payment_method_id":"pmo_qris"}`))
+	var input paymentRequest
+	if err := decodeJSON(response, request, &input); err != nil {
+		t.Fatalf("payment_method_id request was rejected: %v", err)
+	}
+	if input.PaymentMethodID != "pmo_qris" {
+		t.Fatalf("payment_method_id = %q, want pmo_qris", input.PaymentMethodID)
+	}
+
+	legacyResponse := httptest.NewRecorder()
+	legacyRequest := httptest.NewRequest(http.MethodPost, "/api/v1/payment-sessions", strings.NewReader(`{"installation_id":"ins_legacy"}`))
+	var legacyInput paymentRequest
+	if err := decodeJSON(legacyResponse, legacyRequest, &legacyInput); err == nil {
+		t.Fatal("legacy installation_id request was accepted")
+	}
+	if legacyResponse.Code != http.StatusBadRequest || !strings.Contains(legacyResponse.Body.String(), "INVALID_JSON") {
+		t.Fatalf("legacy request returned unexpected response: %d %s", legacyResponse.Code, legacyResponse.Body.String())
+	}
+}
+
 func TestProviderRegistryStatusAllowlist(t *testing.T) {
 	for _, status := range []string{"DRAFT", "ACTIVE", "DISABLED"} {
 		if !validProviderRegistryStatus(status) {

@@ -1745,7 +1745,7 @@ func (s *Server) writeConnectorCertification(w http.ResponseWriter, r *http.Requ
 }
 
 type paymentRequest struct {
-	InstallationID    string             `json:"installation_id"`
+	PaymentMethodID   string             `json:"payment_method_id"`
 	PaymentOptionID   string             `json:"payment_option_id"`
 	CheckoutMode      string             `json:"checkout_mode"`
 	PaymentMethodCode string             `json:"payment_method_code"`
@@ -1776,7 +1776,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 	}
 	request.Currency = strings.ToUpper(strings.TrimSpace(request.Currency))
 	request.MerchantReference = strings.TrimSpace(request.MerchantReference)
-	request.InstallationID = strings.TrimSpace(request.InstallationID)
+	request.PaymentMethodID = strings.TrimSpace(request.PaymentMethodID)
 	request.PaymentOptionID = strings.TrimSpace(request.PaymentOptionID)
 	request.CheckoutMode = strings.ToLower(strings.TrimSpace(request.CheckoutMode))
 	request.PaymentMethodCode = strings.ToLower(strings.TrimSpace(request.PaymentMethodCode))
@@ -1793,8 +1793,12 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnprocessableEntity, "INVALID_CHECKOUT_MODE", "checkout_mode must be provider_hosted or direct")
 		return
 	}
-	if request.CheckoutMode == connector.CheckoutModeProviderHosted && (request.InstallationID == "" || request.PaymentOptionID != "" || request.PaymentMethodCode != "" || request.PaymentMethod != "" || request.PaymentMethodType != "" || len(request.PaymentMethodData) > 0 || request.Confirm != nil || strings.TrimSpace(request.CaptureMethod) != "") {
-		problem(w, http.StatusUnprocessableEntity, "HOSTED_CHECKOUT_CONFLICT", "provider_hosted checkout requires installation_id and must not select a payment method")
+	if request.CheckoutMode == connector.CheckoutModeProviderHosted && (request.PaymentMethodID == "" || request.PaymentOptionID != "" || request.PaymentMethodCode != "" || request.PaymentMethod != "" || request.PaymentMethodType != "" || len(request.PaymentMethodData) > 0 || request.Confirm != nil || strings.TrimSpace(request.CaptureMethod) != "") {
+		problem(w, http.StatusUnprocessableEntity, "HOSTED_CHECKOUT_CONFLICT", "provider_hosted checkout requires payment_method_id and must not send direct payment fields")
+		return
+	}
+	if request.CheckoutMode == connector.CheckoutModeDirect && request.PaymentMethodID != "" {
+		problem(w, http.StatusUnprocessableEntity, "DIRECT_CHECKOUT_CONFLICT", "direct checkout requires payment_option_id and must not send payment_method_id")
 		return
 	}
 	request.ReturnURL = strings.TrimSpace(request.ReturnURL)
@@ -1802,30 +1806,23 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnprocessableEntity, "INVALID_RETURN_URL", "provider_hosted checkout requires a public HTTPS return_url")
 		return
 	}
-	if (request.InstallationID == "" && request.PaymentOptionID == "") || request.MerchantReference == "" || request.Amount <= 0 || len(request.Currency) != 3 {
-		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "payment_option_id or installation_id, merchant_reference, positive amount, and 3-letter currency are required")
+	if (request.CheckoutMode == connector.CheckoutModeProviderHosted && request.PaymentMethodID == "") || (request.CheckoutMode == connector.CheckoutModeDirect && request.PaymentOptionID == "") || request.MerchantReference == "" || request.Amount <= 0 || len(request.Currency) != 3 {
+		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "payment_method_id for provider_hosted or payment_option_id for direct checkout, merchant_reference, positive amount, and 3-letter currency are required")
 		return
 	}
 	var installation model.Installation
 	var selectedAssignment model.PaymentMethodAssignment
 	var err error
-	var mode string
-	if request.PaymentOptionID != "" {
-		assignment, assignmentErr := s.store.GetPaymentMethodAssignment(r.Context(), tenant(r), request.PaymentOptionID)
-		if assignmentErr != nil {
-			s.storeError(w, r, assignmentErr)
-			return
-		}
-		selectedAssignment = assignment
-		mode = assignment.Environment
-	} else {
-		installation, err = s.store.GetInstallation(r.Context(), tenant(r), request.InstallationID)
-		if err != nil {
-			s.storeError(w, r, err)
-			return
-		}
-		mode = installation.Environment
+	selectionID := request.PaymentOptionID
+	if request.CheckoutMode == connector.CheckoutModeProviderHosted {
+		selectionID = request.PaymentMethodID
 	}
+	selectedAssignment, err = s.store.GetPaymentMethodAssignment(r.Context(), tenant(r), selectionID)
+	if err != nil {
+		s.storeError(w, r, err)
+		return
+	}
+	mode := selectedAssignment.Environment
 	hash, err := canonicalHash(request)
 	if err != nil {
 		s.internal(w, r, err)
@@ -1839,19 +1836,17 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		writeData(w, http.StatusOK, existing)
 		return
 	}
-	if installation.ID == "" {
-		installationID := request.InstallationID
-		if selectedAssignment.ID != "" {
-			installationID = selectedAssignment.InstallationID
-		}
-		installation, err = s.store.GetInstallation(r.Context(), tenant(r), installationID)
-		if err != nil {
-			s.storeError(w, r, err)
-			return
-		}
+	installation, err = s.store.GetInstallation(r.Context(), tenant(r), selectedAssignment.InstallationID)
+	if err != nil {
+		s.storeError(w, r, err)
+		return
 	}
 	if installation.Environment != mode || installation.Status != model.InstallationActive {
 		problem(w, http.StatusConflict, "INSTALLATION_NOT_ACTIVE", "the installation is not active for the selected payment environment")
+		return
+	}
+	if selectedAssignment.Status != model.PaymentMethodAssignmentActive {
+		problem(w, http.StatusConflict, "PAYMENT_METHOD_NOT_ACTIVE", "the selected payment method is not active")
 		return
 	}
 	providerAvailable, availabilityErr := s.refreshInstallationAvailability(r.Context(), installation)
@@ -1863,25 +1858,19 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusServiceUnavailable, "PAYMENT_PROVIDER_TEMPORARILY_UNAVAILABLE", "the selected payment provider is temporarily unavailable")
 		return
 	}
-	if selectedAssignment.ID != "" {
-		methodAvailable, methodAvailabilityErr := s.store.IsPaymentMethodAvailable(r.Context(), tenant(r), installation.ID, selectedAssignment.PaymentMethodCode, time.Now().UTC())
-		if methodAvailabilityErr != nil {
-			s.internal(w, r, methodAvailabilityErr)
-			return
-		}
-		if !methodAvailable {
-			problem(w, http.StatusServiceUnavailable, "PAYMENT_METHOD_TEMPORARILY_UNAVAILABLE", "the selected payment method is temporarily unavailable")
-			return
-		}
+	methodAvailable, methodAvailabilityErr := s.store.IsPaymentMethodAvailable(r.Context(), tenant(r), installation.ID, selectedAssignment.PaymentMethodCode, time.Now().UTC())
+	if methodAvailabilityErr != nil {
+		s.internal(w, r, methodAvailabilityErr)
+		return
+	}
+	if !methodAvailable {
+		problem(w, http.StatusServiceUnavailable, "PAYMENT_METHOD_TEMPORARILY_UNAVAILABLE", "the selected payment method is temporarily unavailable")
+		return
 	}
 	if request.CheckoutMode == connector.CheckoutModeDirect && request.PaymentOptionID != "" {
 		option, optionErr := s.store.GetActivePaymentOption(r.Context(), tenant(r), mode, request.PaymentOptionID)
 		if optionErr != nil {
 			s.storeError(w, r, optionErr)
-			return
-		}
-		if request.InstallationID != "" && request.InstallationID != option.InstallationID {
-			problem(w, http.StatusUnprocessableEntity, "PAYMENT_OPTION_MISMATCH", "payment_option_id does not belong to installation_id")
 			return
 		}
 		if request.PaymentMethod != "" && request.PaymentMethod != option.PaymentMethod {
@@ -1892,7 +1881,6 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 			problem(w, http.StatusUnprocessableEntity, "PAYMENT_OPTION_MISMATCH", "payment_method_type does not match payment_option_id")
 			return
 		}
-		request.InstallationID = option.InstallationID
 		request.PaymentMethodCode = option.PaymentMethodCode
 		request.PaymentMethod = option.PaymentMethod
 		request.PaymentMethodType = option.PaymentMethodType
@@ -1943,31 +1931,38 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// The Kernel owns merchant assignment selection. Every hosted runtime must
-		// prove that it can enforce this exact eligible set before a payment is
-		// reserved, so disabled methods never leak onto a provider checkout page.
-		configuredMethods, listErr := s.store.ListActivePaymentMethodMappings(r.Context(), tenant(r), installation.ID)
-		if listErr != nil {
-			s.internal(w, r, listErr)
+		capability, err = s.store.GetProviderPaymentMethodCapability(r.Context(), installation.ProviderCode, selectedAssignment.PaymentMethodCode)
+		if errors.Is(err, store.ErrNotFound) {
+			problem(w, http.StatusUnprocessableEntity, "PAYMENT_METHOD_NOT_SUPPORTED", "the selected provider does not support this payment method")
 			return
 		}
-		for _, method := range configuredMethods {
-			if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, method); err != nil {
-				problem(w, http.StatusConflict, "PAYMENT_METHOD_CONFIGURATION_INVALID", err.Error())
-				return
-			}
-			if validationErr := s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
-				PaymentMethodCode: method.PaymentMethodCode,
-				Currency:          request.Currency,
-				Amount:            request.Amount,
-			}); validationErr == nil {
-				allowedPaymentMethods = append(allowedPaymentMethods, method)
-			}
-		}
-		if len(allowedPaymentMethods) == 0 {
-			problem(w, http.StatusConflict, "NO_ELIGIBLE_PAYMENT_METHOD", "the installation has no active payment method eligible for this payment")
+		if err != nil {
+			s.internal(w, r, err)
 			return
 		}
+		if !assignablePaymentMethodCapability(capability.SupportStatus) {
+			problem(w, http.StatusConflict, "PAYMENT_METHOD_DISABLED", "the selected gateway payment method is disabled")
+			return
+		}
+		selectedMethod := connector.PaymentMethodMapping{
+			PaymentMethodCode:   capability.PaymentMethodCode,
+			ProviderMethod:      capability.ProviderMethod,
+			ProviderMethodType:  capability.ProviderMethodType,
+			ProviderChannelCode: capability.ProviderChannelCode,
+		}
+		if err = s.engine.ValidatePaymentMethodVersion(installation.ProviderCode, installation.ProviderVersion, selectedMethod); err != nil {
+			problem(w, http.StatusConflict, "PAYMENT_METHOD_CONFIGURATION_INVALID", err.Error())
+			return
+		}
+		if err = s.engine.ValidatePaymentVersion(installation.ProviderCode, installation.ProviderVersion, connector.PaymentValidation{
+			PaymentMethodCode: selectedAssignment.PaymentMethodCode,
+			Currency:          request.Currency,
+			Amount:            request.Amount,
+		}); err != nil {
+			problem(w, http.StatusUnprocessableEntity, "INVALID_AMOUNT", err.Error())
+			return
+		}
+		allowedPaymentMethods = []connector.PaymentMethodMapping{selectedMethod}
 		if err = s.engine.ValidateHostedPaymentMethodsVersion(installation.ProviderCode, installation.ProviderVersion, allowedPaymentMethods); err != nil {
 			if errors.Is(err, connector.ErrHostedPaymentRestrictionUnsupported) || errors.Is(err, connector.ErrNotSupported) {
 				problem(w, http.StatusConflict, "HOSTED_PAYMENT_METHOD_RESTRICTION_UNSUPPORTED", err.Error())
@@ -1987,7 +1982,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	session, created, err := s.store.ReservePayment(r.Context(), store.ReservePaymentInput{ID: id, TenantID: tenant(r), InstallationID: installation.ID, PaymentOptionID: request.PaymentOptionID, PaymentMethodCode: request.PaymentMethodCode, ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, MerchantReference: request.MerchantReference, IdempotencyKey: key, RequestHash: hash, Amount: request.Amount, Currency: request.Currency, ExecutionEngine: installation.ExecutionEngine})
+	session, created, err := s.store.ReservePayment(r.Context(), store.ReservePaymentInput{ID: id, TenantID: tenant(r), InstallationID: installation.ID, PaymentMethodID: request.PaymentMethodID, PaymentOptionID: request.PaymentOptionID, PaymentMethodCode: selectedAssignment.PaymentMethodCode, ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, MerchantReference: request.MerchantReference, IdempotencyKey: key, RequestHash: hash, Amount: request.Amount, Currency: request.Currency, ExecutionEngine: installation.ExecutionEngine})
 	if err != nil {
 		s.storeError(w, r, err)
 		return
