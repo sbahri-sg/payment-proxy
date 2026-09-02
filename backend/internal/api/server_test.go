@@ -389,6 +389,20 @@ func TestProviderHostedPaymentUsesPaymentMethodID(t *testing.T) {
 	}
 }
 
+func TestPaymentMetadataEncoding(t *testing.T) {
+	payload, err := encodePaymentMetadata(map[string]any{"order_id": "order_2026_0001"})
+	if err != nil || string(payload) != `{"order_id":"order_2026_0001"}` {
+		t.Fatalf("metadata was not encoded canonically: %s, %v", payload, err)
+	}
+	empty, err := encodePaymentMetadata(nil)
+	if err != nil || string(empty) != `{}` {
+		t.Fatalf("empty metadata = %s, %v; want {}", empty, err)
+	}
+	if _, err = encodePaymentMetadata(map[string]any{"oversized": strings.Repeat("x", maxPaymentMetadata)}); err == nil {
+		t.Fatal("oversized payment metadata was accepted")
+	}
+}
+
 func TestProviderRegistryStatusAllowlist(t *testing.T) {
 	for _, status := range []string{"DRAFT", "ACTIVE", "DISABLED"} {
 		if !validProviderRegistryStatus(status) {

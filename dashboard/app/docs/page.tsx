@@ -161,6 +161,7 @@ const paymentBase = `{
   "provider_payment_id": "ps-6a915387...",
   "execution_engine": "emisell_native",
   "checkout_url": "https://dev.xen.to/...",
+  "metadata": { "order_id": "order_2026_0001" },
   "next_action": { "type": "redirect", "redirect_url": "https://dev.xen.to/..." },
   "created_at": "2026-08-28T03:10:00Z",
   "updated_at": "2026-08-28T03:10:01Z"
@@ -179,6 +180,7 @@ const paymentListBase = `{
   "currency": "IDR",
   "status": "PENDING",
   "provider_payment_id": "pr-8877c08a-740d-4153-9816-3d744ed197a5",
+  "metadata": { "order_id": "order_2026_0001" },
   "created_at": "2026-08-28T03:10:00Z",
   "updated_at": "2026-08-28T03:10:01Z"
 }`;
@@ -1013,9 +1015,11 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
   "created_at": "2026-08-28T09:30:00Z",
   "merchant_id": "merchant_123",
   "resource": { "type": "payment", "id": "pay_01k3..." },
+  "metadata": { "order_id": "order_2026_0001" },
   "data": {
     "payment": {
       "id": "pay_01k3...",
+      "payment_method_code": "qris",
       "merchant_reference": "order_2026_0001",
       "amount": 1000000,
       "currency": "IDR",
@@ -1070,7 +1074,8 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
         "type": "payment.updated",
         "merchant_id": "merchant_123",
         "resource": { "type": "payment", "id": "pay_01k3..." },
-        "data": { "payment": { "id": "pay_01k3...", "status": "SUCCEEDED" }, "previous_status": "PENDING" }
+        "metadata": { "order_id": "order_2026_0001" },
+        "data": { "payment": { "id": "pay_01k3...", "payment_method_code": "qris", "status": "SUCCEEDED" }, "previous_status": "PENDING" }
       },
       "status": "DEAD",
       "attempt_count": 8,

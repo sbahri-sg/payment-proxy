@@ -1795,6 +1795,7 @@ func (s *Postgres) DeactivatePaymentMethodAssignment(ctx context.Context, tenant
 type ReservePaymentInput struct {
 	ID, TenantID, InstallationID, PaymentMethodID, PaymentOptionID, PaymentMethodCode, ProviderCode, ProviderVersion, Environment, MerchantReference, IdempotencyKey, Currency, ExecutionEngine string
 	RequestHash                                                                                                                                                                                 []byte
+	Metadata                                                                                                                                                                                    []byte
 	Amount                                                                                                                                                                                      int64
 }
 
@@ -1944,6 +1945,9 @@ func (s *Postgres) ReservePayment(ctx context.Context, in ReservePaymentInput) (
 	if in.ExecutionEngine == "" {
 		in.ExecutionEngine = "emisell_native"
 	}
+	if len(in.Metadata) == 0 {
+		in.Metadata = []byte("{}")
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return model.PaymentSession{}, false, err
@@ -1965,9 +1969,9 @@ func (s *Postgres) ReservePayment(ctx context.Context, in ReservePaymentInput) (
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO payment_sessions
-		(id,tenant_id,installation_id,payment_method_id,payment_option_id,payment_method_code,provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,execution_engine)
-		VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,$14,'CREATED',$15)
-	`, in.ID, in.TenantID, in.InstallationID, in.PaymentMethodID, in.PaymentOptionID, in.PaymentMethodCode, in.ProviderCode, in.ProviderVersion, in.Environment, in.MerchantReference, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.ExecutionEngine)
+		(id,tenant_id,installation_id,payment_method_id,payment_option_id,payment_method_code,provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,execution_engine,metadata)
+		VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),NULLIF($6,''),$7,$8,$9,$10,$11,$12,$13,$14,'CREATED',$15,$16::jsonb)
+	`, in.ID, in.TenantID, in.InstallationID, in.PaymentMethodID, in.PaymentOptionID, in.PaymentMethodCode, in.ProviderCode, in.ProviderVersion, in.Environment, in.MerchantReference, in.IdempotencyKey, in.RequestHash, in.Amount, in.Currency, in.ExecutionEngine, string(in.Metadata))
 	if err != nil {
 		if isUnique(err) {
 			return model.PaymentSession{}, false, ErrConflict
@@ -2529,10 +2533,11 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 	if in.EnginePaymentID != "" && in.EngineRefundID == "" {
 		var tenantID, localID string
 		var amount int64
-		var currency, reference, environment string
+		var currency, reference, environment, paymentMethodCode string
 		var previousStatus, appliedStatus string
 		var existingFlags []string
-		err = tx.QueryRow(ctx, `SELECT tenant_id,id,amount,currency,merchant_reference,environment,status,flags FROM payment_sessions WHERE engine_payment_id=$1 FOR UPDATE`, in.EnginePaymentID).Scan(&tenantID, &localID, &amount, &currency, &reference, &environment, &previousStatus, &existingFlags)
+		var metadata json.RawMessage
+		err = tx.QueryRow(ctx, `SELECT tenant_id,id,amount,currency,merchant_reference,environment,COALESCE(payment_method_code,''),metadata,status,flags FROM payment_sessions WHERE engine_payment_id=$1 FOR UPDATE`, in.EnginePaymentID).Scan(&tenantID, &localID, &amount, &currency, &reference, &environment, &paymentMethodCode, &metadata, &previousStatus, &existingFlags)
 		if err == nil {
 			matchedTenant, aggregateType, aggregateID = tenantID, "payment", localID
 			appliedStatus = canonicalPaymentStatus(previousStatus, in.Status)
@@ -2553,12 +2558,13 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 			data := map[string]any{
 				"payment": map[string]any{
 					"id": localID, "merchant_reference": reference, "amount": amount,
-					"currency": currency, "environment": environment, "status": appliedStatus,
+					"payment_method_code": paymentMethodCode,
+					"currency":            currency, "environment": environment, "status": appliedStatus,
 					"flags": flags, "updated_at": eventCreatedAt,
 				},
 				"previous_status": previousStatus,
 			}
-			if err = insertOutbox(ctx, tx, tenantID, "payment.updated", "payment", localID, in.Source+":"+in.ExternalEventID, eventCreatedAt, data); err != nil {
+			if err = insertOutboxWithMetadata(ctx, tx, tenantID, "payment.updated", "payment", localID, in.Source+":"+in.ExternalEventID, eventCreatedAt, metadata, data); err != nil {
 				return false, err
 			}
 			processed = true
@@ -2721,13 +2727,13 @@ func scanConnectorCertificationRun(row scanner) (model.ConnectorCertificationRun
 	return item, err
 }
 
-const paymentSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_method_id,''),COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,COALESCE(next_action,'null'::jsonb),last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
-const paymentListSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_method_id,''),COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,NULL::jsonb,last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
+const paymentSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_method_id,''),COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,COALESCE(next_action,'null'::jsonb),metadata,last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
+const paymentListSelect = `SELECT id,tenant_id,installation_id,COALESCE(payment_method_id,''),COALESCE(payment_option_id,''),COALESCE(payment_method_code,''),provider_code,provider_version,environment,merchant_reference,idempotency_key,request_hash,amount,currency,status,flags,COALESCE(engine_payment_id,''),connector_transaction_id,execution_engine,NULL::jsonb,metadata,last_error,reconciliation_count,last_reconciled_at,last_reconciled_by,last_reconciliation_key,created_at,updated_at FROM payment_sessions`
 
 func scanPayment(row scanner) (model.PaymentSession, []byte, error) {
 	var i model.PaymentSession
 	var hash []byte
-	err := row.Scan(&i.ID, &i.TenantID, &i.InstallationID, &i.PaymentMethodID, &i.PaymentOptionID, &i.PaymentMethodCode, &i.ProviderCode, &i.ProviderVersion, &i.Environment, &i.MerchantReference, &i.IdempotencyKey, &hash, &i.Amount, &i.Currency, &i.Status, &i.Flags, &i.EnginePaymentID, &i.ConnectorTxnID, &i.ExecutionEngine, &i.NextAction, &i.LastError, &i.ReconciliationCount, &i.LastReconciledAt, &i.LastReconciledBy, &i.LastReconciliationKey, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(&i.ID, &i.TenantID, &i.InstallationID, &i.PaymentMethodID, &i.PaymentOptionID, &i.PaymentMethodCode, &i.ProviderCode, &i.ProviderVersion, &i.Environment, &i.MerchantReference, &i.IdempotencyKey, &hash, &i.Amount, &i.Currency, &i.Status, &i.Flags, &i.EnginePaymentID, &i.ConnectorTxnID, &i.ExecutionEngine, &i.NextAction, &i.Metadata, &i.LastError, &i.ReconciliationCount, &i.LastReconciledAt, &i.LastReconciledBy, &i.LastReconciliationKey, &i.CreatedAt, &i.UpdatedAt)
 	if err == nil {
 		normalizePaymentSelection(&i)
 		var action struct {
@@ -2819,11 +2825,15 @@ func canonicalPaymentFlags(existing []string, previous, applied string) ([]strin
 	return flags, added
 }
 func insertOutbox(ctx context.Context, tx pgx.Tx, tenant, eventType, aggregateType, aggregateID, dedup string, createdAt time.Time, data any) error {
+	return insertOutboxWithMetadata(ctx, tx, tenant, eventType, aggregateType, aggregateID, dedup, createdAt, nil, data)
+}
+
+func insertOutboxWithMetadata(ctx context.Context, tx pgx.Tx, tenant, eventType, aggregateType, aggregateID, dedup string, createdAt time.Time, metadata, data any) error {
 	id, err := ids.New("evt")
 	if err != nil {
 		return err
 	}
-	payload, err := emisellwebhook.MarshalEnvelope(id, eventType, tenant, aggregateType, aggregateID, createdAt, data)
+	payload, err := emisellwebhook.MarshalEnvelopeWithMetadata(id, eventType, tenant, aggregateType, aggregateID, createdAt, metadata, data)
 	if err != nil {
 		return err
 	}

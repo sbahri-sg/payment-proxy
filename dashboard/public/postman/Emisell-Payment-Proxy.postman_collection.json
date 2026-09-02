@@ -2601,6 +2601,8 @@
                       "  const data = pm.response.json().data;",
                       "  const payment = data.payment || data;",
                       "  pm.expect(payment.checkout_mode).to.eql('provider_hosted');",
+                      "  pm.expect(payment.payment_method_code).to.eql('qris');",
+                      "  pm.expect(payment.metadata.source).to.eql('postman-provider-hosted');",
                       "  pm.expect(payment.checkout_url).to.match(/^https:\\/\\//);",
                       "  pm.expect(payment.next_action.type).to.eql('redirect');",
                       "  pm.collectionVariables.set('payment_id', payment.id);",
@@ -2663,7 +2665,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"payment_method_id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"checkout_mode\": \"provider_hosted\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"merchant_reference\": \"order_2026_0001\",\n      \"amount\": 10000,\n      \"currency\": \"IDR\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"ps-6a915387...\",\n      \"checkout_url\": \"https://dev.xen.to/...\",\n      \"next_action\": {\n        \"type\": \"redirect\",\n        \"redirect_url\": \"https://dev.xen.to/...\"\n      }\n    }\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_01k3...\",\n      \"installation_id\": \"ins_01k3...\",\n      \"payment_method_id\": \"pmo_01k3...\",\n      \"payment_method_code\": \"qris\",\n      \"checkout_mode\": \"provider_hosted\",\n      \"provider_code\": \"xendit\",\n      \"environment\": \"sandbox\",\n      \"merchant_reference\": \"order_2026_0001\",\n      \"amount\": 10000,\n      \"currency\": \"IDR\",\n      \"status\": \"PENDING\",\n      \"provider_payment_id\": \"ps-6a915387...\",\n      \"checkout_url\": \"https://dev.xen.to/...\",\n      \"metadata\": { \"source\": \"postman-provider-hosted\" },\n      \"next_action\": {\n        \"type\": \"redirect\",\n        \"redirect_url\": \"https://dev.xen.to/...\"\n      }\n    }\n  }\n}"
                 },
                 {
                   "name": "202 Outcome unknown",
@@ -2718,7 +2720,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"installation_id\": \"ins_01k3...\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"amount\": 1000000,\n    \"currency\": \"IDR\",\n    \"status\": \"PENDING\",\n    \"provider_payment_id\": \"pay_engine_...\",\n    \"checkout_mode\": \"provider_hosted\",\n    \"checkout_url\": \"https://dev.xen.to/...\",\n    \"next_action\": {\n      \"type\": \"redirect\",\n      \"redirect_url\": \"https://dev.xen.to/...\"\n    }\n  }\n}"
+                  "body": "{\n  \"data\": {\n    \"id\": \"pay_01k3...\",\n    \"installation_id\": \"ins_01k3...\",\n    \"payment_method_id\": \"pmo_01k3...\",\n    \"payment_method_code\": \"qris\",\n    \"provider_code\": \"xendit\",\n    \"environment\": \"sandbox\",\n    \"amount\": 1000000,\n    \"currency\": \"IDR\",\n    \"status\": \"PENDING\",\n    \"provider_payment_id\": \"pay_engine_...\",\n    \"checkout_mode\": \"provider_hosted\",\n    \"checkout_url\": \"https://dev.xen.to/...\",\n    \"metadata\": { \"source\": \"postman-provider-hosted\" },\n    \"next_action\": {\n      \"type\": \"redirect\",\n      \"redirect_url\": \"https://dev.xen.to/...\"\n    }\n  }\n}"
                 }
               ]
             },
@@ -2866,7 +2868,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"id\": \"{{outbound_event_id}}\",\n  \"object\": \"event\",\n  \"api_version\": \"2026-08-28\",\n  \"type\": \"payment.updated\",\n  \"created_at\": \"{{outbound_created_at}}\",\n  \"merchant_id\": \"{{merchant_id}}\",\n  \"resource\": {\n    \"type\": \"payment\",\n    \"id\": \"pay_postman_contract_001\"\n  },\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_postman_contract_001\",\n      \"merchant_reference\": \"order_postman_contract_001\",\n      \"amount\": 1000000,\n      \"currency\": \"IDR\",\n      \"environment\": \"sandbox\",\n      \"status\": \"SUCCEEDED\",\n      \"updated_at\": \"{{outbound_created_at}}\"\n    },\n    \"previous_status\": \"PENDING\"\n  }\n}",
+                  "raw": "{\n  \"id\": \"{{outbound_event_id}}\",\n  \"object\": \"event\",\n  \"api_version\": \"2026-08-28\",\n  \"type\": \"payment.updated\",\n  \"created_at\": \"{{outbound_created_at}}\",\n  \"merchant_id\": \"{{merchant_id}}\",\n  \"resource\": {\n    \"type\": \"payment\",\n    \"id\": \"pay_postman_contract_001\"\n  },\n  \"metadata\": {\n    \"order_id\": \"order_postman_contract_001\"\n  },\n  \"data\": {\n    \"payment\": {\n      \"id\": \"pay_postman_contract_001\",\n      \"payment_method_code\": \"qris\",\n      \"merchant_reference\": \"order_postman_contract_001\",\n      \"amount\": 1000000,\n      \"currency\": \"IDR\",\n      \"environment\": \"sandbox\",\n      \"status\": \"SUCCEEDED\",\n      \"updated_at\": \"{{outbound_created_at}}\"\n    },\n    \"previous_status\": \"PENDING\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"

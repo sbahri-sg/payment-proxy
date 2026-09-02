@@ -46,6 +46,7 @@ const (
 	maxRequestBody       = 1 << 20
 	maxProviderLogoBytes = 512 << 10
 	maxProviderLogoSide  = 2048
+	maxPaymentMetadata   = 32 << 10
 	maxAssignmentBatch   = 50
 	availabilityProbeTTL = 2 * time.Minute
 	availabilityErrorTTL = 30 * time.Second
@@ -1830,6 +1831,11 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mode := selectedAssignment.Environment
+	metadataJSON, err := encodePaymentMetadata(request.Metadata)
+	if err != nil {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_METADATA", "metadata must be a JSON object no larger than 32 KiB")
+		return
+	}
 	hash, err := canonicalHash(request)
 	if err != nil {
 		s.internal(w, r, err)
@@ -1991,7 +1997,7 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	session, created, err := s.store.ReservePayment(r.Context(), store.ReservePaymentInput{ID: id, TenantID: tenant(r), InstallationID: installation.ID, PaymentMethodID: request.PaymentMethodID, PaymentOptionID: request.PaymentOptionID, PaymentMethodCode: selectedAssignment.PaymentMethodCode, ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, MerchantReference: request.MerchantReference, IdempotencyKey: key, RequestHash: hash, Amount: request.Amount, Currency: request.Currency, ExecutionEngine: installation.ExecutionEngine})
+	session, created, err := s.store.ReservePayment(r.Context(), store.ReservePaymentInput{ID: id, TenantID: tenant(r), InstallationID: installation.ID, PaymentMethodID: request.PaymentMethodID, PaymentOptionID: request.PaymentOptionID, PaymentMethodCode: selectedAssignment.PaymentMethodCode, ProviderCode: installation.ProviderCode, ProviderVersion: installation.ProviderVersion, Environment: mode, MerchantReference: request.MerchantReference, IdempotencyKey: key, RequestHash: hash, Metadata: metadataJSON, Amount: request.Amount, Currency: request.Currency, ExecutionEngine: installation.ExecutionEngine})
 	if err != nil {
 		s.storeError(w, r, err)
 		return
@@ -3275,6 +3281,20 @@ func mergeMetadata(input, required map[string]any) map[string]any {
 		result[k] = v
 	}
 	return result
+}
+
+func encodePaymentMetadata(input map[string]any) ([]byte, error) {
+	if input == nil {
+		input = map[string]any{}
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) > maxPaymentMetadata {
+		return nil, errors.New("payment metadata exceeds 32 KiB")
+	}
+	return payload, nil
 }
 func safeEngineError(err error) string {
 	var apiErr *connector.APIError

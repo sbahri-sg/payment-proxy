@@ -814,6 +814,11 @@ assignment, installation, provider, dan channel masih ACTIVE/tersedia, lalu
 mengirim tepat satu metode pilihan itu ke runtime. Request lama yang mengirim
 `installation_id` tidak lagi diterima.
 
+`metadata` harus berupa JSON object maksimum 32 KiB. Nilai tersebut disimpan
+pada payment ledger, dikembalikan tanpa bergantung pada provider, dan diteruskan
+pada event `payment.updated` agar Emisell Backend dapat menghubungkan transaksi
+dengan order internalnya.
+
 Xendit, Midtrans, DOKU, dan Duitku dapat membatasi halaman hosted ke metode
 pilihan secara exact. iPaymu Redirect Payment belum menyediakan allowlist exact
 per transaksi, sehingga release saat ini hanya mengiklankan direct checkout
@@ -833,6 +838,7 @@ iPaymu:
       "provider_payment_id": "ps-6a915387...",
       "execution_engine": "emisell_native",
       "checkout_url": "https://dev.xen.to/...",
+      "metadata": {"order_id":"2026-0001"},
       "next_action": {
         "type": "redirect",
         "redirect_url": "https://dev.xen.to/..."
@@ -1027,9 +1033,11 @@ Idempotency-Key: evt_01k3...
   "created_at": "2026-08-28T09:30:00Z",
   "merchant_id": "merchant_123",
   "resource": {"type":"payment","id":"pay_01k3..."},
+  "metadata": {"order_id":"order_2026_0001"},
   "data": {
     "payment": {
       "id": "pay_01k3...",
+      "payment_method_code": "qris",
       "merchant_reference": "order_2026_0001",
       "amount": 1000000,
       "currency": "IDR",

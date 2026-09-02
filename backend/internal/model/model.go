@@ -324,6 +324,7 @@ type PaymentSession struct {
 	ConnectorTxnID        string          `json:"connector_transaction_id,omitempty"`
 	ExecutionEngine       string          `json:"execution_engine"`
 	NextAction            json.RawMessage `json:"next_action,omitempty"`
+	Metadata              json.RawMessage `json:"metadata"`
 	LastError             string          `json:"last_error,omitempty"`
 	ReconciliationCount   int             `json:"reconciliation_count"`
 	LastReconciledAt      *time.Time      `json:"last_reconciled_at,omitempty"`

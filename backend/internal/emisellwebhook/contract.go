@@ -38,6 +38,7 @@ type Envelope struct {
 	CreatedAt  time.Time       `json:"created_at"`
 	MerchantID string          `json:"merchant_id"`
 	Resource   Resource        `json:"resource"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
 	Data       json.RawMessage `json:"data"`
 }
 
@@ -51,14 +52,25 @@ type ReceivedEvent struct {
 }
 
 func MarshalEnvelope(id, eventType, merchantID, aggregateType, aggregateID string, createdAt time.Time, data any) ([]byte, error) {
+	return MarshalEnvelopeWithMetadata(id, eventType, merchantID, aggregateType, aggregateID, createdAt, nil, data)
+}
+
+func MarshalEnvelopeWithMetadata(id, eventType, merchantID, aggregateType, aggregateID string, createdAt time.Time, metadata, data any) ([]byte, error) {
 	dataJSON, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
+	var metadataJSON json.RawMessage
+	if metadata != nil {
+		metadataJSON, err = json.Marshal(metadata)
+		if err != nil {
+			return nil, err
+		}
+	}
 	envelope := Envelope{
 		ID: id, Object: "event", APIVersion: ContractVersion, Type: eventType,
 		CreatedAt: createdAt.UTC(), MerchantID: merchantID,
-		Resource: Resource{Type: aggregateType, ID: aggregateID}, Data: dataJSON,
+		Resource: Resource{Type: aggregateType, ID: aggregateID}, Metadata: metadataJSON, Data: dataJSON,
 	}
 	if err = ValidateEnvelope(envelope, id, eventType, merchantID); err != nil {
 		return nil, err
@@ -95,6 +107,12 @@ func ValidateEnvelope(envelope Envelope, eventID, eventType, merchantID string) 
 	}
 	if envelope.CreatedAt.IsZero() || envelope.Resource.Type == "" || envelope.Resource.ID == "" || len(envelope.Data) == 0 || string(envelope.Data) == "null" {
 		return errors.New("event created_at, resource, and data are required")
+	}
+	if len(envelope.Metadata) > 0 {
+		var metadata map[string]any
+		if err := json.Unmarshal(envelope.Metadata, &metadata); err != nil || metadata == nil {
+			return errors.New("event metadata must be a JSON object")
+		}
 	}
 	if !strings.HasPrefix(envelope.Type, envelope.Resource.Type+".") {
 		return errors.New("event type does not match resource type")

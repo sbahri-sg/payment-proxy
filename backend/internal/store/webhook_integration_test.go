@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -52,9 +53,9 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	}
 	_, err = pool.Exec(ctx, `
 		INSERT INTO payment_sessions(
-			id,tenant_id,installation_id,provider_code,provider_version,environment,merchant_reference,
-			idempotency_key,request_hash,amount,currency,status,engine_payment_id,execution_engine
-		) VALUES($1,$2,$3,'xendit','emisell-xendit-v1','sandbox',$4,$5,$6,1000000,'IDR','PENDING',$7,'emisell_native')
+			id,tenant_id,installation_id,payment_method_code,provider_code,provider_version,environment,merchant_reference,
+			idempotency_key,request_hash,amount,currency,status,engine_payment_id,execution_engine,metadata
+		) VALUES($1,$2,$3,'qris','xendit','emisell-xendit-v1','sandbox',$4,$5,$6,1000000,'IDR','PENDING',$7,'emisell_native',jsonb_build_object('order_id',$4::text))
 	`, paymentID, tenantID, installationID, "order-"+suffix, "idem-"+suffix, requestHash[:], enginePaymentID)
 	if err != nil {
 		t.Fatal(err)
@@ -79,6 +80,24 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	accepted, err := store.ProcessWebhook(ctx, first)
 	if err != nil || !accepted {
 		t.Fatalf("first webhook was not accepted: accepted=%t err=%v", accepted, err)
+	}
+	var outboxPayload []byte
+	if err = pool.QueryRow(ctx, `SELECT payload FROM outbox_events WHERE deduplication_key=$1`, "xendit:"+eventID).Scan(&outboxPayload); err != nil {
+		t.Fatal(err)
+	}
+	var canonicalEvent struct {
+		Metadata map[string]any `json:"metadata"`
+		Data     struct {
+			Payment struct {
+				PaymentMethodCode string `json:"payment_method_code"`
+			} `json:"payment"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(outboxPayload, &canonicalEvent); err != nil {
+		t.Fatal(err)
+	}
+	if canonicalEvent.Metadata["order_id"] != "order-"+suffix || canonicalEvent.Data.Payment.PaymentMethodCode != "qris" {
+		t.Fatalf("canonical payment event lost correlation data: %#v", canonicalEvent)
 	}
 	duplicate := first
 	duplicate.ID = first.ID + "_duplicate"
