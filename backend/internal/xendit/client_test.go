@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -277,13 +278,16 @@ func TestGetHostedCardPaymentSession(t *testing.T) {
 
 func TestXenditWebhookVerification(t *testing.T) {
 	client, _ := New("https://api.xendit.test", time.Second)
-	body := []byte(`{"event":"payment.capture","data":{"payment_request_id":"pr-123","status":"SUCCEEDED"}}`)
+	body := []byte(`{"event":"payment.capture","data":{"payment_id":"py-123","payment_request_id":"pr-123","reference_id":"order-123","status":"SUCCEEDED"}}`)
 	event, err := client.HandleWebhook(context.Background(), connector.WebhookInput{
 		Credentials: map[string]string{"webhook_verification_token": "callback-secret"},
 		Headers:     http.Header{"X-Callback-Token": []string{"callback-secret"}, "Webhook-Id": []string{"evt-1"}}, Body: body,
 	})
-	if err != nil || event.ID != "evt-1" || event.PaymentID != "pr-123" || event.Status != "SUCCEEDED" {
+	if err != nil || event.ID != "evt-1" || event.PaymentID != "pr-123" || event.MerchantReference != "order-123" || event.Status != "SUCCEEDED" {
 		t.Fatalf("unexpected webhook event: %#v, %v", event, err)
+	}
+	if !reflect.DeepEqual(event.PaymentIDs, []string{"pr-123", "py-123"}) {
+		t.Fatalf("payment aliases = %#v", event.PaymentIDs)
 	}
 	if _, err = client.HandleWebhook(context.Background(), connector.WebhookInput{Credentials: map[string]string{"webhook_verification_token": "callback-secret"}, Headers: http.Header{"X-Callback-Token": []string{"wrong"}}, Body: body}); err == nil {
 		t.Fatal("invalid callback token was accepted")
@@ -292,13 +296,16 @@ func TestXenditWebhookVerification(t *testing.T) {
 
 func TestXenditPaymentSessionWebhook(t *testing.T) {
 	client, _ := New("https://api.xendit.test", time.Second)
-	body := []byte(`{"event":"payment_session.completed","data":{"payment_session_id":"ps-card-1","payment_request_id":"pr-card-1","status":"COMPLETED"}}`)
+	body := []byte(`{"event":"payment_session.completed","data":{"payment_session_id":"ps-card-1","payment_request_id":"pr-card-1","payment_id":"py-card-1","reference_id":"order-card-1","status":"COMPLETED"}}`)
 	event, err := client.HandleWebhook(context.Background(), connector.WebhookInput{
 		Credentials: map[string]string{"webhook_verification_token": "callback-secret"},
 		Headers:     http.Header{"X-Callback-Token": []string{"callback-secret"}, "Webhook-Id": []string{"evt-session-1"}}, Body: body,
 	})
 	if err != nil || event.PaymentID != "ps-card-1" || event.Status != "COMPLETED" {
 		t.Fatalf("unexpected payment session webhook: %#v, %v", event, err)
+	}
+	if event.MerchantReference != "order-card-1" || !reflect.DeepEqual(event.PaymentIDs, []string{"ps-card-1", "pr-card-1", "py-card-1"}) {
+		t.Fatalf("unexpected session correlation: %#v", event)
 	}
 }
 

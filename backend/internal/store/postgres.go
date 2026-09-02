@@ -1997,9 +1997,9 @@ func (s *Postgres) CompletePayment(ctx context.Context, tenantID, id, engineID, 
 		return model.PaymentSession{}, err
 	}
 	defer tx.Rollback(ctx)
-	var previous string
+	var previous, providerCode, installationID string
 	var existingFlags []string
-	if err = tx.QueryRow(ctx, `SELECT status,flags FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&previous, &existingFlags); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT status,flags,provider_code,installation_id FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&previous, &existingFlags, &providerCode, &installationID); err != nil {
 		return model.PaymentSession{}, translateNotFound(err)
 	}
 	applied := canonicalPaymentStatus(previous, status)
@@ -2026,6 +2026,9 @@ func (s *Postgres) CompletePayment(ctx context.Context, tenantID, id, engineID, 
 		if err = insertPaymentHistory(ctx, tx, tenantID, id, applied, source, map[string]any{"engine_payment_id": engineID, "flags_added": flagsAdded}); err != nil {
 			return model.PaymentSession{}, err
 		}
+	}
+	if err = upsertPaymentProviderReferences(ctx, tx, tenantID, id, providerCode, installationID, []string{engineID, connectorID}); err != nil {
+		return model.PaymentSession{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return model.PaymentSession{}, err
@@ -2077,10 +2080,10 @@ func (s *Postgres) ReconcilePayment(ctx context.Context, tenantID, id, actor, re
 		return model.PaymentSession{}, err
 	}
 	defer tx.Rollback(ctx)
-	var current, lastKey string
+	var current, lastKey, providerCode, installationID string
 	var existingFlags []string
 	var reconciliationCount int
-	if err = tx.QueryRow(ctx, `SELECT status,flags,reconciliation_count,last_reconciliation_key FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&current, &existingFlags, &reconciliationCount, &lastKey); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT status,flags,reconciliation_count,last_reconciliation_key,provider_code,installation_id FROM payment_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tenantID, id).Scan(&current, &existingFlags, &reconciliationCount, &lastKey, &providerCode, &installationID); err != nil {
 		return model.PaymentSession{}, translateNotFound(err)
 	}
 	if lastKey == idempotencyKey {
@@ -2108,6 +2111,9 @@ func (s *Postgres) ReconcilePayment(ctx context.Context, tenantID, id, actor, re
 		if err = insertPaymentHistory(ctx, tx, tenantID, id, applied, "operator.reconcile", map[string]any{"engine_payment_id": engineID, "flags_added": flagsAdded}); err != nil {
 			return model.PaymentSession{}, err
 		}
+	}
+	if err = upsertPaymentProviderReferences(ctx, tx, tenantID, id, providerCode, installationID, []string{engineID, connectorID}); err != nil {
+		return model.PaymentSession{}, err
 	}
 	if err = audit(ctx, tx, tenantID, actor, "payment.reconcile", "payment", id, requestID, map[string]any{"previous_status": current, "engine_status": status, "applied_status": applied, "previous_reconciliation_count": reconciliationCount}); err != nil {
 		return model.PaymentSession{}, err
@@ -2374,13 +2380,49 @@ func (s *Postgres) getRefundByIdempotency(ctx context.Context, tenantID, key str
 }
 
 type WebhookInput struct {
-	ID, Source, ExternalEventID, EventType, EnginePaymentID, EngineRefundID, Status string
-	PayloadHash, PayloadCiphertext                                                  []byte
+	ID, Source, ExternalEventID, EventType, TenantID, InstallationID, EnginePaymentID, MerchantReference, EngineRefundID, Status string
+	ProviderPaymentIDs                                                                                                           []string
+	PayloadHash, PayloadCiphertext                                                                                               []byte
 }
 
 type WebhookListFilter struct {
 	Status, Query string
 	Limit, Offset int
+}
+
+func webhookProviderReferences(primary string, additional []string) []string {
+	values := append([]string{primary}, additional...)
+	result := make([]string, 0, min(len(values), 12))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || len(value) > 256 {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+		if len(result) == 12 {
+			break
+		}
+	}
+	return result
+}
+
+func upsertPaymentProviderReferences(ctx context.Context, tx pgx.Tx, tenantID, paymentID, providerCode, installationID string, references []string) error {
+	for _, reference := range webhookProviderReferences("", references) {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO payment_provider_references(
+				provider_code,installation_id,provider_reference,tenant_id,payment_id
+			) VALUES($1,$2,$3,$4,$5)
+			ON CONFLICT(provider_code,installation_id,provider_reference) DO NOTHING
+		`, providerCode, installationID, reference, tenantID, paymentID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Postgres) ListWebhookInbox(ctx context.Context, tenantID string, filter WebhookListFilter) (model.WebhookInboxList, error) {
@@ -2511,13 +2553,17 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 	if in.Source == "" {
 		in.Source = "provider"
 	}
+	in.TenantID = strings.TrimSpace(in.TenantID)
+	in.InstallationID = strings.TrimSpace(in.InstallationID)
+	in.MerchantReference = strings.TrimSpace(in.MerchantReference)
+	providerReferences := webhookProviderReferences(in.EnginePaymentID, in.ProviderPaymentIDs)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return false, err
 	}
 	defer tx.Rollback(ctx)
 	var inserted string
-	err = tx.QueryRow(ctx, `INSERT INTO webhook_inbox(id,source,external_event_id,event_type,canonical_status,payload_sha256,payload_ciphertext,status) VALUES($1,$2,$3,$4,$5,$6,$7,'RECEIVED') ON CONFLICT(source,external_event_id) DO NOTHING RETURNING id`, in.ID, in.Source, in.ExternalEventID, in.EventType, in.Status, in.PayloadHash, in.PayloadCiphertext).Scan(&inserted)
+	err = tx.QueryRow(ctx, `INSERT INTO webhook_inbox(id,source,external_event_id,event_type,canonical_status,payload_sha256,payload_ciphertext,status,tenant_id) VALUES($1,$2,$3,$4,$5,$6,$7,'RECEIVED',$8) ON CONFLICT(source,external_event_id) DO NOTHING RETURNING id`, in.ID, in.Source, in.ExternalEventID, in.EventType, in.Status, in.PayloadHash, in.PayloadCiphertext, in.TenantID).Scan(&inserted)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -2525,21 +2571,57 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 		return false, err
 	}
 	processed := false
-	matchedTenant, aggregateType, aggregateID := "", "", ""
+	matchedTenant, aggregateType, aggregateID := in.TenantID, "", ""
+	ignoredReason := "provider event did not match a local payment or refund"
 	// Refund provider events commonly contain both the original payment ID and
 	// the refund ID. The refund resource must win, otherwise a refund callback
 	// would be consumed as an ordinary payment update and never reach the
 	// canonical refund or Emisell Backend.
-	if in.EnginePaymentID != "" && in.EngineRefundID == "" {
+	if (len(providerReferences) > 0 || in.MerchantReference != "") && in.EngineRefundID == "" {
 		var tenantID, localID string
 		var amount int64
 		var currency, reference, environment, paymentMethodCode string
 		var previousStatus, appliedStatus string
 		var existingFlags []string
 		var metadata json.RawMessage
-		err = tx.QueryRow(ctx, `SELECT tenant_id,id,amount,currency,merchant_reference,environment,COALESCE(payment_method_code,''),metadata,status,flags FROM payment_sessions WHERE engine_payment_id=$1 FOR UPDATE`, in.EnginePaymentID).Scan(&tenantID, &localID, &amount, &currency, &reference, &environment, &paymentMethodCode, &metadata, &previousStatus, &existingFlags)
+		err = tx.QueryRow(ctx, `
+			SELECT payment.tenant_id,payment.id,payment.amount,payment.currency,
+			       payment.merchant_reference,payment.environment,
+			       COALESCE(payment.payment_method_code,''),payment.metadata,
+			       payment.status,payment.flags
+			FROM payment_sessions AS payment
+			WHERE payment.tenant_id=$1
+			  AND payment.installation_id=$2
+			  AND (
+			    payment.engine_payment_id=ANY($3::text[])
+			    OR COALESCE(payment.connector_transaction_id,'')=ANY($3::text[])
+			    OR EXISTS(
+			      SELECT 1 FROM payment_provider_references AS reference
+			      WHERE reference.tenant_id=payment.tenant_id
+			        AND reference.payment_id=payment.id
+			        AND reference.provider_reference=ANY($3::text[])
+			    )
+			    OR ($4<>'' AND payment.merchant_reference=$4)
+			  )
+			ORDER BY CASE
+			  WHEN payment.engine_payment_id=ANY($3::text[]) THEN 0
+			  WHEN COALESCE(payment.connector_transaction_id,'')=ANY($3::text[]) THEN 1
+			  WHEN EXISTS(
+			    SELECT 1 FROM payment_provider_references AS reference
+			    WHERE reference.tenant_id=payment.tenant_id
+			      AND reference.payment_id=payment.id
+			      AND reference.provider_reference=ANY($3::text[])
+			  ) THEN 2
+			  ELSE 3
+			END
+			LIMIT 1
+			FOR UPDATE OF payment
+		`, in.TenantID, in.InstallationID, providerReferences, in.MerchantReference).Scan(&tenantID, &localID, &amount, &currency, &reference, &environment, &paymentMethodCode, &metadata, &previousStatus, &existingFlags)
 		if err == nil {
 			matchedTenant, aggregateType, aggregateID = tenantID, "payment", localID
+			if err = upsertPaymentProviderReferences(ctx, tx, tenantID, localID, in.Source, in.InstallationID, providerReferences); err != nil {
+				return false, err
+			}
 			appliedStatus = canonicalPaymentStatus(previousStatus, in.Status)
 			flags, flagsAdded := canonicalPaymentFlags(existingFlags, previousStatus, appliedStatus)
 			flagsJSON, marshalErr := json.Marshal(flags)
@@ -2547,7 +2629,7 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 				return false, marshalErr
 			}
 			eventCreatedAt := time.Now().UTC()
-			if _, err = tx.Exec(ctx, `UPDATE payment_sessions SET status=$2,flags=$3::jsonb,updated_at=$4 WHERE engine_payment_id=$1`, in.EnginePaymentID, appliedStatus, string(flagsJSON), eventCreatedAt); err != nil {
+			if _, err = tx.Exec(ctx, `UPDATE payment_sessions SET status=$3,flags=$4::jsonb,updated_at=$5 WHERE tenant_id=$1 AND id=$2`, tenantID, localID, appliedStatus, string(flagsJSON), eventCreatedAt); err != nil {
 				return false, err
 			}
 			if previousStatus != appliedStatus {
@@ -2570,6 +2652,8 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 			processed = true
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return false, err
+		} else {
+			ignoredReason = "no payment matched the provider IDs or merchant reference for this installation"
 		}
 	}
 	if !processed && in.EngineRefundID != "" {
@@ -2599,7 +2683,11 @@ func (s *Postgres) ProcessWebhook(ctx context.Context, in WebhookInput) (bool, e
 	if processed {
 		status = "PROCESSED"
 	}
-	if _, err = tx.Exec(ctx, `UPDATE webhook_inbox SET status=$2,tenant_id=$3,aggregate_type=$4,aggregate_id=$5,processed_at=now() WHERE id=$1`, in.ID, status, matchedTenant, aggregateType, aggregateID); err != nil {
+	errorMessage := ""
+	if !processed {
+		errorMessage = ignoredReason
+	}
+	if _, err = tx.Exec(ctx, `UPDATE webhook_inbox SET status=$2,tenant_id=$3,aggregate_type=$4,aggregate_id=$5,error_message=$6,processed_at=now() WHERE id=$1`, in.ID, status, matchedTenant, aggregateType, aggregateID, errorMessage); err != nil {
 		return false, err
 	}
 	if err = tx.Commit(ctx); err != nil {

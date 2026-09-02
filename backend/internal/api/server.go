@@ -2630,7 +2630,13 @@ func (s *Server) providerWebhook(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	accepted, err := s.store.ProcessWebhook(r.Context(), store.WebhookInput{ID: id, Source: providerCode, ExternalEventID: event.ID, EventType: event.Type, EnginePaymentID: event.PaymentID, EngineRefundID: event.RefundID, Status: canonicalStatus, PayloadHash: sum[:], PayloadCiphertext: payloadCiphertext})
+	accepted, err := s.store.ProcessWebhook(r.Context(), store.WebhookInput{
+		ID: id, Source: providerCode, ExternalEventID: event.ID, EventType: event.Type,
+		TenantID: tenantID, InstallationID: installationID, EnginePaymentID: event.PaymentID,
+		ProviderPaymentIDs: event.PaymentIDs, MerchantReference: event.MerchantReference,
+		EngineRefundID: event.RefundID, Status: canonicalStatus,
+		PayloadHash: sum[:], PayloadCiphertext: payloadCiphertext,
+	})
 	if err != nil {
 		s.internal(w, r, err)
 		return

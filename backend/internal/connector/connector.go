@@ -170,11 +170,13 @@ type WebhookInput struct {
 }
 
 type WebhookEvent struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`
-	PaymentID string `json:"payment_id,omitempty"`
-	RefundID  string `json:"refund_id,omitempty"`
-	Status    string `json:"status"`
+	ID                string   `json:"id"`
+	Type              string   `json:"type"`
+	PaymentID         string   `json:"payment_id,omitempty"`
+	PaymentIDs        []string `json:"payment_ids,omitempty"`
+	MerchantReference string   `json:"merchant_reference,omitempty"`
+	RefundID          string   `json:"refund_id,omitempty"`
+	Status            string   `json:"status"`
 }
 
 type Connector interface {

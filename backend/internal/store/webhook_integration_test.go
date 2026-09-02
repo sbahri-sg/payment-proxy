@@ -34,11 +34,14 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	installationID := "ins_itest_" + suffix
 	paymentID := "pay_itest_" + suffix
 	expiredPaymentID := "pay_itest_expired_" + suffix
-	enginePaymentID := "pr-itest-" + suffix
+	enginePaymentID := "ps-itest-" + suffix
+	webhookPaymentRequestID := "pr-itest-" + suffix
+	webhookProviderPaymentID := "py-itest-" + suffix
 	expiredEnginePaymentID := "pr-itest-expired-" + suffix
 	eventID := "evt-itest-" + suffix
 	lateEventID := eventID + "-late"
 	lateSuccessEventID := eventID + "-late-success"
+	unmatchedEventID := eventID + "-unmatched"
 	requestHash := sha256.Sum256([]byte(paymentID))
 	payloadHash := sha256.Sum256([]byte(eventID))
 
@@ -65,7 +68,7 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 		defer cleanupCancel()
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM outbox_events WHERE tenant_id=$1`, tenantID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM integration_evidence WHERE tenant_id=$1`, tenantID)
-		_, _ = pool.Exec(cleanupCtx, `DELETE FROM webhook_inbox WHERE source='xendit' AND external_event_id IN ($1,$2,$3)`, eventID, lateEventID, lateSuccessEventID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM webhook_inbox WHERE tenant_id=$1`, tenantID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM payment_status_history WHERE tenant_id=$1 AND payment_id IN ($2,$3)`, tenantID, paymentID, expiredPaymentID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM payment_sessions WHERE tenant_id=$1 AND id IN ($2,$3)`, tenantID, paymentID, expiredPaymentID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM provider_installations WHERE tenant_id=$1 AND id=$2`, tenantID, installationID)
@@ -74,7 +77,9 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	store := New(pool)
 	first := WebhookInput{
 		ID: "wh_itest_" + suffix, Source: "xendit", ExternalEventID: eventID,
-		EventType: "payment.succeeded", EnginePaymentID: enginePaymentID, Status: model.PaymentSucceeded,
+		EventType: "payment.capture", TenantID: tenantID, InstallationID: installationID,
+		EnginePaymentID: webhookPaymentRequestID, ProviderPaymentIDs: []string{webhookPaymentRequestID, webhookProviderPaymentID},
+		MerchantReference: "order-" + suffix, Status: model.PaymentSucceeded,
 		PayloadHash: payloadHash[:], PayloadCiphertext: []byte("encrypted-test-payload"),
 	}
 	accepted, err := store.ProcessWebhook(ctx, first)
@@ -98,6 +103,30 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	}
 	if canonicalEvent.Metadata["order_id"] != "order-"+suffix || canonicalEvent.Data.Payment.PaymentMethodCode != "qris" {
 		t.Fatalf("canonical payment event lost correlation data: %#v", canonicalEvent)
+	}
+	var referenceCount int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM payment_provider_references WHERE tenant_id=$1 AND payment_id=$2 AND provider_reference=ANY($3::text[])`, tenantID, paymentID, []string{webhookPaymentRequestID, webhookProviderPaymentID}).Scan(&referenceCount); err != nil {
+		t.Fatal(err)
+	}
+	if referenceCount != 2 {
+		t.Fatalf("Xendit payment aliases were not persisted: count=%d", referenceCount)
+	}
+	unmatched := WebhookInput{
+		ID: "wh_itest_unmatched_" + suffix, Source: "xendit", ExternalEventID: unmatchedEventID,
+		EventType: "payment.capture", TenantID: tenantID, InstallationID: installationID,
+		EnginePaymentID: "pr-missing-" + suffix, Status: model.PaymentSucceeded,
+		PayloadHash: payloadHash[:], PayloadCiphertext: []byte("encrypted-unmatched-payload"),
+	}
+	accepted, err = store.ProcessWebhook(ctx, unmatched)
+	if err != nil || !accepted {
+		t.Fatalf("unmatched webhook was not retained for diagnostics: accepted=%t err=%v", accepted, err)
+	}
+	var unmatchedTenant, unmatchedStatus, unmatchedError string
+	if err = pool.QueryRow(ctx, `SELECT tenant_id,status,error_message FROM webhook_inbox WHERE external_event_id=$1`, unmatchedEventID).Scan(&unmatchedTenant, &unmatchedStatus, &unmatchedError); err != nil {
+		t.Fatal(err)
+	}
+	if unmatchedTenant != tenantID || unmatchedStatus != "IGNORED" || unmatchedError == "" {
+		t.Fatalf("unmatched webhook is not diagnosable: tenant=%q status=%q error=%q", unmatchedTenant, unmatchedStatus, unmatchedError)
 	}
 	duplicate := first
 	duplicate.ID = first.ID + "_duplicate"
@@ -162,7 +191,8 @@ func TestProcessWebhookDuplicateAndOutOfOrderIntegration(t *testing.T) {
 	}
 	lateSuccess := WebhookInput{
 		ID: "wh_itest_late_success_" + suffix, Source: "xendit", ExternalEventID: lateSuccessEventID,
-		EventType: "payment.succeeded", EnginePaymentID: expiredEnginePaymentID, Status: model.PaymentSucceeded,
+		EventType: "payment.succeeded", TenantID: tenantID, InstallationID: installationID,
+		EnginePaymentID: expiredEnginePaymentID, Status: model.PaymentSucceeded,
 		PayloadHash: payloadHash[:], PayloadCiphertext: []byte("encrypted-late-success-payload"),
 	}
 	accepted, err = store.ProcessWebhook(ctx, lateSuccess)

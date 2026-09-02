@@ -352,13 +352,21 @@ func (c *Client) HandleWebhook(_ context.Context, input connector.WebhookInput) 
 		sum := sha256.Sum256(input.Body)
 		eventID = hex.EncodeToString(sum[:])
 	}
-	paymentID := firstString(data, "payment_request_id")
+	paymentSessionID := firstString(data, "payment_session_id")
+	paymentRequestID := firstString(data, "payment_request_id")
+	providerPaymentID := firstString(data, "payment_id")
+	paymentIDs := uniqueNonEmptyStrings(paymentSessionID, paymentRequestID, providerPaymentID)
+	paymentID := paymentRequestID
 	if strings.HasPrefix(strings.ToLower(eventType), "payment_session.") {
-		paymentID = firstString(data, "payment_session_id")
+		paymentID = paymentSessionID
+	}
+	if paymentID == "" {
+		paymentID = firstNonEmptyString(paymentSessionID, providerPaymentID)
 	}
 	refundID := firstString(data, "refund_id")
 	if paymentID == "" && strings.HasPrefix(strings.ToLower(eventType), "payment_request.") {
 		paymentID = firstString(data, "id")
+		paymentIDs = uniqueNonEmptyStrings(append(paymentIDs, paymentID)...)
 	}
 	if refundID == "" && strings.HasPrefix(strings.ToLower(eventType), "refund.") {
 		refundID = firstString(data, "id")
@@ -367,7 +375,36 @@ func (c *Client) HandleWebhook(_ context.Context, input connector.WebhookInput) 
 	if status == "" {
 		status = webhookStatus(eventType)
 	}
-	return connector.WebhookEvent{ID: eventID, Type: eventType, PaymentID: paymentID, RefundID: refundID, Status: status}, nil
+	return connector.WebhookEvent{
+		ID: eventID, Type: eventType, PaymentID: paymentID, PaymentIDs: paymentIDs,
+		MerchantReference: firstString(data, "reference_id"), RefundID: refundID, Status: status,
+	}, nil
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func uniqueNonEmptyStrings(values ...string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func (c *Client) createHostedPaymentSession(ctx context.Context, input connector.PaymentInput, key string, amount any, allowedChannels []string) (connector.PaymentResult, error) {
