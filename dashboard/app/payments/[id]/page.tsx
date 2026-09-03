@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AppSidebar, AppTopbar, Icon } from "../../components/app-shell";
 import { BrandLogo } from "../../components/brand-logo";
 import { PaymentActions } from "../../components/payments/payment-actions";
+import { OperationsRefresh } from "../../components/operations-refresh";
 import { getPayment, getPaymentTimeline, PaymentProxyError, type PaymentSession, type PaymentStatus } from "../../lib/payment-proxy";
 import { getReadiness } from "../../lib/readiness";
 import { requireDashboardSession } from "../../lib/session";
@@ -64,7 +65,7 @@ export default async function PaymentDetailPage({ params }: { params: Promise<{ 
         <main className="dashboard-content management-content payment-detail-content">
           <section className="dashboard-heading payment-detail-heading">
             <div><p className="breadcrumb"><Link href="/payments">Payments</Link> / {payment.merchant_reference}</p><div className="payment-title-line"><h1>{payment.merchant_reference}</h1><b className={`status-badge ${statusTone(payment.status)}`}><i/>{payment.status}</b><span className={`environment-badge ${payment.environment}`}>{payment.environment}</span></div><p>{payment.id}</p></div>
-            <PaymentActions payment={payment}/>
+            <div className="operations-heading-actions"><OperationsRefresh refreshedAt={new Date().toISOString()}/><PaymentActions payment={payment}/></div>
           </section>
           {payment.status === "UNKNOWN" && <div className="unknown-payment-alert"><Icon name="activity" size={19}/><div><strong>Outcome payment belum diketahui</strong><p>Jangan membuat payment pengganti atau melakukan failover otomatis. Gunakan Sync status sampai engine atau webhook memberikan status kanonis.</p></div></div>}
           {payment.flags?.includes("late_payment") && <div className="unknown-payment-alert"><Icon name="activity" size={19}/><div><strong>Pembayaran diterima setelah kedaluwarsa</strong><p>Status tetap SUCCEEDED dan ditandai <code>late_payment</code>. Emisell Backend harus menjalankan kebijakan order terlambat secara eksplisit, bukan mengabaikan pembayaran.</p></div></div>}

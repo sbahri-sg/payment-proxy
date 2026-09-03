@@ -179,6 +179,9 @@ func (s *Server) registerAdminRoutes(r chi.Router) {
 	r.Get("/payment-sessions", s.listAdminPayments)
 	r.Get("/payment-sessions/{id}", s.getAdminPayment)
 	r.Get("/payment-sessions/{id}/timeline", s.adminPaymentTimeline)
+	r.Get("/webhook-inbox", s.listAdminWebhookInbox)
+	r.Get("/webhook-deliveries", s.listAdminWebhookDeliveries)
+	r.Post("/webhook-deliveries/{id}/replay", s.replayAdminWebhookDelivery)
 	r.Get("/provider-apps", s.listProviderApps)
 	r.Post("/provider-apps/{id}/transition", s.transitionProviderApp)
 	r.Get("/provider-app-providers", s.listProviderAppProviders)
@@ -2450,11 +2453,58 @@ func (s *Server) listWebhookDeliveries(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, items)
 }
 
+func adminWebhookListFilter(w http.ResponseWriter, r *http.Request, validStatus func(string) bool) (store.WebhookListFilter, bool) {
+	filter, ok := webhookListFilter(w, r, validStatus)
+	if !ok {
+		return filter, false
+	}
+	filter.TenantID = strings.TrimSpace(r.URL.Query().Get("merchant_id"))
+	if filter.TenantID != "" && !tenantPattern.MatchString(filter.TenantID) {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_TENANT", "merchant_id filter is invalid")
+		return filter, false
+	}
+	return filter, true
+}
+
+func (s *Server) listAdminWebhookInbox(w http.ResponseWriter, r *http.Request) {
+	filter, ok := adminWebhookListFilter(w, r, validWebhookInboxStatus)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListWebhookInboxAdmin(r.Context(), filter)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, items)
+}
+
+func (s *Server) listAdminWebhookDeliveries(w http.ResponseWriter, r *http.Request) {
+	filter, ok := adminWebhookListFilter(w, r, validWebhookDeliveryStatus)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListWebhookDeliveriesAdmin(r.Context(), filter)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeData(w, http.StatusOK, items)
+}
+
 type replayWebhookRequest struct {
 	ExpectedReplayCount int `json:"expected_replay_count"`
 }
 
 func (s *Server) replayWebhookDelivery(w http.ResponseWriter, r *http.Request) {
+	s.replayWebhook(w, r, false)
+}
+
+func (s *Server) replayAdminWebhookDelivery(w http.ResponseWriter, r *http.Request) {
+	s.replayWebhook(w, r, true)
+}
+
+func (s *Server) replayWebhook(w http.ResponseWriter, r *http.Request, admin bool) {
 	key, ok := requireIdempotency(w, r)
 	if !ok {
 		return
@@ -2467,7 +2517,13 @@ func (s *Server) replayWebhookDelivery(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "expected_replay_count must be zero or greater")
 		return
 	}
-	item, err := s.store.ReplayWebhookDelivery(r.Context(), tenant(r), chi.URLParam(r, "id"), actor(r), middleware.GetReqID(r.Context()), key, request.ExpectedReplayCount)
+	var item model.WebhookDelivery
+	var err error
+	if admin {
+		item, err = s.store.ReplayWebhookDeliveryAdmin(r.Context(), chi.URLParam(r, "id"), actor(r), middleware.GetReqID(r.Context()), key, request.ExpectedReplayCount)
+	} else {
+		item, err = s.store.ReplayWebhookDelivery(r.Context(), tenant(r), chi.URLParam(r, "id"), actor(r), middleware.GetReqID(r.Context()), key, request.ExpectedReplayCount)
+	}
 	if err != nil {
 		s.storeError(w, r, err)
 		return

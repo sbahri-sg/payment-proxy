@@ -376,6 +376,7 @@ export type WebhookDeliveryStatus = "PENDING" | "PROCESSING" | "DELIVERED" | "DE
 
 export type WebhookInboxItem = {
   id: string;
+  merchant_id: string;
   source: string;
   external_event_id: string;
   event_type: string;
@@ -383,6 +384,7 @@ export type WebhookInboxItem = {
   aggregate_id: string;
   payload_sha256: string;
   status: WebhookInboxStatus;
+  canonical_status: string;
   error_message?: string;
   received_at: string;
   processed_at?: string;
@@ -390,6 +392,7 @@ export type WebhookInboxItem = {
 
 export type WebhookDelivery = {
   id: string;
+  merchant_id: string;
   event_type: string;
   aggregate_type: string;
   aggregate_id: string;
@@ -725,8 +728,11 @@ export function cancelPayment(actor: string, merchantID: string, id: string, rea
   }, merchantID);
 }
 
-function webhookQuery(filters: { status?: string; q?: string; limit?: number; offset?: number }) {
+type WebhookFilters = { merchantID?: string; status?: string; q?: string; limit?: number; offset?: number };
+
+function webhookQuery(filters: WebhookFilters) {
   const query = new URLSearchParams();
+  if (filters.merchantID) query.set("merchant_id", filters.merchantID);
   if (filters.status) query.set("status", filters.status);
   if (filters.q) query.set("q", filters.q);
   if (filters.limit) query.set("limit", String(filters.limit));
@@ -734,16 +740,16 @@ function webhookQuery(filters: { status?: string; q?: string; limit?: number; of
   return query.size ? `?${query}` : "";
 }
 
-export function listWebhookInbox(actor: string, filters: { status?: string; q?: string; limit?: number; offset?: number } = {}) {
-  return proxyRequest<WebhookInboxList>(`/api/v1/webhook-inbox${webhookQuery(filters)}`, actor);
+export function listWebhookInbox(actor: string, filters: WebhookFilters = {}) {
+  return adminRequest<WebhookInboxList>(`/api/v1/admin/webhook-inbox${webhookQuery(filters)}`, actor);
 }
 
-export function listWebhookDeliveries(actor: string, filters: { status?: string; q?: string; limit?: number; offset?: number } = {}) {
-  return proxyRequest<WebhookDeliveryList>(`/api/v1/webhook-deliveries${webhookQuery(filters)}`, actor);
+export function listWebhookDeliveries(actor: string, filters: WebhookFilters = {}) {
+  return adminRequest<WebhookDeliveryList>(`/api/v1/admin/webhook-deliveries${webhookQuery(filters)}`, actor);
 }
 
 export function replayWebhookDelivery(actor: string, id: string, expectedReplayCount: number, idempotencyKey: string) {
-  return proxyRequest<WebhookDelivery>(`/api/v1/webhook-deliveries/${encodeURIComponent(id)}/replay`, actor, {
+  return adminRequest<WebhookDelivery>(`/api/v1/admin/webhook-deliveries/${encodeURIComponent(id)}/replay`, actor, {
     method: "POST",
     headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ expected_replay_count: expectedReplayCount }),

@@ -1034,11 +1034,12 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
         note: "Emisell Backend wajib menghitung HMAC-SHA256 atas timestamp + '.' + raw body, membandingkan ID/type/merchant pada header dan body, menolak timestamp kedaluwarsa, lalu deduplicate berdasarkan event id. Balas 2xx hanya setelah event tersimpan durable.",
       },
       {
-        method: "GET", path: "/api/v1/webhook-inbox?status=PROCESSED&q=payment&limit=25&offset=0", title: "List webhook inbox", description: "Menampilkan metadata aman webhook provider yang berhasil dipetakan ke tenant. Raw payload tetap terenkripsi dan tidak pernah dikirim ke dashboard.",
+        method: "GET", path: "/api/v1/admin/webhook-inbox?status=PROCESSED&q=payment&limit=25&offset=0", title: "List webhook inbox", description: "Admin melihat seluruh merchant, termasuk event lama yang belum terpetakan. Tambahkan merchant_id sebagai filter opsional. Raw payload tetap terenkripsi dan tidak pernah dikirim ke dashboard.",
         response: `{
   "data": {
     "items": [{
       "id": "wh_01k3...",
+      "merchant_id": "merchant_123",
       "source": "xendit",
       "external_event_id": "webhook-unique-id",
       "event_type": "payment.capture",
@@ -1046,6 +1047,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
       "aggregate_id": "pay_01k3...",
       "payload_sha256": "90f4...a281",
       "status": "PROCESSED",
+      "canonical_status": "SUCCEEDED",
       "received_at": "2026-08-28T05:26:11Z",
       "processed_at": "2026-08-28T05:26:11Z"
     }],
@@ -1056,14 +1058,15 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
     "has_more": false
   }
 }`,
-        note: "Event yang tidak dapat dipetakan ke tenant tidak tersedia melalui service API tenant-scoped.",
+        note: "Memerlukan admin key. merchant_id kosong pada item berarti Unassigned. Endpoint service /api/v1/webhook-inbox tetap tenant-scoped dan tidak menampilkan event tanpa merchant. Auto-refresh dashboard hanya membaca proyeksi admin; tidak mengubah payment atau replay event.",
       },
       {
-        method: "GET", path: "/api/v1/webhook-deliveries?status=DEAD&limit=25&offset=0", title: "List Emisell deliveries", description: "Menampilkan canonical outbox, attempt counter, HTTP response, error terakhir, dan metadata replay menuju Emisell Backend.",
+        method: "GET", path: "/api/v1/admin/webhook-deliveries?status=DEAD&limit=25&offset=0", title: "List Emisell deliveries", description: "Admin melihat canonical outbox seluruh merchant, attempt counter, HTTP response, error terakhir, dan metadata replay. Filter merchant_id opsional. Status delivery DEAD tidak berarti payment gagal.",
         response: `{
   "data": {
     "items": [{
       "id": "evt_01k3...",
+      "merchant_id": "merchant_123",
       "event_type": "payment.updated",
       "aggregate_type": "payment",
       "aggregate_id": "pay_01k3...",
@@ -1095,7 +1098,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
 }`,
       },
       {
-        method: "POST", path: "/api/v1/webhook-deliveries/{id}/replay", title: "Replay dead delivery", description: "Membuka attempt window baru untuk delivery DEAD dengan optimistic replay count dan audit operator.",
+        method: "POST", path: "/api/v1/admin/webhook-deliveries/{id}/replay", title: "Replay dead delivery", description: "Admin membuka attempt window baru untuk delivery DEAD dengan optimistic replay count dan audit operator. Merchant ditentukan server dari event tersimpan, bukan dari browser atau merchant demo.",
         headers: ["Idempotency-Key: replay-event-123-attempt-1"],
         body: `{ "expected_replay_count": 0 }`,
         response: `{
@@ -1108,7 +1111,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
     "attempt_count": 0,
     "max_attempts": 8,
     "replay_count": 1,
-    "last_replayed_by": "emisell-backend"
+    "last_replayed_by": "payment-proxy-admin"
   }
 }`,
         note: "Hanya status DEAD yang bisa direplay. Emisell consumer wajib deduplicate karena delivery bersifat at-least-once.",
@@ -1556,7 +1559,7 @@ function postmanPath(path: string) {
   if (path.startsWith("/api/v1/payment-method-assignments/{id}")) return path.replace("{id}", "{{payment_option_id}}");
   if (path.startsWith("/api/v1/payment-sessions/{id}")) return path.replace("{id}", "{{payment_id}}");
   if (path.startsWith("/api/v1/refunds/{id}")) return path.replace("{id}", "{{refund_id}}");
-  if (path.startsWith("/api/v1/webhook-deliveries/{id}")) return path.replace("{id}", "{{delivery_id}}");
+  if (path.startsWith("/api/v1/webhook-deliveries/{id}") || path.startsWith("/api/v1/admin/webhook-deliveries/{id}")) return path.replace("{id}", "{{delivery_id}}");
   if (path.startsWith("/api/v1/reconciliation/payments/{id}")) return path.replace("{id}", "{{payment_id}}");
   if (path.includes("{provider_payment_id}")) return path.replace("{provider_payment_id}", "{{provider_payment_id}}");
   if (path.includes("{provider_refund_id}")) return path.replace("{provider_refund_id}", "{{provider_refund_id}}");
@@ -1817,7 +1820,7 @@ HandleWebhook()`}</Code>
                 <p>{contractID === "backend"
                   ? "Endpoint merchant hanya dipanggil Emisell Backend. Service key dan credential provider tidak boleh dikirim ke checkout atau browser."
                   : contractID === "admin"
-                    ? "Endpoint /api/v1/admin/* memakai admin key. Operasi internal yang membaca tenant tertentu juga wajib membawa Merchant ID."
+                    ? "Endpoint /api/v1/admin/* memakai admin key. Daftar Payments dan Webhooks melihat seluruh merchant dengan filter merchant_id opsional; diagnostik tenant tetap memerlukan Merchant ID eksplisit."
                     : "Partner API adalah southbound contract. Browser, checkout, dan Emisell Backend tidak memanggil connector vendor secara langsung."}</p>
                 <Code>{activeHeaders.join("\n")}</Code>
                 <div className="callout">{contractID === "backend"

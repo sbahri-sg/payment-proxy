@@ -208,6 +208,52 @@ func TestWebhookStatusAllowlists(t *testing.T) {
 	}
 }
 
+func TestAdminWebhookRoutesRequireAdminCredential(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	handler := New(config.Config{AdminAPIKey: "test-admin-key", ServiceAPIKey: "test-service-key"}, nil, nil, nil, nil, nil, logger)
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/admin/webhook-inbox"},
+		{http.MethodGet, "/api/v1/admin/webhook-deliveries"},
+		{http.MethodPost, "/api/v1/admin/webhook-deliveries/evt_test/replay"},
+	} {
+		for _, serviceKey := range []string{"", "Bearer test-service-key"} {
+			r := httptest.NewRequest(route.method, route.path, nil)
+			r.Header.Set("Authorization", serviceKey)
+			r.Header.Set("X-Emisell-Merchant-ID", "merchant_test")
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "invalid admin credential") {
+				t.Fatalf("%s admitted non-admin request: %d %s", route.path, w.Code, w.Body.String())
+			}
+		}
+	}
+	for _, path := range []string{"/api/v1/admin/webhook-inbox", "/api/v1/admin/webhook-deliveries"} {
+		r := httptest.NewRequest(http.MethodGet, path+"?merchant_id=invalid%20merchant", nil)
+		r.Header.Set("X-Admin-API-Key", "test-admin-key")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "INVALID_TENANT") {
+			t.Fatalf("invalid admin merchant filter accepted: %d %s", w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestAdminWebhookFilterAndServiceIsolation(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/?merchant_id=merchant_real&status=processed&limit=10&offset=2", nil)
+	adminFilter, ok := adminWebhookListFilter(httptest.NewRecorder(), r, validWebhookInboxStatus)
+	if !ok || adminFilter.TenantID != "merchant_real" || adminFilter.Status != "PROCESSED" || adminFilter.Limit != 10 || adminFilter.Offset != 2 {
+		t.Fatalf("incorrect admin webhook filter: %#v", adminFilter)
+	}
+	serviceFilter, ok := webhookListFilter(httptest.NewRecorder(), r, validWebhookInboxStatus)
+	if !ok || serviceFilter.TenantID != "" {
+		t.Fatalf("service filter honored merchant_id: %#v", serviceFilter)
+	}
+	allFilter, ok := adminWebhookListFilter(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), validWebhookInboxStatus)
+	if !ok || allFilter.TenantID != "" || allFilter.Limit != 25 {
+		t.Fatalf("admin default must include all merchants: %#v", allFilter)
+	}
+}
+
 func TestReconciliationKindAllowlist(t *testing.T) {
 	if !validReconciliationKind("PAYMENT_UNKNOWN") || !validReconciliationKind("DELIVERY_DEAD") {
 		t.Fatal("supported reconciliation kinds were rejected")

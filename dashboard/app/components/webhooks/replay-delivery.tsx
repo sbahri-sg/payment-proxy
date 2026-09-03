@@ -14,7 +14,7 @@ export function ReplayDelivery({ id, replayCount }: { id: string; replayCount: n
       {!confirming ? (
         <button className="danger-button" type="button" onClick={() => setConfirming(true)}>Replay delivery</button>
       ) : (
-        <form action={action} className={styles.form}>
+        <form action={action} className={styles.form} data-auto-refresh-pause="true">
           <input type="hidden" name="delivery_id" value={id}/>
           <input type="hidden" name="replay_count" value={replayCount}/>
           <span className={styles.warning}>Event yang sama dapat diterima kembali. Lanjutkan?</span>

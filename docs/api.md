@@ -1060,17 +1060,34 @@ Receiver wajib menolak timestamp di luar toleransi, signature salah, versi tidak
 
 ## Admin/operator: Webhook operations API
 
-### `GET /webhook-inbox`
+Endpoint dashboard di bawah memakai `X-Admin-API-Key`, bukan service key atau
+merchant demo dari konfigurasi dashboard. Tanpa filter `merchant_id`, admin
+melihat seluruh merchant, termasuk inbox lama tanpa merchant (`merchant_id: ""`).
+Endpoint service `/api/v1/webhook-inbox`, `/api/v1/webhook-deliveries`, dan replay
+tetap dibatasi oleh `X-Emisell-Merchant-ID`; query `merchant_id` tidak memperluas akses.
 
-Query: `status`, `q`, `limit`, `offset`. Raw provider payload tidak dikembalikan.
+### `GET /api/v1/admin/webhook-inbox`
 
-### `GET /webhook-deliveries`
+Query: `merchant_id` (opsional), `status`, `q`, `limit`, `offset`. Setiap item
+menyertakan `merchant_id` dan `canonical_status` selain status pemrosesan inbox.
+Raw provider payload, ciphertext, dan signature tidak dikembalikan.
 
-List outbox menuju Emisell Backend beserta attempt dan status.
+### `GET /api/v1/admin/webhook-deliveries`
 
-### `POST /webhook-deliveries/{id}/replay`
+Filter yang sama. List outbox menuju Emisell Backend beserta merchant, attempt,
+HTTP status terakhir, dan status delivery. `DEAD` tidak berarti pembayaran gagal.
 
-Hanya delivery `DEAD`; wajib `Idempotency-Key`.
+### `POST /api/v1/admin/webhook-deliveries/{id}/replay`
+
+Hanya delivery `DEAD`; wajib `Idempotency-Key` dan body
+`{ "expected_replay_count": 0 }`. Server menentukan merchant dari event yang
+tersimpan, bukan input browser. Replay tetap diaudit dan idempotent.
+
+Dashboard Payments (daftar/detail) dan Webhooks memperbarui proyeksi admin setiap
+15 detik selama tab terlihat. Pembaruan berhenti sementara saat mengedit form atau
+mengonfirmasi replay; halaman konfigurasi tidak melakukan auto-refresh. Polling ini
+hanya membaca data lokal Payment Proxy, tidak memanggil API transaksi provider,
+tidak me-replay event, dan tidak mengubah status payment.
 
 ## Admin/operator: Reconciliation
 

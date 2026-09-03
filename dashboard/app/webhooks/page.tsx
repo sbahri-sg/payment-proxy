@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppSidebar, AppTopbar, Icon } from "../components/app-shell";
 import { EmisellWebhookSettingsPanel } from "../components/webhooks/emisell-webhook-settings";
 import { ReplayDelivery } from "../components/webhooks/replay-delivery";
+import { OperationsRefresh } from "../components/operations-refresh";
 import { getReadiness } from "../lib/readiness";
 import { getEmisellWebhookSettings, listWebhookDeliveries, listWebhookInbox, type EmisellWebhookSettings, type WebhookDelivery, type WebhookDeliveryStatus, type WebhookInboxItem, type WebhookInboxStatus } from "../lib/payment-proxy";
 import { requireDashboardSession } from "../lib/session";
@@ -44,8 +45,9 @@ function aggregateLink(type: string, id: string) {
   return type === "payment" ? `/payments/${id}` : undefined;
 }
 
-function hrefFor(input: { view: string; q: string; status: string }, offset = 0) {
+function hrefFor(input: { view: string; q: string; status: string; merchantID: string }, offset = 0) {
   const query = new URLSearchParams({ view: input.view });
+  if (input.merchantID) query.set("merchant_id", input.merchantID);
   if (input.q) query.set("q", input.q);
   if (input.status) query.set("status", input.status);
   if (offset > 0) query.set("offset", String(offset));
@@ -57,16 +59,17 @@ function InboxRecord({ item }: { item: WebhookInboxItem }) {
   return (
     <details className="webhook-record">
       <summary className="webhook-record-row">
-        <span><strong>{item.event_type}</strong><small>{item.external_event_id}</small></span>
+        <span><strong>{item.event_type || "Unknown event"}</strong><small>{item.external_event_id}</small><small>Merchant: {item.merchant_id || "Unassigned"}</small></span>
         <span><b>{item.aggregate_type || "unmatched"}</b><small>{item.aggregate_id || "No tenant aggregate"}</small></span>
         <span><code>{item.payload_sha256.slice(0, 14)}…</code><small>SHA-256 verified</small></span>
-        <span><b className={`status-badge ${statusTone(item.status)}`}><i/>{item.status}</b></span>
+        <span><b className={`status-badge ${statusTone(item.status)}`}><i/>{item.status}</b><small>Event outcome: {item.canonical_status || "UNKNOWN"}</small></span>
         <span>{formatTime(item.received_at)}</span><span className="webhook-chevron">⌄</span>
       </summary>
       <div className="webhook-record-detail">
         <div className="webhook-detail-grid"><span><small>Inbox ID</small><code>{item.id}</code></span><span><small>Source</small><strong>{item.source}</strong></span><span><small>Processed</small><strong>{formatTime(item.processed_at)}</strong></span><span><small>Payload fingerprint</small><code>{item.payload_sha256}</code></span></div>
         <div className="encrypted-payload-note"><Icon name="check" size={16}/><div><strong>Encrypted raw payload</strong><p>Dashboard hanya menampilkan fingerprint SHA-256. Ciphertext, webhook signature, dan raw provider payload tidak dikirim ke browser.</p></div>{link && <Link href={link}>Open {item.aggregate_type} <Icon name="arrow" size={14}/></Link>}</div>
         {item.error_message && <div className="webhook-error"><strong>Processing error</strong><span>{item.error_message}</span></div>}
+        {!item.merchant_id && <div className="webhook-error"><strong>Unassigned event</strong><span>Event ini belum terhubung ke merchant. Tampil hanya untuk admin; status payment tidak diubah otomatis.</span></div>}
       </div>
     </details>
   );
@@ -78,7 +81,7 @@ function DeliveryRecord({ item }: { item: WebhookDelivery }) {
   return (
     <details className="webhook-record">
       <summary className="webhook-record-row">
-        <span><strong>{item.event_type}</strong><small>{item.id}</small></span>
+        <span><strong>{item.event_type}</strong><small>{item.id}</small><small>Merchant: {item.merchant_id || "Unassigned"}</small></span>
         <span><b>{item.aggregate_type}</b><small>{item.aggregate_id}</small></span>
         <span><strong>{item.attempt_count} / {item.max_attempts}</strong><small>{item.last_http_status ? `HTTP ${item.last_http_status}` : "No response yet"}</small></span>
         <span><b className={`status-badge ${statusTone(item.status)}`}><i/>{item.status}</b></span>
@@ -101,6 +104,8 @@ export default async function WebhooksPage({ searchParams }: { searchParams: Pro
   const requestedView = scalar(query.view);
   const view: WebhookView = requestedView === "deliveries" ? "deliveries" : requestedView === "configuration" ? "configuration" : "inbox";
   const q = scalar(query.q).slice(0, 128);
+  const merchantInput = scalar(query.merchant_id).slice(0, 128);
+  const merchantID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(merchantInput) ? merchantInput : "";
   const requestedStatus = scalar(query.status).toUpperCase();
   const allowedStatuses = view === "inbox" ? inboxStatuses : view === "deliveries" ? deliveryStatuses : [];
   const status = allowedStatuses.includes(requestedStatus as never) ? requestedStatus : "";
@@ -111,8 +116,8 @@ export default async function WebhooksPage({ searchParams }: { searchParams: Pro
   const healthy = health.status === "ready";
   const [settingsResult, inboxResult, deliveryResult] = await Promise.allSettled([
     getEmisellWebhookSettings(session.subject),
-    listWebhookInbox(session.subject, { q: view === "inbox" ? q : "", status: view === "inbox" ? status : "", limit, offset: view === "inbox" ? offset : 0 }),
-    listWebhookDeliveries(session.subject, { q: view === "deliveries" ? q : "", status: view === "deliveries" ? status : "", limit, offset: view === "deliveries" ? offset : 0 }),
+    listWebhookInbox(session.subject, { merchantID, q: view === "inbox" ? q : "", status: view === "inbox" ? status : "", limit, offset: view === "inbox" ? offset : 0 }),
+    listWebhookDeliveries(session.subject, { merchantID, q: view === "deliveries" ? q : "", status: view === "deliveries" ? status : "", limit, offset: view === "deliveries" ? offset : 0 }),
   ]);
   const settings: EmisellWebhookSettings = settingsResult.status === "fulfilled" ? settingsResult.value : {
     configured: false, callback_url: "", enabled: false, secret_configured: false,
@@ -124,7 +129,8 @@ export default async function WebhooksPage({ searchParams }: { searchParams: Pro
   const active = view === "deliveries" ? deliveries : inbox;
   const first = active.total ? offset + 1 : 0;
   const last = Math.min(offset + active.items.length, active.total);
-  const filters = { view, q, status };
+  const filters = { view, q, status, merchantID };
+  const tabHref = (nextView: WebhookView) => hrefFor({ view: nextView, q: "", status: "", merchantID });
   const inboxTotal = Object.values(inbox.counts).reduce((total, value) => total + (value ?? 0), 0);
   const deliveryTotal = Object.values(deliveries.counts).reduce((total, value) => total + (value ?? 0), 0);
   const dataFailed = settingsResult.status === "rejected" || (view === "inbox" && inboxResult.status === "rejected") || (view === "deliveries" && deliveryResult.status === "rejected");
@@ -135,12 +141,12 @@ export default async function WebhooksPage({ searchParams }: { searchParams: Pro
       <div className="dashboard-main">
         <AppTopbar healthy={healthy} searchPlaceholder="Search event, aggregate, or delivery ID..."/>
         <main className="dashboard-content management-content webhooks-content">
-          <section className="dashboard-heading"><div><p className="breadcrumb">Operations / Webhooks</p><h1>Webhook operations</h1><p>Monitor provider events and delivery to Emisell Backend.</p></div><Link className="secondary-button" href="/docs#webhooks">API documentation <Icon name="arrow" size={15}/></Link></section>
+          <section className="dashboard-heading"><div><p className="breadcrumb">Operations / Webhooks</p><h1>Webhook operations</h1><p>Monitor provider events and delivery to Emisell Backend · {merchantID || "All merchants"}.</p></div><div className="operations-heading-actions">{view !== "configuration" && <OperationsRefresh refreshedAt={new Date().toISOString()}/>}<Link className="secondary-button" href="/docs#webhooks">API documentation <Icon name="arrow" size={15}/></Link></div></section>
 
           <nav className="webhook-tabs webhook-primary-tabs" aria-label="Webhook view">
-            <Link className={view === "inbox" ? "active" : ""} href="/webhooks?view=inbox"><Icon name="webhook" size={15}/><span>Incoming</span><b>{inboxTotal}</b></Link>
-            <Link className={view === "deliveries" ? "active" : ""} href="/webhooks?view=deliveries"><Icon name="logs" size={15}/><span>Emisell deliveries</span><b>{deliveryTotal}</b></Link>
-            <Link className={view === "configuration" ? "active" : ""} href="/webhooks?view=configuration"><Icon name="settings" size={15}/><span>Configuration</span><b className={settings.enabled ? "enabled" : "disabled"}>{settings.enabled ? "ON" : "OFF"}</b></Link>
+            <Link className={view === "inbox" ? "active" : ""} href={tabHref("inbox")}><Icon name="webhook" size={15}/><span>Incoming</span><b>{inboxTotal}</b></Link>
+            <Link className={view === "deliveries" ? "active" : ""} href={tabHref("deliveries")}><Icon name="logs" size={15}/><span>Emisell deliveries</span><b>{deliveryTotal}</b></Link>
+            <Link className={view === "configuration" ? "active" : ""} href={tabHref("configuration")}><Icon name="settings" size={15}/><span>Configuration</span><b className={settings.enabled ? "enabled" : "disabled"}>{settings.enabled ? "ON" : "OFF"}</b></Link>
           </nav>
 
           {dataFailed && <div className="dashboard-alert error"><strong>Webhook data belum lengkap.</strong><span>Periksa migrasi database, ADMIN_API_KEY, dan koneksi Payment Proxy API.</span></div>}
@@ -159,7 +165,7 @@ export default async function WebhooksPage({ searchParams }: { searchParams: Pro
                 <article><span>Awaiting delivery</span><strong>{(deliveries.counts.PENDING ?? 0) + (deliveries.counts.PROCESSING ?? 0)}</strong></article>
                 <article className={(deliveries.counts.DEAD ?? 0) > 0 ? "danger" : ""}><span>Dead letter</span><strong>{deliveries.counts.DEAD ?? 0}</strong></article>
               </section>
-              <form className="webhook-filter-bar" method="get"><input type="hidden" name="view" value={view}/><label><Icon name="search" size={15}/><input name="q" defaultValue={q} placeholder="Event ID, aggregate, or event type"/></label><select name="status" defaultValue={status} aria-label="Filter webhook status"><option value="">All statuses</option>{allowedStatuses.map((item) => <option value={item} key={item}>{item}</option>)}</select><button className="dashboard-primary-button" type="submit">Apply filters</button>{(q || status) && <Link className="secondary-button" href={`/webhooks?view=${view}`}>Reset</Link>}</form>
+              <form className="webhook-filter-bar" method="get"><input type="hidden" name="view" value={view}/><label><Icon name="search" size={15}/><input name="q" defaultValue={q} placeholder="Event ID, aggregate, or event type"/></label><label><Icon name="provider" size={15}/><input name="merchant_id" defaultValue={merchantID} placeholder="Merchant ID (all merchants)" aria-label="Filter merchant ID"/></label><select name="status" defaultValue={status} aria-label="Filter webhook status"><option value="">All statuses</option>{allowedStatuses.map((item) => <option value={item} key={item}>{item}</option>)}</select><button className="dashboard-primary-button" type="submit">Apply filters</button>{(q || status || merchantID) && <Link className="secondary-button" href={`/webhooks?view=${view}`}>Reset</Link>}</form>
               <section className="dashboard-panel webhook-list-panel">
                 <div className="panel-heading"><div><p className="panel-kicker">{view === "inbox" ? "PROVIDER INBOX" : "EMISELL OUTBOX"}</p><h2>{view === "inbox" ? "Incoming events" : "Delivery attempts"}</h2><p>{view === "inbox" ? "Raw payload remains encrypted; only safe metadata is displayed." : "Canonical events are signed and delivered at least once."}</p></div><span>{first}–{last} of {active.total}</span></div>
                 <div className="webhook-record-head"><span>Event</span><span>Aggregate</span><span>{view === "inbox" ? "Integrity" : "Attempts"}</span><span>Status</span><span>{view === "inbox" ? "Received" : "Updated"}</span><span/></div>

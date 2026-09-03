@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppSidebar, AppTopbar, Icon } from "../components/app-shell";
+import { OperationsRefresh } from "../components/operations-refresh";
 import { getReadiness } from "../lib/readiness";
 import { listPayments, listProviders, type PaymentSession, type PaymentStatus } from "../lib/payment-proxy";
 import { requireDashboardSession } from "../lib/session";
@@ -68,7 +69,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <main className="dashboard-content management-content payments-content">
           <section className="dashboard-heading">
             <div><p className="breadcrumb">Workspace / Payments</p><h1>Payments</h1><p>Track every payment attempt, provider response, and customer next action.</p></div>
-            <Link className="secondary-button" href="/docs#payments">Payment API <Icon name="arrow" size={15}/></Link>
+            <div className="operations-heading-actions"><OperationsRefresh refreshedAt={new Date().toISOString()}/><Link className="secondary-button" href="/docs#payments">Payment API <Icon name="arrow" size={15}/></Link></div>
           </section>
           {paymentsResult.status === "rejected" && <div className="dashboard-alert error"><strong>Payment data belum dapat dimuat.</strong><span>Periksa koneksi API dan service credential dashboard.</span></div>}
           <section className="management-metrics payment-metrics">

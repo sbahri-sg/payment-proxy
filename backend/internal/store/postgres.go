@@ -2386,8 +2386,8 @@ type WebhookInput struct {
 }
 
 type WebhookListFilter struct {
-	Status, Query string
-	Limit, Offset int
+	TenantID, Status, Query string
+	Limit, Offset           int
 }
 
 func webhookProviderReferences(primary string, additional []string) []string {
@@ -2426,8 +2426,22 @@ func upsertPaymentProviderReferences(ctx context.Context, tx pgx.Tx, tenantID, p
 }
 
 func (s *Postgres) ListWebhookInbox(ctx context.Context, tenantID string, filter WebhookListFilter) (model.WebhookInboxList, error) {
+	return s.listWebhookInbox(ctx, tenantID, filter, false)
+}
+
+// ListWebhookInboxAdmin is only exposed through admin-authenticated routes.
+// The service projection remains tenant-scoped, even with an empty filter.
+func (s *Postgres) ListWebhookInboxAdmin(ctx context.Context, filter WebhookListFilter) (model.WebhookInboxList, error) {
+	return s.listWebhookInbox(ctx, filter.TenantID, filter, true)
+}
+
+func (s *Postgres) listWebhookInbox(ctx context.Context, tenantID string, filter WebhookListFilter, admin bool) (model.WebhookInboxList, error) {
 	result := model.WebhookInboxList{Items: make([]model.WebhookInboxItem, 0), Counts: make(map[string]int64), Limit: filter.Limit, Offset: filter.Offset}
-	const baseWhere = ` WHERE tenant_id=$1 AND ($2='' OR id ILIKE '%' || $2 || '%' OR external_event_id ILIKE '%' || $2 || '%' OR event_type ILIKE '%' || $2 || '%' OR aggregate_id ILIKE '%' || $2 || '%')`
+	merchantScope := `tenant_id=$1 AND $1<>''`
+	if admin {
+		merchantScope = `($1='' OR tenant_id=$1)`
+	}
+	baseWhere := ` WHERE ` + merchantScope + ` AND ($2='' OR id ILIKE '%' || $2 || '%' OR external_event_id ILIKE '%' || $2 || '%' OR event_type ILIKE '%' || $2 || '%' OR aggregate_id ILIKE '%' || $2 || '%')`
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM webhook_inbox`+baseWhere+` AND ($3='' OR status=$3)`, tenantID, filter.Query, filter.Status).Scan(&result.Total); err != nil {
 		return model.WebhookInboxList{}, err
 	}
@@ -2449,14 +2463,14 @@ func (s *Postgres) ListWebhookInbox(ctx context.Context, tenantID string, filter
 		return model.WebhookInboxList{}, err
 	}
 	countRows.Close()
-	rows, err := s.pool.Query(ctx, `SELECT id,source,external_event_id,event_type,aggregate_type,aggregate_id,encode(payload_sha256,'hex'),status,error_message,received_at,processed_at FROM webhook_inbox`+baseWhere+` AND ($3='' OR status=$3) ORDER BY received_at DESC,id DESC LIMIT $4 OFFSET $5`, tenantID, filter.Query, filter.Status, filter.Limit, filter.Offset)
+	rows, err := s.pool.Query(ctx, `SELECT id,tenant_id,source,external_event_id,event_type,aggregate_type,aggregate_id,encode(payload_sha256,'hex'),status,canonical_status,error_message,received_at,processed_at FROM webhook_inbox`+baseWhere+` AND ($3='' OR status=$3) ORDER BY received_at DESC,id DESC LIMIT $4 OFFSET $5`, tenantID, filter.Query, filter.Status, filter.Limit, filter.Offset)
 	if err != nil {
 		return model.WebhookInboxList{}, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var item model.WebhookInboxItem
-		if err = rows.Scan(&item.ID, &item.Source, &item.ExternalEventID, &item.EventType, &item.AggregateType, &item.AggregateID, &item.PayloadSHA256, &item.Status, &item.ErrorMessage, &item.ReceivedAt, &item.ProcessedAt); err != nil {
+		if err = rows.Scan(&item.ID, &item.TenantID, &item.Source, &item.ExternalEventID, &item.EventType, &item.AggregateType, &item.AggregateID, &item.PayloadSHA256, &item.Status, &item.CanonicalStatus, &item.ErrorMessage, &item.ReceivedAt, &item.ProcessedAt); err != nil {
 			return model.WebhookInboxList{}, err
 		}
 		result.Items = append(result.Items, item)
@@ -2469,8 +2483,20 @@ func (s *Postgres) ListWebhookInbox(ctx context.Context, tenantID string, filter
 }
 
 func (s *Postgres) ListWebhookDeliveries(ctx context.Context, tenantID string, filter WebhookListFilter) (model.WebhookDeliveryList, error) {
+	return s.listWebhookDeliveries(ctx, tenantID, filter, false)
+}
+
+func (s *Postgres) ListWebhookDeliveriesAdmin(ctx context.Context, filter WebhookListFilter) (model.WebhookDeliveryList, error) {
+	return s.listWebhookDeliveries(ctx, filter.TenantID, filter, true)
+}
+
+func (s *Postgres) listWebhookDeliveries(ctx context.Context, tenantID string, filter WebhookListFilter, admin bool) (model.WebhookDeliveryList, error) {
 	result := model.WebhookDeliveryList{Items: make([]model.WebhookDelivery, 0), Counts: make(map[string]int64), Limit: filter.Limit, Offset: filter.Offset}
-	const baseWhere = ` WHERE tenant_id=$1 AND ($2='' OR id ILIKE '%' || $2 || '%' OR event_type ILIKE '%' || $2 || '%' OR aggregate_id ILIKE '%' || $2 || '%')`
+	merchantScope := `tenant_id=$1 AND $1<>''`
+	if admin {
+		merchantScope = `($1='' OR tenant_id=$1)`
+	}
+	baseWhere := ` WHERE ` + merchantScope + ` AND ($2='' OR id ILIKE '%' || $2 || '%' OR event_type ILIKE '%' || $2 || '%' OR aggregate_id ILIKE '%' || $2 || '%')`
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events`+baseWhere+` AND ($3='' OR status=$3)`, tenantID, filter.Query, filter.Status).Scan(&result.Total); err != nil {
 		return model.WebhookDeliveryList{}, err
 	}
@@ -2514,6 +2540,16 @@ func (s *Postgres) ListWebhookDeliveries(ctx context.Context, tenantID string, f
 func (s *Postgres) GetWebhookDelivery(ctx context.Context, tenantID, id string) (model.WebhookDelivery, error) {
 	item, err := scanWebhookDelivery(s.pool.QueryRow(ctx, webhookDeliverySelect+` WHERE tenant_id=$1 AND id=$2`, tenantID, id))
 	return item, translateNotFound(err)
+}
+
+func (s *Postgres) ReplayWebhookDeliveryAdmin(ctx context.Context, id, actor, requestID, idempotencyKey string, expectedReplayCount int) (model.WebhookDelivery, error) {
+	var tenantID string
+	if err := s.pool.QueryRow(ctx, `SELECT tenant_id FROM outbox_events WHERE id=$1 AND tenant_id<>''`, id).Scan(&tenantID); err != nil {
+		return model.WebhookDelivery{}, translateNotFound(err)
+	}
+	// Resolve the owner from the stored event, never from the browser or default
+	// dashboard merchant. Reuse the same lock, idempotency and audit safeguards.
+	return s.ReplayWebhookDelivery(ctx, tenantID, id, actor, requestID, idempotencyKey, expectedReplayCount)
 }
 
 func (s *Postgres) ReplayWebhookDelivery(ctx context.Context, tenantID, id, actor, requestID, idempotencyKey string, expectedReplayCount int) (model.WebhookDelivery, error) {
@@ -2785,7 +2821,7 @@ const installationSelect = `SELECT i.id,i.tenant_id,i.provider_code,p.name,i.env
 
 const paymentMethodAssignmentSelect = `SELECT a.id,a.tenant_id,a.environment,a.payment_method_code,a.payment_method,a.payment_method_type,a.installation_id,p.code,p.name,a.label,a.status,a.version,a.created_at,a.updated_at FROM payment_method_assignments a JOIN provider_installations i ON i.tenant_id=a.tenant_id AND i.id=a.installation_id JOIN providers p ON p.code=i.provider_code`
 
-const webhookDeliverySelect = `SELECT id,event_type,aggregate_type,aggregate_id,payload,status,attempt_count,max_attempts,available_at,last_http_status,last_error,delivered_at,replay_count,last_replayed_at,last_replayed_by,created_at,updated_at FROM outbox_events`
+const webhookDeliverySelect = `SELECT id,tenant_id,event_type,aggregate_type,aggregate_id,payload,status,attempt_count,max_attempts,available_at,last_http_status,last_error,delivered_at,replay_count,last_replayed_at,last_replayed_by,created_at,updated_at FROM outbox_events`
 
 const connectorCertificationRunSelect = `SELECT r.id,r.installation_id,r.provider_code,p.name,r.payment_method_code,m.name,r.environment,r.status,r.checks,COALESCE(r.payment_id,''),r.message,r.initiated_by,r.started_at,r.completed_at FROM connector_certification_runs r JOIN providers p ON p.code=r.provider_code JOIN payment_methods m ON m.code=r.payment_method_code`
 
@@ -2805,7 +2841,7 @@ func scanPaymentMethodAssignment(row scanner) (model.PaymentMethodAssignment, er
 
 func scanWebhookDelivery(row scanner) (model.WebhookDelivery, error) {
 	var item model.WebhookDelivery
-	err := row.Scan(&item.ID, &item.EventType, &item.AggregateType, &item.AggregateID, &item.Payload, &item.Status, &item.AttemptCount, &item.MaxAttempts, &item.AvailableAt, &item.LastHTTPStatus, &item.LastError, &item.DeliveredAt, &item.ReplayCount, &item.LastReplayedAt, &item.LastReplayedBy, &item.CreatedAt, &item.UpdatedAt)
+	err := row.Scan(&item.ID, &item.TenantID, &item.EventType, &item.AggregateType, &item.AggregateID, &item.Payload, &item.Status, &item.AttemptCount, &item.MaxAttempts, &item.AvailableAt, &item.LastHTTPStatus, &item.LastError, &item.DeliveredAt, &item.ReplayCount, &item.LastReplayedAt, &item.LastReplayedBy, &item.CreatedAt, &item.UpdatedAt)
 	return item, err
 }
 

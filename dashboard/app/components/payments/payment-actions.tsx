@@ -15,7 +15,7 @@ export function PaymentActions({ payment }: { payment: PaymentSession }) {
   }
 
   return (
-    <form action={action} onSubmit={confirmOperation} className="payment-actions">
+    <form action={action} onSubmit={confirmOperation} className="payment-actions" data-auto-refresh-pause={pending ? "true" : undefined}>
       <input type="hidden" name="payment_id" value={payment.id}/>
       <input type="hidden" name="merchant_id" value={payment.merchant_id}/>
       <input type="hidden" name="reason" value="requested_by_operator"/>

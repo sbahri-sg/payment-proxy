@@ -397,6 +397,7 @@ type OutboxEvent struct {
 
 type WebhookInboxItem struct {
 	ID              string     `json:"id"`
+	TenantID        string     `json:"merchant_id"`
 	Source          string     `json:"source"`
 	ExternalEventID string     `json:"external_event_id"`
 	EventType       string     `json:"event_type"`
@@ -404,6 +405,7 @@ type WebhookInboxItem struct {
 	AggregateID     string     `json:"aggregate_id"`
 	PayloadSHA256   string     `json:"payload_sha256"`
 	Status          string     `json:"status"`
+	CanonicalStatus string     `json:"canonical_status"`
 	ErrorMessage    string     `json:"error_message,omitempty"`
 	ReceivedAt      time.Time  `json:"received_at"`
 	ProcessedAt     *time.Time `json:"processed_at,omitempty"`
@@ -411,6 +413,7 @@ type WebhookInboxItem struct {
 
 type WebhookDelivery struct {
 	ID             string          `json:"id"`
+	TenantID       string          `json:"merchant_id"`
 	EventType      string          `json:"event_type"`
 	AggregateType  string          `json:"aggregate_type"`
 	AggregateID    string          `json:"aggregate_id"`

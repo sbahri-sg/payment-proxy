@@ -1278,25 +1278,33 @@
               "name": "List webhook inbox",
               "event": [],
               "request": {
+                "auth": { "type": "noauth" },
                 "method": "GET",
                 "header": [
                   {
-                    "key": "X-Emisell-Merchant-ID",
-                    "value": "{{merchant_id}}",
+                    "key": "X-Admin-API-Key",
+                    "value": "{{admin_api_key}}",
                     "type": "text"
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/webhook-inbox?status=PROCESSED&limit=25&offset=0",
+                  "raw": "{{base_url}}/api/v1/admin/webhook-inbox?status=PROCESSED&limit=25&offset=0",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "api",
                     "v1",
+                    "admin",
                     "webhook-inbox"
                   ],
                   "query": [
+                    {
+                      "key": "merchant_id",
+                      "value": "{{merchant_id}}",
+                      "disabled": true,
+                      "description": "Optional merchant filter; disabled means all merchants."
+                    },
                     {
                       "key": "status",
                       "value": "PROCESSED"
@@ -1311,7 +1319,7 @@
                     }
                   ]
                 },
-                "description": "Metadata webhook tenant-scoped. Raw payload tetap encrypted dan tidak dikirim dalam response."
+                "description": "Admin-only inbox across all merchants, including legacy unassigned events. Items include merchant_id and canonical_status. Raw provider payload remains encrypted. The service /api/v1/webhook-inbox stays tenant-scoped."
               },
               "response": [
                 {
@@ -1333,25 +1341,33 @@
             {
               "name": "List Emisell deliveries",
               "request": {
+                "auth": { "type": "noauth" },
                 "method": "GET",
                 "header": [
                   {
-                    "key": "X-Emisell-Merchant-ID",
-                    "value": "{{merchant_id}}",
+                    "key": "X-Admin-API-Key",
+                    "value": "{{admin_api_key}}",
                     "type": "text"
                   }
                 ],
                 "url": {
-                  "raw": "{{base_url}}/api/v1/webhook-deliveries?limit=25&offset=0",
+                  "raw": "{{base_url}}/api/v1/admin/webhook-deliveries?limit=25&offset=0",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "api",
                     "v1",
+                    "admin",
                     "webhook-deliveries"
                   ],
                   "query": [
+                    {
+                      "key": "merchant_id",
+                      "value": "{{merchant_id}}",
+                      "disabled": true,
+                      "description": "Optional merchant filter; disabled means all merchants."
+                    },
                     {
                       "key": "limit",
                       "value": "25"
@@ -1362,7 +1378,7 @@
                     }
                   ]
                 },
-                "description": "Canonical outbox event dan metadata delivery menuju Emisell Backend."
+                "description": "Admin-only canonical outbox across merchants, with merchant_id and delivery diagnostics. DEAD delivery does not mean the payment failed."
               },
               "response": [
                 {
@@ -1384,11 +1400,12 @@
             {
               "name": "Replay dead delivery",
               "request": {
+                "auth": { "type": "noauth" },
                 "method": "POST",
                 "header": [
                   {
-                    "key": "X-Emisell-Merchant-ID",
-                    "value": "{{merchant_id}}",
+                    "key": "X-Admin-API-Key",
+                    "value": "{{admin_api_key}}",
                     "type": "text"
                   },
                   {
@@ -1412,19 +1429,20 @@
                   }
                 },
                 "url": {
-                  "raw": "{{base_url}}/api/v1/webhook-deliveries/{{delivery_id}}/replay",
+                  "raw": "{{base_url}}/api/v1/admin/webhook-deliveries/{{delivery_id}}/replay",
                   "host": [
                     "{{base_url}}"
                   ],
                   "path": [
                     "api",
                     "v1",
+                    "admin",
                     "webhook-deliveries",
                     "{{delivery_id}}",
                     "replay"
                   ]
                 },
-                "description": "Hanya delivery DEAD dapat direplay. Consumer Emisell wajib idempotent."
+                "description": "Admin-only manual replay of DEAD delivery. Merchant is resolved from the stored event. Idempotency key, expected replay count, and audit are preserved; Emisell must deduplicate."
               },
               "response": [
                 {
