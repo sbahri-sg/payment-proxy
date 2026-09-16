@@ -1,3 +1,6 @@
+# Development topology only. To switch using APP_ENV in .env, run:
+# sh scripts/compose.sh up -d --build --wait
+# The launcher chooses docker-compose.production.yml for production and prepares TLS/secrets.
 name: emisell-payment-proxy
 
 x-database-environment: &database-environment

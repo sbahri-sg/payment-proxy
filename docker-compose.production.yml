@@ -1,3 +1,5 @@
+# Production topology. sh scripts/compose.sh selects this when APP_ENV=production.
+# First installation automatically prepares .deploy/production.env through the bootstrap script.
 name: emisell-payment-proxy-production
 
 x-logging: &production-logging

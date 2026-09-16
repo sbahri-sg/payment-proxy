@@ -178,6 +178,7 @@ write_environment() {
 
   temp_file="$ENV_FILE.tmp"
   {
+    echo "APP_ENV=production"
     echo "IMAGE_TAG=production"
     echo "POSTGRES_IMAGE=postgres:17-alpine"
     echo "PAYMENT_PROXY_DOMAIN=$domain"

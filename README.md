@@ -110,8 +110,8 @@ HMAC-SHA256 dengan VA merchant sebelum masuk ke Payment Kernel.
 
 ```bash
 cp .env.example .env
-docker compose up --build -d
-docker compose ps
+sh scripts/compose.sh up --build -d --wait
+sh scripts/compose.sh ps
 ```
 
 Alamat default:
@@ -130,7 +130,43 @@ Alamat default:
 
 ## Deploy production satu perintah
 
-Deployment production tidak memakai `.env` yang diedit manual. Script bootstrap
+### Switch melalui `APP_ENV`
+
+Launcher yang sama membaca mode dari `.env` (environment shell memiliki prioritas):
+
+```dotenv
+APP_ENV=production
+PAYMENT_PROXY_DOMAIN=payment-proxy.example.com
+```
+
+Kemudian jalankan perintah yang sama seperti development:
+
+```bash
+sh scripts/compose.sh up -d --build --wait
+sh scripts/compose.sh ps
+sh scripts/compose.sh logs --tail=100 doku-provider-app
+```
+
+Pada first install, launcher menyiapkan secret dan sertifikat TLS otomatis lalu
+memakai `docker-compose.production.yml`. Hostname juga bisa diambil dari
+`PAYMENT_PROXY_PUBLIC_BASE_URL` HTTPS jika `PAYMENT_PROXY_DOMAIN` kosong.
+Secret dan callback lokal tidak diimpor dari `.env`: production memakai
+`.deploy/production.env` yang persisten. Callback HTTPS awal opsional bisa diisi
+dengan `PAYMENT_PROXY_PRODUCTION_WEBHOOK_URL`, atau melalui menu Webhooks nanti.
+Redeploy memakai secret/domain/callback production yang tersimpan; untuk mengubah
+domain atau callback bootstrap, gunakan script deployment eksplisit di bawah.
+
+`APP_ENV=development` memilih Compose lokal; `APP_ENV=production` memilih Compose
+production. Mengganti mode **tidak memigrasikan database**: kedua mode tetap memakai
+project/volume terpisah. Untuk data yang sudah ada, migrasikan database dan pertahankan
+encryption key. Jangan menghapus volume atau file secret hanya untuk berpindah mode.
+
+Gunakan launcher di atas, bukan raw `docker compose up`: Docker Compose tidak
+memilih file konfigurasi secara kondisional berdasarkan `APP_ENV`.
+
+### Bootstrap/deployment eksplisit
+
+Konfigurasi rahasia production tidak diambil dari `.env` development. Script bootstrap
 membuat seluruh password, encryption key, API key, session secret, webhook
 secret, serta sertifikat TLS internal connector pada deployment pertama. Nilai
 tersebut disimpan dengan permission `0600` di `.deploy/production.env` dan
