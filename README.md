@@ -176,7 +176,8 @@ Prasyarat yang tidak dapat dibuat Docker secara otomatis:
 
 1. siapkan server Linux dengan Docker Engine dan Docker Compose;
 2. arahkan DNS domain Payment Proxy ke IP server;
-3. buka port TCP `80` dan TCP/UDP `443`;
+3. pastikan port TCP `443` tersedia dan dapat diakses publik; buka UDP `443`
+   untuk HTTP/3. Port `80` tidak dipakai Payment Proxy;
 4. siapkan URL HTTPS receiver Emisell Backend jika ingin mengaktifkan fallback
    delivery saat deployment pertama.
 
@@ -204,8 +205,15 @@ Perintah di atas otomatis:
 - menjalankan Kernel, worker, connector, dan dashboard sebagai non-root dengan
   read-only filesystem; gateway memakai capability minimum, sementara seluruh
   topology mendapat resource limit, log rotation, dan network segmentation;
-- menjalankan Caddy sebagai ingress dengan HTTPS certificate otomatis;
+- menjalankan Caddy sebagai ingress HTTPS-only pada port `443`, dengan
+  certificate otomatis melalui TLS-ALPN (tanpa port `80`);
 - menunggu API, connector, dan dashboard berstatus sehat.
+
+Gunakan URL `https://` secara langsung karena ingress ini tidak menyediakan
+redirect HTTP ke HTTPS. Penerbitan dan pembaruan certificate membutuhkan DNS
+yang benar serta koneksi TLS publik ke Caddy pada TCP `443`. Jika port `443`
+sudah digunakan reverse proxy lain, gunakan konfigurasi ingress yang terpisah;
+jangan menjalankan kedua ingress dengan binding port host yang sama.
 
 Operasional berikutnya:
 

@@ -1,9 +1,18 @@
 {
 	admin 127.0.0.1:2019
+	# Port 80 belongs to other services; serve HTTPS only.
+	auto_https disable_redirects
 }
 
 {$PAYMENT_PROXY_DOMAIN} {
 	encode zstd gzip
+
+	tls {
+		issuer acme {
+			# Issue and renew certificates using TLS-ALPN on port 443 only.
+			disable_http_challenge
+		}
+	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"

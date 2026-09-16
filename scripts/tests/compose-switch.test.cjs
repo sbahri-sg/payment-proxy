@@ -44,6 +44,14 @@ function requireSuccess(result) {
   assert.equal(result.status, 0, result.stderr || result.error?.message || result.stdout);
 }
 
+test("production Caddy does not depend on port 80 for redirects or certificate challenges", () => {
+  const caddyfile = fs.readFileSync(path.join(sourceRoot, "deploy/Caddyfile"), "utf8");
+  assert.match(caddyfile, /^\s*auto_https disable_redirects\s*$/m);
+  assert.match(caddyfile, /tls\s*\{\s*issuer acme\s*\{[^}]*\bdisable_http_challenge\b/);
+  assert.doesNotMatch(caddyfile, /^\s*(http:\/\/|:80\b)/m);
+  assert.doesNotMatch(caddyfile, /^\s*disable_tlsalpn_challenge\s*$/m);
+});
+
 test("development reads quoted dotenv metadata and selects only local Compose", t => {
   const f = fixture(t, ' export APP_ENV = "development" # local\r\n');
   requireSuccess(f.run(["up", "-d", "--build", "--wait"]));
@@ -160,6 +168,12 @@ test("real Compose validates first production bootstrap, HTTPS health checks, an
   });
   requireSuccess(rendered);
   const services = JSON.parse(rendered.stdout).services;
+  assert.deepEqual(services.gateway.ports.map(port => [String(port.published), port.target, port.protocol]), [
+    ["443", 443, "tcp"], ["443", 443, "udp"],
+  ], "production gateway must publish only HTTPS, never host port 80");
+  for (const [name, service] of Object.entries(services)) {
+    assert.ok(!service.ports?.some(port => String(port.published) === "80"), `${name} must not publish host port 80`);
+  }
   for (const name of ["connector-runner", "midtrans-provider-app", "duitku-provider-app", "doku-provider-app", "ipaymu-provider-app"]) {
     const service = services[name];
     assert.equal(service.environment.APP_ENV, "production");

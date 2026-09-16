@@ -21,7 +21,8 @@ menulis `.env` secara manual:
 Baseline ini meliputi:
 
 - secret acak persisten yang dibuat pada first deploy;
-- TLS publik otomatis melalui Caddy;
+- TLS publik otomatis melalui Caddy menggunakan TLS-ALPN pada TCP `443`,
+  tanpa HTTP challenge atau redirect pada port `80`;
 - private CA dan TLS internal antara Kernel dan setiap connector;
 - image target terpisah sehingga connector tidak membawa binary Kernel atau
   binary provider lain;
@@ -29,7 +30,7 @@ Baseline ini meliputi:
   minimum; `no-new-privileges`, resource/pid limit, dan log rotation;
 - network terpisah untuk ingress, database, connector control, provider egress,
   dan webhook egress;
-- hanya port `80` dan `443` yang dipublikasikan;
+- hanya port TCP/UDP `443` yang dipublikasikan; port `80` tidak dipakai;
 - production startup tetap fail-closed ketika secret atau URL wajib hilang.
 
 File `.deploy/production.env` harus diperlakukan sebagai recovery secret. File
