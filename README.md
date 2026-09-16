@@ -179,7 +179,8 @@ Prasyarat yang tidak dapat dibuat Docker secara otomatis:
 1. siapkan server Linux dengan Docker Engine dan Docker Compose;
 2. arahkan DNS domain Payment Proxy ke IP server;
 3. siapkan reverse proxy yang sudah ada untuk HTTPS publik dan teruskan request
-   ke `http://gateway:8080` melalui network ingress Docker yang sama. Payment
+   ke `http://gateway:8080` melalui network eksternal `emisell_container_net`
+   yang sudah tersedia. Payment
    Proxy tidak mengikat port host `80`, `443`, maupun port host baru lainnya;
 4. siapkan URL HTTPS receiver Emisell Backend jika ingin mengaktifkan fallback
    delivery saat deployment pertama.
@@ -214,9 +215,13 @@ Perintah di atas otomatis:
 
 Gunakan URL publik `https://` secara langsung. Certificate, renewal, dan redirect
 HTTP ke HTTPS dikelola reverse proxy eksternal. Sambungkan container reverse
-proxy ke network `public` topology ini (nama default:
-`emisell-payment-proxy-production_public`) dan arahkan domain ke
+proxy ke network eksternal `emisell_container_net` dan arahkan domain ke
 `http://gateway:8080`, dengan header `Host` sesuai `PAYMENT_PROXY_DOMAIN`.
+Network ini memakai `external: true`: Compose tidak membuat atau menghapusnya,
+sehingga network harus sudah ada sebelum container dijalankan. Hanya gateway
+yang bergabung ke network bersama ini; API/dashboard tetap di network internal.
+Gateway tetap mendengarkan HTTP internal `8080` tanpa deklarasi `ports` maupun
+`expose`; container di network yang sama dapat mengaksesnya langsung.
 Jangan mengekspos HTTP internal ini ke internet. Gateway meneruskan origin HTTPS
 yang dikonfigurasi agar redirect login dan session cookie tetap aman.
 Reverse proxy yang berjalan langsung di host membutuhkan jalur akses tambahan

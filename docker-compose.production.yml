@@ -352,10 +352,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     # The existing reverse proxy terminates public TLS. No host ports are bound.
-    expose:
-      - "8080"
     networks:
-      - public
+      - emisell_container_net
       - frontend
     depends_on:
       api:
@@ -386,7 +384,9 @@ volumes:
   caddy_config:
 
 networks:
-  public:
+  emisell_container_net:
+    name: emisell_container_net
+    external: true
   frontend:
     internal: true
   database:

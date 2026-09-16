@@ -33,11 +33,16 @@ Baseline ini meliputi:
 - tidak ada port host yang dipublikasikan, termasuk `80` dan `443`;
 - production startup tetap fail-closed ketika secret atau URL wajib hilang.
 
-Reverse proxy harus berada di network ingress `public` yang sama, meneruskan
+Reverse proxy harus berada di network eksternal `emisell_container_net` yang sama, meneruskan
 request HTTPS publik ke `http://gateway:8080`, dan mempertahankan header `Host`
 domain publik. HTTP internal tidak boleh dibuka ke internet. Status container
 sehat tidak membuktikan routing/TLS reverse proxy eksternal sudah terpasang;
 uji URL publik dan webhook ingress setelah routing selesai.
+
+Network `emisell_container_net` harus sudah ada karena memakai `external: true`.
+Hanya gateway yang bergabung ke network bersama ini; service lain tetap terisolasi.
+Gateway tidak mendeklarasikan `ports` maupun `expose`; HTTP `8080` tetap dapat
+diakses langsung oleh reverse proxy di network yang sama.
 
 File `.deploy/production.env` harus diperlakukan sebagai recovery secret. File
 ini tidak masuk Git dan wajib dibackup terenkripsi. Kehilangan

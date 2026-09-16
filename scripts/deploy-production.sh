@@ -263,7 +263,7 @@ case "$command" in
     fi
     compose ps
     echo ""
-    echo "Containers ready. Route external HTTPS for https://$domain to gateway:8080 on the ingress Docker network."
+    echo "Containers ready. Route external HTTPS for https://$domain to gateway:8080 on the existing external emisell_container_net Docker network."
     echo "Payment Proxy does not bind host ports 80 or 443; public TLS is managed by your existing reverse proxy."
     if [ "$created" = true ]; then
       echo "Dashboard admin password was generated automatically."
