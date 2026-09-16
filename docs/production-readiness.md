@@ -21,17 +21,23 @@ menulis `.env` secara manual:
 Baseline ini meliputi:
 
 - secret acak persisten yang dibuat pada first deploy;
-- TLS publik otomatis melalui Caddy menggunakan TLS-ALPN pada TCP `443`,
-  tanpa HTTP challenge atau redirect pada port `80`;
+- gateway Caddy HTTP internal pada `8080`; TLS publik, renewal certificate,
+  dan redirect HTTPS ditangani reverse proxy eksternal;
 - private CA dan TLS internal antara Kernel dan setiap connector;
 - image target terpisah sehingga connector tidak membawa binary Kernel atau
   binary provider lain;
-- container aplikasi non-root dan read-only; ingress read-only dengan capability
-  minimum; `no-new-privileges`, resource/pid limit, dan log rotation;
+- container aplikasi non-root dan read-only; gateway read-only tanpa capability
+  tambahan; `no-new-privileges`, resource/pid limit, dan log rotation;
 - network terpisah untuk ingress, database, connector control, provider egress,
   dan webhook egress;
-- hanya port TCP/UDP `443` yang dipublikasikan; port `80` tidak dipakai;
+- tidak ada port host yang dipublikasikan, termasuk `80` dan `443`;
 - production startup tetap fail-closed ketika secret atau URL wajib hilang.
+
+Reverse proxy harus berada di network ingress `public` yang sama, meneruskan
+request HTTPS publik ke `http://gateway:8080`, dan mempertahankan header `Host`
+domain publik. HTTP internal tidak boleh dibuka ke internet. Status container
+sehat tidak membuktikan routing/TLS reverse proxy eksternal sudah terpasang;
+uji URL publik dan webhook ingress setelah routing selesai.
 
 File `.deploy/production.env` harus diperlakukan sebagai recovery secret. File
 ini tidak masuk Git dan wajib dibackup terenkripsi. Kehilangan

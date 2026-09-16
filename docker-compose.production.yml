@@ -351,9 +351,9 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    ports:
-      - "443:443"
-      - "443:443/udp"
+    # The existing reverse proxy terminates public TLS. No host ports are bound.
+    expose:
+      - "8080"
     networks:
       - public
       - frontend
@@ -371,8 +371,6 @@ services:
     read_only: true
     cap_drop:
       - ALL
-    cap_add:
-      - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
     tmpfs:

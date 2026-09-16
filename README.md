@@ -150,6 +150,8 @@ sh scripts/compose.sh logs --tail=100 doku-provider-app
 Pada first install, launcher menyiapkan secret dan sertifikat TLS otomatis lalu
 memakai `docker-compose.production.yml`. Hostname juga bisa diambil dari
 `PAYMENT_PROXY_PUBLIC_BASE_URL` HTTPS jika `PAYMENT_PROXY_DOMAIN` kosong.
+Sertifikat yang dibuat adalah TLS internal connector. HTTPS publik dikelola
+reverse proxy yang sudah ada; topology production tidak membuka port host.
 Secret dan callback lokal tidak diimpor dari `.env`: production memakai
 `.deploy/production.env` yang persisten. Callback HTTPS awal opsional bisa diisi
 dengan `PAYMENT_PROXY_PRODUCTION_WEBHOOK_URL`, atau melalui menu Webhooks nanti.
@@ -176,8 +178,9 @@ Prasyarat yang tidak dapat dibuat Docker secara otomatis:
 
 1. siapkan server Linux dengan Docker Engine dan Docker Compose;
 2. arahkan DNS domain Payment Proxy ke IP server;
-3. pastikan port TCP `443` tersedia dan dapat diakses publik; buka UDP `443`
-   untuk HTTP/3. Port `80` tidak dipakai Payment Proxy;
+3. siapkan reverse proxy yang sudah ada untuk HTTPS publik dan teruskan request
+   ke `http://gateway:8080` melalui network ingress Docker yang sama. Payment
+   Proxy tidak mengikat port host `80`, `443`, maupun port host baru lainnya;
 4. siapkan URL HTTPS receiver Emisell Backend jika ingin mengaktifkan fallback
    delivery saat deployment pertama.
 
@@ -203,17 +206,23 @@ Perintah di atas otomatis:
   Midtrans connector, Duitku connector, DOKU connector, iPaymu connector, dan dashboard;
 - menjalankan PostgreSQL migration;
 - menjalankan Kernel, worker, connector, dan dashboard sebagai non-root dengan
-  read-only filesystem; gateway memakai capability minimum, sementara seluruh
+  read-only filesystem; gateway tidak membutuhkan capability tambahan, sementara seluruh
   topology mendapat resource limit, log rotation, dan network segmentation;
-- menjalankan Caddy sebagai ingress HTTPS-only pada port `443`, dengan
-  certificate otomatis melalui TLS-ALPN (tanpa port `80`);
+- menjalankan Caddy sebagai gateway HTTP internal Docker pada port `8080`,
+  tanpa binding port host atau penerbitan certificate publik;
 - menunggu API, connector, dan dashboard berstatus sehat.
 
-Gunakan URL `https://` secara langsung karena ingress ini tidak menyediakan
-redirect HTTP ke HTTPS. Penerbitan dan pembaruan certificate membutuhkan DNS
-yang benar serta koneksi TLS publik ke Caddy pada TCP `443`. Jika port `443`
-sudah digunakan reverse proxy lain, gunakan konfigurasi ingress yang terpisah;
-jangan menjalankan kedua ingress dengan binding port host yang sama.
+Gunakan URL publik `https://` secara langsung. Certificate, renewal, dan redirect
+HTTP ke HTTPS dikelola reverse proxy eksternal. Sambungkan container reverse
+proxy ke network `public` topology ini (nama default:
+`emisell-payment-proxy-production_public`) dan arahkan domain ke
+`http://gateway:8080`, dengan header `Host` sesuai `PAYMENT_PROXY_DOMAIN`.
+Jangan mengekspos HTTP internal ini ke internet. Gateway meneruskan origin HTTPS
+yang dikonfigurasi agar redirect login dan session cookie tetap aman.
+Reverse proxy yang berjalan langsung di host membutuhkan jalur akses tambahan
+(misalnya override binding loopback); konfigurasi default sengaja tidak
+membuka port host. Sampai routing reverse proxy terpasang, container dapat
+sehat tetapi domain publik belum dapat diakses.
 
 Operasional berikutnya:
 
@@ -295,8 +304,9 @@ Untuk development dengan ngrok:
 ./scripts/xendit-dev-tunnel.sh start
 ```
 
-Deployment Emisell yang memakai Nginx bersama menggunakan
-`deploy/nginx-payment-proxy.conf`. Konfigurasi tersebut meneruskan `/api/v1/*`,
+Deployment lama yang masih membuka port API/dashboard memakai contoh
+`deploy/nginx-payment-proxy.conf`; contoh ini bukan routing topology production
+internal di atas. Konfigurasi tersebut meneruskan `/api/v1/*`,
 `/webhooks/v1/providers/*`, dan health checks ke Payment Proxy API, sedangkan
 route dashboard diteruskan ke port dashboard. Set URL stabil berikut sebelum
 recreate API dan dashboard:

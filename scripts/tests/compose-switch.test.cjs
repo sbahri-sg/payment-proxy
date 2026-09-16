@@ -44,12 +44,18 @@ function requireSuccess(result) {
   assert.equal(result.status, 0, result.stderr || result.error?.message || result.stdout);
 }
 
-test("production Caddy does not depend on port 80 for redirects or certificate challenges", () => {
+test("production Caddy uses internal HTTP and keeps the canonical HTTPS origin", () => {
   const caddyfile = fs.readFileSync(path.join(sourceRoot, "deploy/Caddyfile"), "utf8");
-  assert.match(caddyfile, /^\s*auto_https disable_redirects\s*$/m);
-  assert.match(caddyfile, /tls\s*\{\s*issuer acme\s*\{[^}]*\bdisable_http_challenge\b/);
-  assert.doesNotMatch(caddyfile, /^\s*(http:\/\/|:80\b)/m);
-  assert.doesNotMatch(caddyfile, /^\s*disable_tlsalpn_challenge\s*$/m);
+  assert.match(caddyfile, /^\s*auto_https off\s*$/m);
+  assert.match(caddyfile, /^http:\/\/\{\$PAYMENT_PROXY_DOMAIN\}:8080\s*\{/m);
+  assert.doesNotMatch(caddyfile, /^\s*(tls\b|issuer\b|https:\/\/|:80\b|:443\b)/m);
+  for (const upstream of ["api:8080", "dashboard:3000"]) {
+    const block = caddyfile.match(new RegExp(`reverse_proxy ${upstream} \\{([\\s\\S]*?)\\n\\s*\\}`));
+    assert.ok(block, `${upstream} reverse proxy block missing`);
+    assert.match(block[1], /header_up Host \{\$PAYMENT_PROXY_DOMAIN\}/);
+    assert.match(block[1], /header_up X-Forwarded-Host \{\$PAYMENT_PROXY_DOMAIN\}/);
+    assert.match(block[1], /header_up X-Forwarded-Proto https/);
+  }
 });
 
 test("development reads quoted dotenv metadata and selects only local Compose", t => {
@@ -168,11 +174,10 @@ test("real Compose validates first production bootstrap, HTTPS health checks, an
   });
   requireSuccess(rendered);
   const services = JSON.parse(rendered.stdout).services;
-  assert.deepEqual(services.gateway.ports.map(port => [String(port.published), port.target, port.protocol]), [
-    ["443", 443, "tcp"], ["443", 443, "udp"],
-  ], "production gateway must publish only HTTPS, never host port 80");
+  assert.deepEqual(services.gateway.expose.map(String), ["8080"]);
+  assert.ok(!services.gateway.cap_add?.includes("NET_BIND_SERVICE"), "gateway does not need privileged-port binding");
   for (const [name, service] of Object.entries(services)) {
-    assert.ok(!service.ports?.some(port => String(port.published) === "80"), `${name} must not publish host port 80`);
+    assert.ok(!service.ports?.length, `${name} must not publish host ports, including 80 and 443`);
   }
   for (const name of ["connector-runner", "midtrans-provider-app", "duitku-provider-app", "doku-provider-app", "ipaymu-provider-app"]) {
     const service = services[name];

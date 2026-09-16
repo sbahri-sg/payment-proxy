@@ -263,7 +263,8 @@ case "$command" in
     fi
     compose ps
     echo ""
-    echo "Deployment ready: https://$domain"
+    echo "Containers ready. Route external HTTPS for https://$domain to gateway:8080 on the ingress Docker network."
+    echo "Payment Proxy does not bind host ports 80 or 443; public TLS is managed by your existing reverse proxy."
     if [ "$created" = true ]; then
       echo "Dashboard admin password was generated automatically."
       echo "Run '$0 credentials' on this server to view integration credentials."

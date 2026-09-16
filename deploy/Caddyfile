@@ -1,18 +1,11 @@
 {
 	admin 127.0.0.1:2019
-	# Port 80 belongs to other services; serve HTTPS only.
-	auto_https disable_redirects
+	# Public TLS is handled by the existing reverse proxy, not this container.
+	auto_https off
 }
 
-{$PAYMENT_PROXY_DOMAIN} {
+http://{$PAYMENT_PROXY_DOMAIN}:8080 {
 	encode zstd gzip
-
-	tls {
-		issuer acme {
-			# Issue and renew certificates using TLS-ALPN on port 443 only.
-			disable_http_challenge
-		}
-	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -24,11 +17,21 @@
 
 	@payment_api path /api/v1/* /webhooks/v1/providers/* /health/live /health/ready
 	handle @payment_api {
-		reverse_proxy api:8080
+		reverse_proxy api:8080 {
+			# Canonical public origin; never trust client-supplied forwarded headers.
+			header_up Host {$PAYMENT_PROXY_DOMAIN}
+			header_up X-Forwarded-Host {$PAYMENT_PROXY_DOMAIN}
+			header_up X-Forwarded-Proto https
+		}
 	}
 
 	handle {
-		reverse_proxy dashboard:3000
+		reverse_proxy dashboard:3000 {
+			# Keep HTTPS redirects and Secure session cookies behind TLS termination.
+			header_up Host {$PAYMENT_PROXY_DOMAIN}
+			header_up X-Forwarded-Host {$PAYMENT_PROXY_DOMAIN}
+			header_up X-Forwarded-Proto https
+		}
 	}
 
 	log {
