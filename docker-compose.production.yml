@@ -67,6 +67,8 @@ services:
     cpus: 1.0
 
   connector-runner:
+    # Reap orphaned ssl_client processes spawned by the TLS health check.
+    init: true
     image: emisell/connector-xendit:${IMAGE_TAG:-production}
     build:
       context: ./backend
@@ -96,6 +98,7 @@ services:
     cpus: 1.0
 
   midtrans-provider-app:
+    init: true
     image: emisell/connector-midtrans:${IMAGE_TAG:-production}
     build:
       context: ./backend
@@ -126,6 +129,7 @@ services:
     cpus: 1.0
 
   duitku-provider-app:
+    init: true
     image: emisell/connector-duitku:${IMAGE_TAG:-production}
     build:
       context: ./backend
@@ -158,6 +162,7 @@ services:
     cpus: 1.0
 
   doku-provider-app:
+    init: true
     image: emisell/connector-doku:${IMAGE_TAG:-production}
     build:
       context: ./backend
@@ -188,6 +193,7 @@ services:
     cpus: 1.0
 
   ipaymu-provider-app:
+    init: true
     image: emisell/connector-ipaymu:${IMAGE_TAG:-production}
     build:
       context: ./backend
@@ -369,6 +375,10 @@ services:
     read_only: true
     cap_drop:
       - ALL
+    # The official Caddy binary has this file capability; dropping it prevents exec.
+    # This does not publish or enable host ports 80/443.
+    cap_add:
+      - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
     tmpfs:

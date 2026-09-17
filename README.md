@@ -207,10 +207,13 @@ Perintah di atas otomatis:
   Midtrans connector, Duitku connector, DOKU connector, iPaymu connector, dan dashboard;
 - menjalankan PostgreSQL migration;
 - menjalankan Kernel, worker, connector, dan dashboard sebagai non-root dengan
-  read-only filesystem; gateway tidak membutuhkan capability tambahan, sementara seluruh
+  read-only filesystem; gateway hanya mempertahankan `NET_BIND_SERVICE` agar
+  binary Caddy resmi dapat dieksekusi, sementara seluruh
   topology mendapat resource limit, log rotation, dan network segmentation;
 - menjalankan Caddy sebagai gateway HTTP internal Docker pada port `8080`,
   tanpa binding port host atau penerbitan certificate publik;
+- menjalankan kelima connector dengan `init: true` agar proses anak dari TLS
+  health check dibersihkan dan tidak menghabiskan batas PID `256`;
 - menunggu API, connector, dan dashboard berstatus sehat.
 
 Gunakan URL publik `https://` secara langsung. Certificate, renewal, dan redirect
@@ -228,6 +231,21 @@ Reverse proxy yang berjalan langsung di host membutuhkan jalur akses tambahan
 (misalnya override binding loopback); konfigurasi default sengaja tidak
 membuka port host. Sampai routing reverse proxy terpasang, container dapat
 sehat tetapi domain publik belum dapat diakses.
+
+Perubahan `init`/capability memerlukan recreate container, bukan sekadar reload
+Nginx atau restart proses. Setelah menarik revisi konfigurasi, jalankan launcher
+production biasa untuk menerapkannya. Jangan menghapus volume database atau
+`.deploy/production.env`. `NET_BIND_SERVICE` bukan deklarasi `ports` dan tidak
+membuka port host `80`/`443`.
+
+Pengujian regresi konfigurasi dan runtime (runtime hanya memakai container
+sementara, TLS/secret dummy, tanpa jaringan keluar atau port host):
+
+```bash
+node --test scripts/tests/compose-switch.test.cjs
+# Siapkan terlebih dahulu image production connector dan image Caddy lokal.
+PAYMENT_PROXY_RUN_RUNTIME_TESTS=1 node --test scripts/tests/production-runtime.test.cjs
+```
 
 Operasional berikutnya:
 

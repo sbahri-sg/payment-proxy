@@ -26,8 +26,11 @@ Baseline ini meliputi:
 - private CA dan TLS internal antara Kernel dan setiap connector;
 - image target terpisah sehingga connector tidak membawa binary Kernel atau
   binary provider lain;
-- container aplikasi non-root dan read-only; gateway read-only tanpa capability
-  tambahan; `no-new-privileges`, resource/pid limit, dan log rotation;
+- container aplikasi non-root dan read-only; gateway read-only dengan hanya
+  `NET_BIND_SERVICE` untuk mengeksekusi binary Caddy resmi; `no-new-privileges`,
+  resource/pid limit, dan log rotation;
+- `init: true` pada seluruh connector untuk membersihkan proses anak TLS
+  health check tanpa menaikkan batas PID `256`;
 - network terpisah untuk ingress, database, connector control, provider egress,
   dan webhook egress;
 - tidak ada port host yang dipublikasikan, termasuk `80` dan `443`;
@@ -43,6 +46,14 @@ Network `emisell_container_net` harus sudah ada karena memakai `external: true`.
 Hanya gateway yang bergabung ke network bersama ini; service lain tetap terisolasi.
 Gateway tidak mendeklarasikan `ports` maupun `expose`; HTTP `8080` tetap dapat
 diakses langsung oleh reverse proxy di network yang sama.
+
+Jika gateway restart dengan `exec /usr/bin/caddy: operation not permitted`,
+pastikan bounding capability tetap memuat `NET_BIND_SERVICE`; ini tidak membuka
+port host. Jika connector mendekati batas PID dan health check gagal dengan
+`procReady not received`, periksa `init: true` serta PID/proses anak. Recreate
+container setelah konfigurasi diperbaiki; jangan menghapus volume atau secret.
+Suite runtime `scripts/tests/production-runtime.test.cjs` menguji startup Caddy
+dan 100 TLS health check per connector dalam container terisolasi.
 
 File `.deploy/production.env` harus diperlakukan sebagai recovery secret. File
 ini tidak masuk Git dan wajib dibackup terenkripsi. Kehilangan

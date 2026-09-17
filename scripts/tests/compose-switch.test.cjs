@@ -180,7 +180,9 @@ test("real Compose validates first production bootstrap, HTTPS health checks, an
   assert.equal(config.networks.emisell_container_net.name, "emisell_container_net");
   assert.equal(config.networks.emisell_container_net.external, true);
   assert.equal(Object.hasOwn(config.networks, "public"), false, "do not create a separate public ingress network");
-  assert.ok(!services.gateway.cap_add?.includes("NET_BIND_SERVICE"), "gateway does not need privileged-port binding");
+  assert.deepEqual(services.gateway.cap_drop, ["ALL"]);
+  assert.deepEqual(services.gateway.cap_add, ["NET_BIND_SERVICE"], "official Caddy file capability must remain in the bounding set so its binary can execute");
+  assert.ok(services.gateway.security_opt.includes("no-new-privileges:true"));
   for (const [name, service] of Object.entries(services)) {
     assert.ok(!service.ports?.length, `${name} must not publish host ports, including 80 and 443`);
     if (name !== "gateway") {
@@ -189,6 +191,9 @@ test("real Compose validates first production bootstrap, HTTPS health checks, an
   }
   for (const name of ["connector-runner", "midtrans-provider-app", "duitku-provider-app", "doku-provider-app", "ipaymu-provider-app"]) {
     const service = services[name];
+    assert.equal(service.init, true, `${name} must reap TLS health-check child processes`);
+    assert.equal(service.pids_limit, 256, `${name} must retain its PID limit`);
+    assert.deepEqual(service.cap_drop, ["ALL"]);
     assert.equal(service.environment.APP_ENV, "production");
     assert.ok(service.healthcheck.test.some(arg => String(arg).startsWith("https://127.0.0.1:")), `${name} health check must use TLS`);
     assert.ok(!service.ports?.length, `${name} must not publish its control port`);
