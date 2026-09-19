@@ -93,7 +93,7 @@ func TestProviderHostedCheckoutRestrictsMidtransSnapToActiveMethods(t *testing.T
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		callbacks, _ := body["callbacks"].(map[string]any)
 		enabled, _ := body["enabled_payments"].([]any)
-		if body["payment_type"] != nil || len(enabled) != 2 || enabled[0] != "other_qris" || enabled[1] != "bca_va" || body["gopay"] != nil || body["shopeepay"] != nil || callbacks["finish"] != "https://shop.example/payments/return" {
+		if body["payment_type"] != nil || len(enabled) != 2 || enabled[0] != "other_qris" || enabled[1] != "bca_va" || body["gopay"] != nil || body["shopeepay"] != nil || callbacks["finish"] != "https://shop.example/payments/return" || callbacks["error"] != "https://shop.example/orders" {
 			t.Fatalf("Snap checkout must receive the exact active method allowlist: %#v", body)
 		}
 		w.WriteHeader(http.StatusCreated)
@@ -104,7 +104,7 @@ func TestProviderHostedCheckoutRestrictsMidtransSnapToActiveMethods(t *testing.T
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Environment: "sandbox", Credentials: map[string]string{"server_key": "SB-Mid-server-test"},
 		CheckoutMode: connector.CheckoutModeProviderHosted, LocalPaymentID: "pay_hosted_1", MerchantReference: "order-hosted",
-		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
+		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return", PaymentFailedURL: "https://shop.example/orders",
 		PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/midtrans/ins_1",
 		AllowedPaymentMethods: []connector.PaymentMethodMapping{
 			{PaymentMethodCode: "qris", ProviderMethod: "real_time_payment", ProviderMethodType: "qris", ProviderChannelCode: "other_qris"},

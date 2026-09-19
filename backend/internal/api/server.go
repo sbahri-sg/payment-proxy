@@ -1769,6 +1769,7 @@ type paymentRequest struct {
 	PaymentMethodType string             `json:"payment_method_type"`
 	PaymentMethodData map[string]any     `json:"payment_method_data"`
 	ReturnURL         string             `json:"return_url"`
+	PaymentFailedURL  string             `json:"payment_failed_url"`
 	Description       string             `json:"description"`
 	ExpiresAt         string             `json:"expires_at"`
 	Customer          connector.Customer `json:"customer"`
@@ -1813,8 +1814,13 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	request.ReturnURL = strings.TrimSpace(request.ReturnURL)
+	request.PaymentFailedURL = strings.TrimSpace(request.PaymentFailedURL)
 	if request.CheckoutMode == connector.CheckoutModeProviderHosted && (request.ReturnURL == "" || !optionalPublicHTTPSURL(request.ReturnURL)) {
 		problem(w, http.StatusUnprocessableEntity, "INVALID_RETURN_URL", "provider_hosted checkout requires a public HTTPS return_url")
+		return
+	}
+	if request.PaymentFailedURL != "" && !optionalPublicHTTPSURL(request.PaymentFailedURL) {
+		problem(w, http.StatusUnprocessableEntity, "INVALID_PAYMENT_FAILED_URL", "payment_failed_url must be a public HTTPS URL")
 		return
 	}
 	if (request.CheckoutMode == connector.CheckoutModeProviderHosted && request.PaymentMethodID == "") || (request.CheckoutMode == connector.CheckoutModeDirect && request.PaymentOptionID == "") || request.MerchantReference == "" || request.Amount <= 0 || len(request.Currency) != 3 {
@@ -2017,7 +2023,8 @@ func (s *Server) createPayment(w http.ResponseWriter, r *http.Request) {
 		CheckoutMode: request.CheckoutMode, PaymentMethodCode: request.PaymentMethodCode, ChannelCode: capability.ProviderChannelCode,
 		AllowedPaymentMethods: allowedPaymentMethods,
 		PublicWebhookURL:      s.providerWebhookURL(installation.ProviderCode, installation.ID),
-		Customer:              request.Customer, Items: request.Items, ReturnURL: request.ReturnURL, Description: request.Description, ExpiresAt: request.ExpiresAt,
+		Customer:              request.Customer, Items: request.Items, ReturnURL: request.ReturnURL, PaymentFailedURL: request.PaymentFailedURL,
+		Description: request.Description, ExpiresAt: request.ExpiresAt,
 		Metadata: mergeMetadata(request.Metadata, map[string]any{"emisell_tenant_id": tenant(r), "emisell_payment_id": session.ID, "emisell_checkout_mode": request.CheckoutMode}),
 	})
 	if err != nil {

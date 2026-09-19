@@ -2650,7 +2650,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"payment_method_id\": \"{{payment_method_id}}\",\n  \"checkout_mode\": \"provider_hosted\",\n  \"merchant_reference\": \"order_{{$timestamp}}\",\n  \"amount\": 10000,\n  \"currency\": \"IDR\",\n  \"description\": \"Emisell order checkout\",\n  \"customer\": {\n    \"name\": \"Budi Santoso\",\n    \"email\": \"budi@example.com\"\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"metadata\": {\n    \"source\": \"postman-provider-hosted\"\n  }\n}",
+                  "raw": "{\n  \"payment_method_id\": \"{{payment_method_id}}\",\n  \"checkout_mode\": \"provider_hosted\",\n  \"merchant_reference\": \"order_{{$timestamp}}\",\n  \"amount\": 10000,\n  \"currency\": \"IDR\",\n  \"description\": \"Emisell order checkout\",\n  \"customer\": {\n    \"name\": \"Budi Santoso\",\n    \"email\": \"budi@example.com\"\n  },\n  \"return_url\": \"https://shop.example/payments/return\",\n  \"payment_failed_url\": \"https://shop.example/orders\",\n  \"metadata\": {\n    \"source\": \"postman-provider-hosted\"\n  }\n}",
                   "options": {
                     "raw": {
                       "language": "json"

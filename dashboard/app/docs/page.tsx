@@ -861,6 +861,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
   "currency": "IDR",
   "customer": { "name": "Budi Santoso", "email": "budi@example.com" },
   "return_url": "https://shop.example/payments/return",
+  "payment_failed_url": "https://shop.example/orders",
   "metadata": { "order_id": "order_2026_0001" }
 }`,
             response: `{
@@ -868,7 +869,7 @@ bundle    File    xendit-provider-app-emisell-v2.0.2.zip`,
     "payment": ${paymentBase}
   }
 }`,
-            note: "Untuk IDR, amount adalah Rupiah utuh: 10000 berarti tepat Rp10.000 dan diteruskan tanpa konversi /100. payment_method_id adalah ID opaque pmo_..., bukan installation_id atau kode qris/va. Jika checkout_mode dihilangkan, mode ini dipilih otomatis. Buka checkout_url pada browser pelanggan. Duitku mewajibkan customer.email yang valid. Jangan kirim installation_id/payment_option_id/payment_method_code, PAN, expiry, CVV/CVN, atau OTP pada flow ini.",
+            note: "Untuk IDR, amount adalah Rupiah utuh: 10000 berarti tepat Rp10.000 dan diteruskan tanpa konversi /100. payment_method_id adalah ID opaque pmo_..., bukan installation_id atau kode qris/va. Jika checkout_mode dihilangkan, mode ini dipilih otomatis. payment_failed_url harus berupa URL HTTPS dan menjadi tujuan gagal/cancel bila provider mendukung URL gagal terpisah; jika kosong, return_url dipakai sebagai fallback. Duitku hanya menyediakan satu returnUrl sehingga status akhir tetap ditentukan dari webhook/status transaksi. Buka checkout_url pada browser pelanggan. Duitku mewajibkan customer.email yang valid. Jangan kirim installation_id/payment_option_id/payment_method_code, PAN, expiry, CVV/CVN, atau OTP pada flow ini.",
           },
         ],
       },

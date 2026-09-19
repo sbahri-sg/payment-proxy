@@ -61,7 +61,7 @@ func TestHostedCheckoutReturnsOfficialDOKUPaymentURL(t *testing.T) {
 			t.Fatalf("hosted checkout must receive the exact active method allowlist: %#v", payment)
 		}
 		order := nestedMap(payload, "order")
-		if order["amount"] != float64(10000) || order["currency"] != "IDR" || order["callback_url"] != "https://shop.example.com/return" {
+		if order["amount"] != float64(10000) || order["currency"] != "IDR" || order["callback_url"] != "https://shop.example.com/return" || order["callback_url_cancel"] != "https://shop.example.com/orders" {
 			t.Fatalf("unexpected DOKU order: %#v", order)
 		}
 		_, _ = io.WriteString(w, `{"response":{"order":{"invoice_number":"EMS123","session_id":"SESSION-1"},"payment":{"url":"https://checkout.doku.com/checkout/abc","token_id":"TOKEN-1"}}}`)
@@ -73,7 +73,7 @@ func TestHostedCheckoutReturnsOfficialDOKUPaymentURL(t *testing.T) {
 		Environment: "sandbox", CheckoutMode: connector.CheckoutModeProviderHosted,
 		Credentials:    map[string]string{"client_id": testClientID, "secret_key": testSecretKey},
 		LocalPaymentID: "pay_doku_1", IdempotencyKey: "idem_doku_1", Amount: 10_000, Currency: "IDR",
-		ReturnURL: "https://shop.example.com/return", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/doku/ins_doku_1",
+		ReturnURL: "https://shop.example.com/return", PaymentFailedURL: "https://shop.example.com/orders", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/doku/ins_doku_1",
 		AllowedPaymentMethods: []connector.PaymentMethodMapping{
 			{PaymentMethodCode: "qris", ProviderMethod: "real_time_payment", ProviderMethodType: "qris", ProviderChannelCode: "QRIS"},
 			{PaymentMethodCode: "va_bca", ProviderMethod: "bank_transfer", ProviderMethodType: "bca", ProviderChannelCode: "VIRTUAL_ACCOUNT_BCA"},

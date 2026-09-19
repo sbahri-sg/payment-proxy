@@ -802,9 +802,18 @@ checkout atau dari `payment_option_id` untuk direct-channel. Header
   "description": "Order #2026-0001",
   "customer": {"name":"Budi","email":"budi@example.com"},
   "return_url": "https://shop.example/payments/return",
+  "payment_failed_url": "https://shop.example/orders",
   "metadata": {"order_id":"2026-0001"}
 }
 ```
+
+`payment_failed_url` adalah URL HTTPS tujuan ketika provider mendukung hasil
+gagal, pembatalan, atau session expired secara terpisah. Jika field ini tidak
+dikirim, Payment Proxy memakai `return_url` sebagai fallback agar request lama
+tetap kompatibel. Xendit memetakannya ke `cancel_return_url`, Midtrans ke
+`callbacks.error`, DOKU ke `callback_url_cancel`, dan iPaymu ke `cancelUrl`.
+Duitku hanya menyediakan satu `returnUrl`; Emisell Backend harus menentukan
+hasil akhirnya dari webhook/status transaksi sebelum menampilkan halaman order.
 
 `payment_method_id` adalah ID assignment opaque (`pmo_...`) dari
 `provider-options[].supported_payment_methods[]`, bukan ID katalog global dan

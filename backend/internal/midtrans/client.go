@@ -242,7 +242,14 @@ func (c *Client) createSnapCheckout(ctx context.Context, input connector.Payment
 		if !isHTTPSURL(returnURL) {
 			return connector.PaymentResult{}, errors.New("return_url must be HTTPS for Midtrans hosted checkout")
 		}
-		payload["callbacks"] = map[string]any{"finish": returnURL, "error": returnURL}
+		failedURL := strings.TrimSpace(input.PaymentFailedURL)
+		if failedURL == "" {
+			failedURL = returnURL
+		}
+		if !isHTTPSURL(failedURL) {
+			return connector.PaymentResult{}, errors.New("payment_failed_url must be HTTPS for Midtrans hosted checkout")
+		}
+		payload["callbacks"] = map[string]any{"finish": returnURL, "error": failedURL}
 	}
 	headers := make(http.Header)
 	if isHTTPSURL(input.PublicWebhookURL) {

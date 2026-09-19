@@ -132,13 +132,20 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 	if !isHTTPSURL(input.PublicWebhookURL) {
 		return connector.PaymentResult{}, errors.New("the installation webhook URL must be public HTTPS for DOKU Checkout")
 	}
+	failedURL := strings.TrimSpace(input.PaymentFailedURL)
+	if failedURL == "" {
+		failedURL = strings.TrimSpace(input.ReturnURL)
+	}
+	if !isHTTPSURL(failedURL) {
+		return connector.PaymentResult{}, errors.New("payment_failed_url must be a public HTTPS URL for DOKU Checkout")
+	}
 	invoiceNumber := invoiceNumber(input)
 	order := map[string]any{
 		"amount":              amount,
 		"invoice_number":      invoiceNumber,
 		"currency":            "IDR",
 		"callback_url":        strings.TrimSpace(input.ReturnURL),
-		"callback_url_cancel": strings.TrimSpace(input.ReturnURL),
+		"callback_url_cancel": failedURL,
 		"callback_url_result": strings.TrimSpace(input.ReturnURL),
 		"auto_redirect":       true,
 	}

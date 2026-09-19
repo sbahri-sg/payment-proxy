@@ -154,7 +154,14 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 			return connector.PaymentResult{}, errors.New("return_url is required for Xendit e-wallet payments")
 		}
 		channelProperties["success_return_url"] = returnURL
-		channelProperties["failure_return_url"] = returnURL
+		failedURL := strings.TrimSpace(input.PaymentFailedURL)
+		if failedURL == "" {
+			failedURL = returnURL
+		}
+		if !isHTTPSURL(failedURL) {
+			return connector.PaymentResult{}, errors.New("payment_failed_url must be HTTPS for Xendit e-wallet payments")
+		}
+		channelProperties["failure_return_url"] = failedURL
 		if strings.EqualFold(channelCode, "OVO") {
 			phone := strings.TrimSpace(input.Customer.Phone)
 			if phone == "" {
@@ -171,7 +178,14 @@ func (c *Client) CreatePayment(ctx context.Context, input connector.PaymentInput
 			return connector.PaymentResult{}, errors.New("return_url is required for Xendit redirect payments")
 		}
 		channelProperties["success_return_url"] = returnURL
-		channelProperties["failure_return_url"] = returnURL
+		failedURL := strings.TrimSpace(input.PaymentFailedURL)
+		if failedURL == "" {
+			failedURL = returnURL
+		}
+		if !isHTTPSURL(failedURL) {
+			return connector.PaymentResult{}, errors.New("payment_failed_url must be HTTPS for Xendit redirect payments")
+		}
+		channelProperties["failure_return_url"] = failedURL
 	default:
 		return connector.PaymentResult{}, connector.ErrNotSupported
 	}
@@ -412,6 +426,13 @@ func (c *Client) createHostedPaymentSession(ctx context.Context, input connector
 	if !isHTTPSURL(returnURL) {
 		return connector.PaymentResult{}, errors.New("https return_url is required for Xendit hosted checkout")
 	}
+	failedURL := strings.TrimSpace(input.PaymentFailedURL)
+	if failedURL == "" {
+		failedURL = returnURL
+	}
+	if !isHTTPSURL(failedURL) {
+		return connector.PaymentResult{}, errors.New("payment_failed_url must be HTTPS for Xendit hosted checkout")
+	}
 	reference := strings.TrimSpace(input.MerchantReference)
 	if reference == "" || len(reference) > 64 {
 		return connector.PaymentResult{}, errors.New("merchant_reference must be between 1 and 64 characters for Xendit Payment Session")
@@ -426,7 +447,7 @@ func (c *Client) createHostedPaymentSession(ctx context.Context, input connector
 		"currency":                  strings.ToUpper(strings.TrimSpace(input.Currency)),
 		"amount":                    amount,
 		"success_return_url":        returnURL,
-		"cancel_return_url":         returnURL,
+		"cancel_return_url":         failedURL,
 		"description":               "Emisell payment",
 		"metadata":                  input.Metadata,
 	}

@@ -80,7 +80,7 @@ func TestDirectVirtualAccountReturnsNormalizedNextAction(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		var payload map[string]any
 		_ = json.NewDecoder(request.Body).Decode(&payload)
-		if request.URL.Path != directPaymentPath || payload["paymentMethod"] != "va" || payload["paymentChannel"] != "bca" || payload["amount"] != float64(10000) {
+		if request.URL.Path != directPaymentPath || payload["paymentMethod"] != "va" || payload["paymentChannel"] != "bca" || payload["amount"] != float64(10000) || payload["cancelUrl"] != "https://shop.example.com/orders" {
 			t.Fatalf("unexpected direct payload: %#v", payload)
 		}
 		_, _ = io.WriteString(w, `{"Status":200,"Success":true,"Message":"Success","Data":{"TransactionId":12345,"ReferenceId":"order-1","Via":"va","Channel":"bca","PaymentNo":"1234567890","Total":10000}}`)
@@ -91,7 +91,7 @@ func TestDirectVirtualAccountReturnsNormalizedNextAction(t *testing.T) {
 		Environment: "sandbox", Credentials: map[string]string{"va": testVA, "api_key": testAPIKey},
 		LocalPaymentID: "pay_1", MerchantReference: "order-1", Amount: 10_000, Currency: "IDR",
 		PaymentMethodCode: "va_bca", Customer: connector.Customer{Name: "Buyer", Email: "buyer@example.com", Phone: "08123456789"},
-		ReturnURL: "https://shop.example.com/return", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/ipaymu/ins_1",
+		ReturnURL: "https://shop.example.com/return", PaymentFailedURL: "https://shop.example.com/orders", PublicWebhookURL: "https://payments.example.com/webhooks/v1/providers/ipaymu/ins_1",
 	})
 	if err != nil || result.ID != "order-1" || result.ConnectorTransactionID != "12345" || !strings.Contains(string(result.NextAction), "virtual_account_information") || !strings.Contains(string(result.NextAction), "1234567890") {
 		t.Fatalf("unexpected direct payment: %#v, %v", result, err)

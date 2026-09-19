@@ -17,6 +17,7 @@ body:
       "description": "Emisell order checkout",
       "customer": {"name": "Budi Santoso", "email": "budi@example.com"},
       "return_url": "https://shop.example/payments/return",
+      "payment_failed_url": "https://shop.example/orders",
       "metadata": {
         "source": "postman-provider-hosted"
       }

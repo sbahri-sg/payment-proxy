@@ -229,6 +229,9 @@ func TestProviderHostedCheckoutUsesConfiguredPaymentChannels(t *testing.T) {
 				t.Fatalf("unexpected hosted checkout channels: %#v", channels)
 			}
 		}
+		if body["success_return_url"] != "https://shop.example/payments/return" || body["cancel_return_url"] != "https://shop.example/orders" {
+			t.Fatalf("unexpected Xendit return URLs: %#v", body)
+		}
 		w.WriteHeader(http.StatusCreated)
 		_, _ = io.WriteString(w, `{"payment_session_id":"ps-hosted-1","status":"ACTIVE","payment_link_url":"https://dev.xen.to/all-methods"}`)
 	}))
@@ -237,7 +240,7 @@ func TestProviderHostedCheckoutUsesConfiguredPaymentChannels(t *testing.T) {
 	result, err := client.CreatePayment(context.Background(), connector.PaymentInput{
 		Credentials: map[string]string{"api_key": "secret"}, CheckoutMode: connector.CheckoutModeProviderHosted,
 		MerchantReference: "order-hosted", LocalPaymentID: "pay_hosted", IdempotencyKey: "idem-hosted-1",
-		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return",
+		Amount: 10_000, Currency: "IDR", ReturnURL: "https://shop.example/payments/return", PaymentFailedURL: "https://shop.example/orders",
 		AllowedPaymentMethods: []connector.PaymentMethodMapping{
 			{PaymentMethodCode: "card", ProviderMethod: "card", ProviderMethodType: "card", ProviderChannelCode: "CARDS"},
 			{PaymentMethodCode: "qris", ProviderMethod: "qr_code", ProviderMethodType: "qris", ProviderChannelCode: "QRIS"},

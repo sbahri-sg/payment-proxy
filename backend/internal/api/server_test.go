@@ -415,13 +415,16 @@ func TestCreatePaymentDoesNotRequireExecutionMode(t *testing.T) {
 
 func TestProviderHostedPaymentUsesPaymentMethodID(t *testing.T) {
 	response := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/payment-sessions", strings.NewReader(`{"payment_method_id":"pmo_qris"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/payment-sessions", strings.NewReader(`{"payment_method_id":"pmo_qris","payment_failed_url":"https://shop.example/orders"}`))
 	var input paymentRequest
 	if err := decodeJSON(response, request, &input); err != nil {
 		t.Fatalf("payment_method_id request was rejected: %v", err)
 	}
 	if input.PaymentMethodID != "pmo_qris" {
 		t.Fatalf("payment_method_id = %q, want pmo_qris", input.PaymentMethodID)
+	}
+	if input.PaymentFailedURL != "https://shop.example/orders" {
+		t.Fatalf("payment_failed_url = %q, want https://shop.example/orders", input.PaymentFailedURL)
 	}
 
 	legacyResponse := httptest.NewRecorder()
@@ -432,6 +435,31 @@ func TestProviderHostedPaymentUsesPaymentMethodID(t *testing.T) {
 	}
 	if legacyResponse.Code != http.StatusBadRequest || !strings.Contains(legacyResponse.Body.String(), "INVALID_JSON") {
 		t.Fatalf("legacy request returned unexpected response: %d %s", legacyResponse.Code, legacyResponse.Body.String())
+	}
+}
+
+func TestCreatePaymentRejectsNonHTTPSPaymentFailedURL(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	handler := New(config.Config{ServiceAPIKey: "test-service-key"}, nil, nil, nil, nil, nil, logger)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/payment-sessions", strings.NewReader(`{
+		"payment_method_id":"pmo_qris",
+		"checkout_mode":"provider_hosted",
+		"merchant_reference":"order_1",
+		"amount":10000,
+		"currency":"IDR",
+		"return_url":"https://shop.example/payments/return",
+		"payment_failed_url":"http://shop.example/orders"
+	}`))
+	request.Header.Set("Authorization", "Bearer test-service-key")
+	request.Header.Set("X-Emisell-Merchant-ID", "merchant_test")
+	request.Header.Set("Idempotency-Key", "checkout-invalid-failed-url")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "INVALID_PAYMENT_FAILED_URL") {
+		t.Fatalf("invalid payment_failed_url returned %d %s", response.Code, response.Body.String())
 	}
 }
 

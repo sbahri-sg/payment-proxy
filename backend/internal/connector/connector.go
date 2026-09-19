@@ -103,6 +103,7 @@ type PaymentInput struct {
 	Customer              Customer               `json:"customer"`
 	Items                 []Item                 `json:"items,omitempty"`
 	ReturnURL             string                 `json:"return_url,omitempty"`
+	PaymentFailedURL      string                 `json:"payment_failed_url,omitempty"`
 	Description           string                 `json:"description,omitempty"`
 	ExpiresAt             string                 `json:"expires_at,omitempty"`
 	Metadata              map[string]any         `json:"metadata,omitempty"`

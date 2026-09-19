@@ -221,6 +221,13 @@ func (c *Client) createHostedPayment(ctx context.Context, input connector.Paymen
 	if !isHTTPSURL(input.ReturnURL) {
 		return connector.PaymentResult{}, errors.New("return_url must be a public HTTPS URL for iPaymu hosted checkout")
 	}
+	failedURL := strings.TrimSpace(input.PaymentFailedURL)
+	if failedURL == "" {
+		failedURL = strings.TrimSpace(input.ReturnURL)
+	}
+	if !isHTTPSURL(failedURL) {
+		return connector.PaymentResult{}, errors.New("payment_failed_url must be a public HTTPS URL for iPaymu hosted checkout")
+	}
 	products, quantities, prices, descriptions := redirectItems(input.Items, input.Currency, amount, input.Description)
 	payload := map[string]any{
 		"product":     products,
@@ -229,7 +236,7 @@ func (c *Client) createHostedPayment(ctx context.Context, input connector.Paymen
 		"description": descriptions,
 		"returnUrl":   strings.TrimSpace(input.ReturnURL),
 		"notifyUrl":   strings.TrimSpace(input.PublicWebhookURL),
-		"cancelUrl":   strings.TrimSpace(input.ReturnURL),
+		"cancelUrl":   failedURL,
 		"referenceId": referenceID,
 	}
 	addBuyer(payload, input.Customer)
@@ -279,7 +286,14 @@ func (c *Client) createDirectPayment(ctx context.Context, input connector.Paymen
 	}
 	if isHTTPSURL(input.ReturnURL) {
 		payload["successUrl"] = strings.TrimSpace(input.ReturnURL)
-		payload["cancelUrl"] = strings.TrimSpace(input.ReturnURL)
+		failedURL := strings.TrimSpace(input.PaymentFailedURL)
+		if failedURL == "" {
+			failedURL = strings.TrimSpace(input.ReturnURL)
+		}
+		if !isHTTPSURL(failedURL) {
+			return connector.PaymentResult{}, errors.New("payment_failed_url must be a public HTTPS URL for iPaymu direct checkout")
+		}
+		payload["cancelUrl"] = failedURL
 	}
 	if expiry, expiryErr := directExpiryHours(input.ExpiresAt, mapping.channelCode, c.now()); expiryErr != nil {
 		return connector.PaymentResult{}, expiryErr
